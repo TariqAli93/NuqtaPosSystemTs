@@ -1,0 +1,50 @@
+{
+  "name": "nuqtaplus",
+  "version": "0.0.1",
+  "description": "نقطة بلس - نظام إدارة نقاط البيع والمخازن",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:packages": "pnpm --filter \"./packages/*\" run build",
+    "dev": "pnpm run build:packages && concurrently \"pnpm --filter @nuqtaplus/ui run dev\" \"pnpm --filter @nuqtaplus/electron run dev\"",
+    "build": "pnpm run build:packages && pnpm --filter @nuqtaplus/ui run build && pnpm --filter @nuqtaplus/electron run build",
+    "rebuild:sqlite": "npx electron-rebuild -w better-sqlite3 -f",
+    "postinstall": "pnpm run rebuild:sqlite",
+    "db:migrate": "pnpm --filter @nuqtaplus/data run db:migrate",
+    "db:generate": "pnpm --filter @nuqtaplus/data run db:generate",
+    "db:seed": "pnpm --filter @nuqtaplus/data run db:seed",
+    "version-patch": "pnpm -w version patch",
+    "version-minor": "pnpm -w version minor",
+    "version-major": "pnpm -w version major",
+    "test:unit": "pnpm --filter @nuqtaplus/core exec -- vitest run",
+    "test:integration": "pnpm --filter @nuqtaplus/data exec -- vitest run",
+    "test:ipc": "pnpm --filter @nuqtaplus/electron exec -- vitest run",
+    "test:e2e": "npx playwright test",
+    "test": "pnpm run test:unit && pnpm run test:integration && pnpm run test:ipc"
+  },
+  "keywords": [
+    "accounting",
+    "pos",
+    "installment",
+    "electron",
+    "vue",
+    "fastify"
+  ],
+  "author": "nuqtaplus Team",
+  "license": "Proprietary",
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "concurrently": "^9.2.1",
+    "electron": "29.4.1",
+    "electron-builder": "^24.9.1",
+    "electron-rebuild": "^3.2.9",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "turbo": "^2.8.1"
+  },
+  "dependencies": {
+    "@mdi/font": "^7.4.47",
+    "better-sqlite3": "^12.6.2"
+  },
+  "packageManager": "pnpm@10.28.0"
+}

@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+  - packages/*
+  - servers/*
+
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - better-sqlite3
+  - electron
+  - es5-ext
+  - esbuild
+  - lzma-native

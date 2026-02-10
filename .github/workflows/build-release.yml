@@ -1,0 +1,93 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            artifact_name: nuqtaplus_x64.AppImage
+            asset_name: nuqta-plus-linux-x64.AppImage
+          - os: windows-latest
+            artifact_name: 'Nuqta Plus Setup *.exe'
+            asset_name: nuqta-plus-windows-x64-setup.exe
+          - os: macos-latest
+            artifact_name: 'Nuqta Plus-*.dmg'
+            asset_name: nuqta-plus-macos-x64.dmg
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build packages
+        run: npm run build:packages
+
+      - name: Build UI
+        run: npm -w apps/ui run build
+
+      - name: Build Electron
+        run: npm -w apps/electron run build
+
+      - name: Build & Publish (Windows)
+        if: runner.os == 'Windows'
+        run: npm -w apps/electron run build -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Publish (macOS)
+        if: runner.os == 'macOS'
+        run: npm -w apps/electron run build -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Publish (Linux)
+        if: runner.os == 'Linux'
+        run: npm -w apps/electron run build -- --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build packages
+        run: npm run build:packages
+
+      - name: Run tests
+        run: npm test -- --coverage
+
+      - name: Upload coverage
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./coverage/coverage-final.json
+          flags: unittests
+          fail_ci_if_error: false

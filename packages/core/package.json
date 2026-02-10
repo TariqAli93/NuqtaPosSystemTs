@@ -1,0 +1,26 @@
+{
+  "name": "@nuqtaplus/core",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "@nuqtaplus/data": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
+  },
+  "packageManager": "pnpm@10.28.0"
+}

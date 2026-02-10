@@ -1,0 +1,41 @@
+appId: com.nuqtaplus.app
+productName: Nuqta Plus
+
+directories:
+  buildResources: resources
+  output: dist
+
+files:
+  - out/**/*
+  - ../ui/dist/**/*
+  - package.json
+
+extraResources:
+  - from: ../../packages/data/drizzle
+    to: drizzle
+    filter:
+      - '**/*.sql'
+      - '**/meta/**'
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+    - target: portable
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+
+# IMPORTANT: disable auto-publish for local builds
+publish:
+  - provider: github
+    owner: TariqAli93
+    repo: NuqtaPosSystemTs
+    releaseType: draft
+    private: true

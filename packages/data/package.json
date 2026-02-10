@@ -1,0 +1,31 @@
+{
+  "name": "@nuqtaplus/data",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "db:generate": "drizzle-kit generate:sqlite --config ./drizzle.config.ts",
+    "db:migrate": "tsx ./src/migrate.ts",
+    "db:seed": "tsx ./src/seed.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nuqtaplus/core": "workspace:*",
+    "better-sqlite3": "^9.4.3",
+    "drizzle-orm": "^0.29.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.9",
+    "drizzle-kit": "^0.20.10",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

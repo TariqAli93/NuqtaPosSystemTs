@@ -1,0 +1,22 @@
+{
+  "name": "@nuqtaplus/cloud-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsx",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {
+    "fastify": "^4.26.0",
+    "@fastify/cors": "^9.0.0",
+    "@nuqtaplus/core": "workspace:*",
+    "@nuqtaplus/data": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.7.0",
+    "typescript": "^5.0.0",
+    "@types/node": "^20.0.0"
+  }
+}
