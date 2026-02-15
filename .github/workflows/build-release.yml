@@ -82,6 +82,9 @@ jobs:
       - name: Build packages
         run: npm run build:packages
 
+      - name: Check transaction sync patterns
+        run: npm run check:transactions
+
       - name: Run tests
         run: npm test -- --coverage
 

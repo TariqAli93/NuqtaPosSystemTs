@@ -1,29 +1,29 @@
 import { Sale } from '../entities/Sale.js';
 
 export interface ISaleRepository {
-  create(sale: Sale): Promise<Sale>;
-  findById(id: number): Promise<Sale | null>;
+  create(sale: Sale): Sale;
+  findById(id: number): Sale | null;
   findAll(params?: {
     page: number;
     limit: number;
     startDate?: string;
     endDate?: string;
-  }): Promise<{ items: Sale[]; total: number }>;
-  updateStatus(id: number, status: 'completed' | 'cancelled'): Promise<void>;
-  update(id: number, data: Partial<Sale>): Promise<void>;
-  getDailySummary(date: Date): Promise<{
+  }): { items: Sale[]; total: number };
+  updateStatus(id: number, status: 'completed' | 'cancelled'): void;
+  update(id: number, data: Partial<Sale>): void;
+  getDailySummary(date: Date): {
     revenue: number;
     count: number;
     cash: number;
     card: number;
     transfer: number;
-  }>;
-  getTopSelling(limit: number): Promise<
-    {
-      productId: number;
-      productName: string;
-      quantity: number;
-      revenue: number;
-    }[]
-  >;
+  };
+  getTopSelling(limit: number): {
+    productId: number;
+    productName: string;
+    quantity: number;
+    revenue: number;
+  }[];
+
+  generateReceipt(saleId: number): string;
 }

@@ -6,34 +6,36 @@ import { ICategoryRepository, Category } from '@nuqtaplus/core';
 export class SqliteCategoryRepository implements ICategoryRepository {
   constructor(private db: DbClient) {}
 
-  async findAll(): Promise<Category[]> {
-    const results = await this.db.select().from(categories);
+  findAll(): Category[] {
+    const results = this.db.select().from(categories).all();
     return results as Category[];
   }
 
-  async findById(id: number): Promise<Category | null> {
-    const [item] = await this.db.select().from(categories).where(eq(categories.id, id));
+  findById(id: number): Category | null {
+    const item = this.db.select().from(categories).where(eq(categories.id, id)).get();
     return (item as Category) || null;
   }
 
-  async create(category: Category): Promise<Category> {
-    const [created] = await this.db
+  create(category: Category): Category {
+    const created = this.db
       .insert(categories)
       .values(category as any)
-      .returning();
+      .returning()
+      .get();
     return created as Category;
   }
 
-  async update(id: number, category: Partial<Category>): Promise<Category> {
-    const [updated] = await this.db
+  update(id: number, category: Partial<Category>): Category {
+    const updated = this.db
       .update(categories)
       .set(category as any)
       .where(eq(categories.id, id))
-      .returning();
+      .returning()
+      .get();
     return updated as Category;
   }
 
-  async delete(id: number): Promise<void> {
-    await this.db.delete(categories).where(eq(categories.id, id));
+  delete(id: number): void {
+    this.db.delete(categories).where(eq(categories.id, id)).run();
   }
 }

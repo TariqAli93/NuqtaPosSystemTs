@@ -2,7 +2,7 @@ import { ipcMain } from 'electron';
 import { DatabaseType } from '@nuqtaplus/data';
 import { BackupService } from '../services/BackupService.js';
 import { requirePermission } from '../services/PermissionGuardService.js';
-import { mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
+import { ok, mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
 import { assertPayload, buildValidationError } from '../services/IpcPayloadValidator.js';
 
 /**
@@ -24,7 +24,7 @@ export function registerBackupHandlers(db: DatabaseType): void {
    * Endpoint: backup:create
    * Permission: admin, manager
    *
-   * @returns { success: true, backupPath: string, backupName: string, timestamp: number }
+   * @returns ApiResult<{ backupPath: string, backupName: string, timestamp: number }>
    */
   ipcMain.handle('backup:create', async () => {
     try {
@@ -36,13 +36,12 @@ export function registerBackupHandlers(db: DatabaseType): void {
 
       const result = backupService.createBackup();
 
-      return {
-        success: true,
+      return ok({
         backupPath: result.backupPath,
         backupName: result.backupName,
         timestamp: result.timestamp,
-      };
-    } catch (error: any) {
+      });
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -65,15 +64,14 @@ export function registerBackupHandlers(db: DatabaseType): void {
       const backups = backupService.listBackups();
 
       // Return only necessary fields (hide full path)
-      return {
-        success: true,
+      return ok({
         backups: backups.map((b) => ({
           name: b.name,
           size: b.size,
           createdAt: b.createdAt,
         })),
-      };
-    } catch (error: any) {
+      });
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -103,12 +101,11 @@ export function registerBackupHandlers(db: DatabaseType): void {
 
       const result = backupService.generateRestoreToken(data.backupName);
 
-      return {
-        success: true,
+      return ok({
         token: result.token,
         expiresAt: result.expiresAt,
-      };
-    } catch (error: any) {
+      });
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -120,7 +117,7 @@ export function registerBackupHandlers(db: DatabaseType): void {
    * Permission: admin (strict)
    *
    * @param token - Confirmation token from backup:generateToken
-   * @returns { success: true, message: string }
+   * @returns ApiResult<{ message: string }>
    */
   ipcMain.handle('backup:restore', async (_event, payload) => {
     try {
@@ -138,11 +135,10 @@ export function registerBackupHandlers(db: DatabaseType): void {
 
       const result = backupService.restoreFromBackup(data.token);
 
-      return {
-        success: true,
+      return ok({
         message: result.message,
-      };
-    } catch (error: any) {
+      });
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -153,7 +149,7 @@ export function registerBackupHandlers(db: DatabaseType): void {
    * Permission: admin
    *
    * @param backupName - Name of the backup to delete
-   * @returns { success: true, message: string }
+   * @returns ApiResult<{ message: string }>
    */
   ipcMain.handle('backup:delete', async (_event, payload) => {
     try {
@@ -170,11 +166,10 @@ export function registerBackupHandlers(db: DatabaseType): void {
 
       const result = backupService.deleteBackup(body.id);
 
-      return {
-        success: true,
+      return ok({
         message: result.message,
-      };
-    } catch (error: any) {
+      });
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -196,11 +191,8 @@ export function registerBackupHandlers(db: DatabaseType): void {
 
       const stats = backupService.getBackupStats();
 
-      return {
-        success: true,
-        stats,
-      };
-    } catch (error: any) {
+      return ok({ stats });
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });

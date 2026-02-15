@@ -5,10 +5,10 @@ export interface ICustomerRepository {
     search?: string;
     limit?: number;
     offset?: number;
-  }): Promise<{ items: Customer[]; total: number }>;
-  findById(id: number): Promise<Customer | null>;
-  create(customer: Customer): Promise<Customer>;
-  update(id: number, customer: Partial<Customer>): Promise<Customer>;
-  delete(id: number): Promise<void>;
-  updateDebt(id: number, amountChange: number): Promise<void>;
+  }): { items: Customer[]; total: number };
+  findById(id: number): Customer | null;
+  create(customer: Customer): Customer;
+  update(id: number, customer: Partial<Customer>): Customer;
+  delete(id: number): void;
+  updateDebt(id: number, amountChange: number): void;
 }

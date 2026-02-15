@@ -22,27 +22,26 @@ async function invokeRaw(channel: string, args: any[]): Promise<any> {
   return window.electron.invoke(channel, ...sanitizedArgs);
 }
 
-function unwrapResponseOrThrow<T>(response: any): T {
-  if (response === null || response === undefined) {
-    throw { code: 'EMPTY_RESPONSE', message: 'Empty response' };
-  }
+/**
+ * Invoke an IPC channel and unwrap the ApiResult envelope.
+ * Throws an ApiError if the result is { ok: false }.
+ */
+export async function invokeOrThrow<T>(channel: string, ...args: any[]): Promise<T> {
+  const response = await invokeRaw(channel, args);
 
-  if (response?.ok === false || response?.success === false || response?.error) {
-    throw normalizeApiError(response?.error ?? response);
-  }
-
+  // Standard ApiResult envelope
   if (response?.ok === true && 'data' in response) return response.data as T;
-  if (response?.success === true && 'data' in response) return response.data as T;
-  if (response?.data !== undefined) return response.data as T;
+  if (response?.ok === false && response?.error) {
+    throw normalizeApiError(response.error);
+  }
 
+  // Fallback for non-envelope responses
   return response as T;
 }
 
-export async function invokeOrThrow<T>(channel: string, ...args: any[]): Promise<T> {
-  const response = await invokeRaw(channel, args);
-  return unwrapResponseOrThrow<T>(response);
-}
-
+/**
+ * Invoke an IPC channel and return a normalised ApiResult<T>.
+ */
 export async function invoke<T>(channel: string, ...args: any[]): Promise<ApiResult<T>> {
   try {
     const response = await invokeRaw(channel, args);
@@ -54,6 +53,9 @@ export async function invoke<T>(channel: string, ...args: any[]): Promise<ApiRes
   }
 }
 
+/**
+ * Invoke an IPC channel that returns paged data and normalise into ApiResult<PagedResult<T>>.
+ */
 export async function invokePaged<T>(
   channel: string,
   ...args: any[]

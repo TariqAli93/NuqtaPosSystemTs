@@ -67,9 +67,9 @@
               <span class="font-weight-bold">{{ formatAmount(item.total) }}</span>
             </template>
             <template #item.status="{ item }">
-              <span class="ds-badge" :class="statusBadgeClass(item.status)">
+              <v-chip size="small" variant="tonal" :color="statusBadgeClass(item.status)">
                 {{ statusLabel(item.status) }}
-              </span>
+              </v-chip>
             </template>
             <template #item.actions="{ item }">
               <v-btn
@@ -119,14 +119,14 @@ const filteredSales = computed(() => {
 
   if (query) {
     result = result.filter(
-      (sale) =>
+      (sale: any) =>
         sale.invoiceNumber?.toLowerCase().includes(query) ||
         String(sale.customerId ?? '').includes(query)
     );
   }
 
   if (statusFilter.value) {
-    result = result.filter((sale) => sale.status === statusFilter.value);
+    result = result.filter((sale: any) => sale.status === statusFilter.value);
   }
 
   return result;
@@ -151,10 +151,10 @@ function statusLabel(status: string): string {
 
 function statusBadgeClass(status: string): string {
   const statusMap: Record<string, string> = {
-    completed: 'ds-badge-success',
-    pending: 'ds-badge-warning',
-    cancelled: 'ds-badge-error',
-    refunded: 'ds-badge-info',
+    completed: 'success',
+    pending: 'warning',
+    cancelled: 'error',
+    refunded: 'info',
   };
   return statusMap[status] || 'ds-badge-neutral';
 }

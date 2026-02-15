@@ -1,33 +1,33 @@
 <template>
-  <v-card variant="elevated" border="0" class="px-4 pt-4 pb-6">
-    <v-row dense>
-      <v-col cols="12" class="d-flex">
-        <v-btn
-          color="primary"
-          variant="outlined"
-          :disabled="!props.canPay || isPayLoading"
-          block
-          class="flex-grow-1 justify-between"
-          @click="handlePay"
-        >
-          <template #prepend>
-            <v-icon size="18">mdi-cash-register</v-icon>
-          </template>
-          <template #default>
-            <span class="text-body-2">{{ t('pos.pay') }}</span>
-          </template>
-          <template #append>
-            <v-hotkey border="0" display-mode="icon" elevation="0" keys="enter" />
-          </template>
-        </v-btn>
-      </v-col>
-      <v-col v-for="action in actions" :key="action.event" cols="4" class="d-flex">
+  <div>
+    <v-btn
+      :color="props.canPay ? 'primary' : undefined"
+      :variant="props.canPay ? 'elevated' : 'outlined'"
+      :disabled="!props.canPay"
+      block
+      class="grow pay-button"
+      size="large"
+      @click="emit('pay')"
+    >
+      <template #prepend class="w-fit">
+        <v-icon size="18">mdi-cash-register</v-icon>
+      </template>
+      <template #default>
+        <span class="text-body-2"> {{ t('pos.pay') }}</span>
+      </template>
+      <template #append>
+        <v-hotkey border="0" display-mode="icon" elevation="0" keys="f10" />
+      </template>
+    </v-btn>
+
+    <v-item-group class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2" mandatory>
+      <v-item v-for="action in actions" :key="action.event">
         <v-btn
           :color="action.color"
           :variant="action.variant"
           :disabled="action.disabled"
           block
-          class="flex-grow-1"
+          class="grow"
           @click="emitAction(action.event)"
         >
           <template #prepend>
@@ -40,13 +40,13 @@
             <v-hotkey border="0" display-mode="icon" elevation="0" :keys="action.key" />
           </template>
         </v-btn>
-      </v-col>
-    </v-row>
-  </v-card>
+      </v-item>
+    </v-item-group>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { computed } from 'vue';
 import { t } from '@/i18n/t';
 
 interface Props {
@@ -70,8 +70,6 @@ const emit = defineEmits<{
   note: [];
   more: [];
 }>();
-
-const isPayLoading = ref(false);
 
 const actions = computed(() => [
   {
@@ -138,17 +136,10 @@ function emitAction(event: ActionEvent) {
   else if (event === 'note') emit('note');
   else emit('more');
 }
-
-const handlePay = async () => {
-  if (isPayLoading.value) return;
-  isPayLoading.value = true;
-
-  try {
-    emit('pay');
-  } finally {
-    setTimeout(() => {
-      isPayLoading.value = false;
-    }, 1000);
-  }
-};
 </script>
+
+<style lang="scss" scoped>
+.pay-button {
+  justify-content: space-between !important;
+}
+</style>

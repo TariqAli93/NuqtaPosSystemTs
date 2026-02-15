@@ -9,7 +9,8 @@ import { SqliteSettingsRepository } from '@nuqtaplus/data';
 import { DatabaseType } from '@nuqtaplus/data';
 import { userContextService } from '../services/UserContextService.js';
 import { tokenManager } from '../services/TokenManager.js';
-import { mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
+import { mapErrorToResult } from '../services/IpcErrorMapperService.js';
+import { ok } from '../services/IpcErrorMapperService.js';
 import log from 'electron-log';
 import { assertPayload, buildValidationError } from '../services/IpcPayloadValidator.js';
 
@@ -53,13 +54,13 @@ export function registerAuthHandlers(db: DatabaseType) {
           user: result.user,
           permissions: result.permissions,
         };
-        return JSON.parse(JSON.stringify(response));
+        return ok(JSON.parse(JSON.stringify(response)));
       }
       throw new Error('Login failed: invalid user');
-    } catch (e: any) {
+    } catch (e: unknown) {
       log.error('Login error:', e);
-      const errorResponse = mapErrorToIpcResponse(e);
-      return JSON.parse(JSON.stringify(errorResponse));
+      const errorResponse = mapErrorToResult(e);
+      return errorResponse;
     }
   });
 
@@ -78,13 +79,13 @@ export function registerAuthHandlers(db: DatabaseType) {
         username: credentials.username,
         password: credentials.password,
       });
-      return {
+      return ok({
         user: result.user,
         permissions: result.permissions,
-      };
-    } catch (e: any) {
+      });
+    } catch (e: unknown) {
       log.error('Credential verification error:', e);
-      return mapErrorToIpcResponse(e);
+      return mapErrorToResult(e);
     }
   });
 
@@ -92,8 +93,8 @@ export function registerAuthHandlers(db: DatabaseType) {
     try {
       // No auth required for initial setup check
       return await checkInitialSetupUseCase.execute();
-    } catch (e: any) {
-      return mapErrorToIpcResponse(e);
+    } catch (e: unknown) {
+      return mapErrorToResult(e);
     }
   });
 
@@ -144,7 +145,6 @@ export function registerAuthHandlers(db: DatabaseType) {
           accessToken
         );
 
-        // Return access token and user info
         const response = {
           accessToken,
           user: {
@@ -154,12 +154,12 @@ export function registerAuthHandlers(db: DatabaseType) {
           },
           permissions: userPermissions,
         };
-        return JSON.parse(JSON.stringify(response));
+        return ok(JSON.parse(JSON.stringify(response)));
       }
 
       throw new Error('First user creation failed: invalid user');
-    } catch (e: any) {
-      return mapErrorToIpcResponse(e);
+    } catch (e: unknown) {
+      return mapErrorToResult(e);
     }
   });
 
@@ -191,9 +191,9 @@ export function registerAuthHandlers(db: DatabaseType) {
       // for atomic operations across repositories
       log.info('Initializing app with payload:', input);
       const result = await initializeAppUseCase.execute(input as any);
-      return result;
-    } catch (e: any) {
-      return mapErrorToIpcResponse(e);
+      return ok(result);
+    } catch (e: unknown) {
+      return mapErrorToResult(e);
     }
   });
 
@@ -215,11 +215,11 @@ export function registerAuthHandlers(db: DatabaseType) {
       }
 
       // Return new access token (refresh token stays in secure storage)
-      return {
+      return ok({
         accessToken: tokens.accessToken,
-      };
-    } catch (e: any) {
-      return mapErrorToIpcResponse(e);
+      });
+    } catch (e: unknown) {
+      return mapErrorToResult(e);
     }
   });
 
@@ -230,9 +230,9 @@ export function registerAuthHandlers(db: DatabaseType) {
     try {
       tokenManager.clearTokens();
       userContextService.clearContext();
-      return { ok: true };
-    } catch (e: any) {
-      return mapErrorToIpcResponse(e);
+      return ok(null);
+    } catch (e: unknown) {
+      return mapErrorToResult(e);
     }
   });
 
@@ -263,10 +263,10 @@ export function registerAuthHandlers(db: DatabaseType) {
 
       await updateUserUseCase.execute(result.user.id, { password: data.newPassword });
 
-      return { success: true };
-    } catch (e: any) {
+      return ok(null);
+    } catch (e: unknown) {
       log.error('Change password error:', e);
-      return mapErrorToIpcResponse(e);
+      return mapErrorToResult(e);
     }
   });
 
@@ -279,16 +279,16 @@ export function registerAuthHandlers(db: DatabaseType) {
       if (!context) {
         throw new Error('Not authenticated');
       }
-      return {
+      return ok({
         user: {
           id: context.userId,
           username: context.username,
           role: context.role,
         },
         permissions: context.permissions,
-      };
-    } catch (e: any) {
-      return mapErrorToIpcResponse(e);
+      });
+    } catch (e: unknown) {
+      return mapErrorToResult(e);
     }
   });
 
@@ -311,9 +311,9 @@ export function registerAuthHandlers(db: DatabaseType) {
         throw new Error('Access token is invalid or expired');
       }
 
-      return { valid: true };
-    } catch (e: any) {
-      return { valid: false, error: e.message };
+      return ok({ valid: true });
+    } catch (e: unknown) {
+      return mapErrorToResult(e);
     }
   });
 }

@@ -6,10 +6,9 @@ import { ISaleRepository, Sale } from '@nuqtaplus/core';
 export class SqliteSaleRepository implements ISaleRepository {
   constructor(private db: DbClient) {}
 
-  async create(sale: Sale): Promise<Sale> {
-    const result = await this.db.transaction(async (tx: DbClient) => {
-      // 1. Insert Sale
-      const [insertedSale] = await tx
+  create(sale: Sale): Sale {
+    const insertedSale = this.db.transaction((tx) => {
+      const saleRow = tx
         .insert(sales)
         .values({
           invoiceNumber: sale.invoiceNumber,
@@ -29,76 +28,76 @@ export class SqliteSaleRepository implements ISaleRepository {
           createdBy: sale.createdBy,
           createdAt: sale.createdAt,
         })
-        .returning();
+        .returning()
+        .get();
 
-      // 2. Insert Items
       if (sale.items && sale.items.length > 0) {
         for (const item of sale.items) {
-          await tx.insert(saleItems).values({
-            saleId: insertedSale.id,
-            productId: item.productId,
-            productName: item.productName,
-            quantity: item.quantity,
-            unitPrice: item.unitPrice,
-            discount: item.discount,
-            subtotal: item.subtotal,
-            createdAt: sale.createdAt,
-          });
+          tx.insert(saleItems)
+            .values({
+              saleId: saleRow.id,
+              productId: item.productId,
+              productName: item.productName,
+              quantity: item.quantity,
+              unitPrice: item.unitPrice,
+              discount: item.discount,
+              subtotal: item.subtotal,
+              createdAt: sale.createdAt,
+            })
+            .run();
         }
       }
 
-      // Create installments if they exist
       if (sale.installments && sale.installments.length > 0) {
-        await tx.insert(installments).values(
-          sale.installments.map((inst) => ({
-            saleId: insertedSale.id,
-            customerId: sale.customerId,
-            installmentNumber: inst.installmentNumber,
-            dueAmount: inst.dueAmount,
-            paidAmount: inst.paidAmount,
-            remainingAmount: inst.remainingAmount,
-            currency: inst.currency,
-            dueDate: inst.dueDate,
-            status: inst.status,
-            notes: inst.notes,
-          }))
-        );
+        tx.insert(installments)
+          .values(
+            sale.installments.map((inst) => ({
+              saleId: saleRow.id,
+              customerId: sale.customerId,
+              installmentNumber: inst.installmentNumber,
+              dueAmount: inst.dueAmount,
+              paidAmount: inst.paidAmount,
+              remainingAmount: inst.remainingAmount,
+              currency: inst.currency,
+              dueDate: inst.dueDate,
+              status: inst.status,
+              notes: inst.notes,
+            }))
+          )
+          .run();
       }
 
-      return insertedSale;
+      return saleRow;
     });
 
-    // Return full object with items usually, but for now generic return
-    // In a real app we might fetch it fresh, but let's return the input with ID attached
-    return { ...sale, id: result.id };
+    return { ...sale, id: insertedSale.id };
   }
 
-  async update(id: number, data: Partial<Sale>): Promise<void> {
-    await this.db
+  update(id: number, data: Partial<Sale>): void {
+    this.db
       .update(sales)
       .set({
         ...data,
         updatedAt: new Date().toISOString(),
       })
-      .where(eq(sales.id, id));
+      .where(eq(sales.id, id))
+      .run();
   }
 
-  async findById(id: number): Promise<Sale | null> {
-    const [sale] = await this.db.select().from(sales).where(eq(sales.id, id));
+  findById(id: number): Sale | null {
+    const sale = this.db.select().from(sales).where(eq(sales.id, id)).get();
     if (!sale) return null;
 
-    const items = await this.db.select().from(saleItems).where(eq(saleItems.saleId, id));
-
-    // cast to match Entity structure
+    const items = this.db.select().from(saleItems).where(eq(saleItems.saleId, id)).all();
     return { ...sale, items: items as any } as Sale;
   }
 
-  async findAll(params?: {
+  findAll(params?: {
     page: number;
     limit: number;
     startDate?: string;
     endDate?: string;
-  }): Promise<{ items: Sale[]; total: number }> {
+  }): { items: Sale[]; total: number } {
     const page = params?.page || 1;
     const limit = params?.limit || 10;
     const offset = (page - 1) * limit;
@@ -109,34 +108,35 @@ export class SqliteSaleRepository implements ISaleRepository {
 
     const whereClause = conditions.length ? and(...conditions) : undefined;
 
-    const result = await this.db
+    const items = this.db
       .select()
       .from(sales)
       .where(whereClause)
       .orderBy(desc(sales.createdAt))
       .limit(limit)
-      .offset(offset);
+      .offset(offset)
+      .all();
 
-    const [countResult] = await this.db.select({ count: count() }).from(sales).where(whereClause);
+    const totalRow = this.db.select({ count: count() }).from(sales).where(whereClause).get();
 
-    return { items: result as Sale[], total: countResult.count };
+    return { items: items as Sale[], total: totalRow?.count || 0 };
   }
 
-  async updateStatus(id: number, status: 'completed' | 'cancelled'): Promise<void> {
-    await this.db.update(sales).set({ status }).where(eq(sales.id, id));
+  updateStatus(id: number, status: 'completed' | 'cancelled'): void {
+    this.db.update(sales).set({ status }).where(eq(sales.id, id)).run();
   }
 
-  async getDailySummary(date: Date): Promise<{
+  getDailySummary(date: Date): {
     revenue: number;
     count: number;
     cash: number;
     card: number;
     transfer: number;
-  }> {
+  } {
     const startOfDay = new Date(date).toISOString().split('T')[0] + 'T00:00:00.000Z';
     const endOfDay = new Date(date).toISOString().split('T')[0] + 'T23:59:59.999Z';
 
-    const result = await this.db
+    const stats = this.db
       .select({
         revenue: sql<number>`sum(${sales.total})`,
         count: count(),
@@ -151,9 +151,9 @@ export class SqliteSaleRepository implements ISaleRepository {
           lte(sales.createdAt, endOfDay),
           eq(sales.status, 'completed')
         )
-      );
+      )
+      .get();
 
-    const stats = result[0];
     return {
       revenue: stats?.revenue || 0,
       count: stats?.count || 0,
@@ -163,15 +163,13 @@ export class SqliteSaleRepository implements ISaleRepository {
     };
   }
 
-  async getTopSelling(limit: number): Promise<
-    {
-      productId: number;
-      productName: string;
-      quantity: number;
-      revenue: number;
-    }[]
-  > {
-    const result = await this.db
+  getTopSelling(limit: number): {
+    productId: number;
+    productName: string;
+    quantity: number;
+    revenue: number;
+  }[] {
+    const result = this.db
       .select({
         productId: saleItems.productId,
         productName: saleItems.productName,
@@ -181,20 +179,39 @@ export class SqliteSaleRepository implements ISaleRepository {
       .from(saleItems)
       .groupBy(saleItems.productId, saleItems.productName)
       .orderBy(desc(sql`sum(${saleItems.subtotal})`))
-      .limit(limit);
+      .limit(limit)
+      .all();
 
-    return result.map(
-      (item: {
-        productId: number | null;
-        productName: string;
-        quantity: number;
-        revenue: number;
-      }) => ({
-        productId: item.productId || 0,
-        productName: item.productName,
-        quantity: Number(item.quantity),
-        revenue: Number(item.revenue),
-      })
-    );
+    return result.map((item) => ({
+      productId: item.productId || 0,
+      productName: item.productName,
+      quantity: Number(item.quantity),
+      revenue: Number(item.revenue),
+    }));
+  }
+
+  generateReceipt(saleId: number): string {
+    const sale = this.findById(saleId);
+    const itemsHtml = sale?.items
+      ?.map(
+        (item) =>
+          `<tr><td>${item.productName}</td><td>${item.quantity}</td><td>${item.unitPrice.toFixed(2)}</td><td>${item.subtotal.toFixed(2)}</td></tr>`
+      )
+      .join('');
+
+    return `<html>
+      <body>
+        <h1>Receipt #${sale?.invoiceNumber}</h1>
+        <p>Date: ${sale?.createdAt}</p>
+        <table>
+          <thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr></thead>
+          <tbody>${itemsHtml}</tbody>
+        </table>
+        <p>Subtotal: ${sale?.subtotal.toFixed(2)}</p>
+        <p>Discount: ${sale?.discount.toFixed(2)}</p>
+        <p>Tax: ${sale?.tax.toFixed(2)}</p>
+        <h2>Total: ${sale?.total.toFixed(2)} ${sale?.currency}</h2>
+      </body>
+    </html>`;
   }
 }

@@ -5,5 +5,7 @@ export { salesClient } from './salesClient';
 export { settingsClient } from './settingsClient';
 export { usersClient } from './usersClient';
 export { categoriesClient } from './categoriesClient';
+export { printersClient } from './printersClient';
+export { posClient } from './posClient';
 export { registerUnauthorizedHandler } from './errorInterceptor';
 export type { ApiResult, ApiError, PagedResult } from './contracts';

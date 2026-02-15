@@ -1,0 +1,4 @@
+NuqtaPrinter.exe list
+NuqtaPrinter.exe selftest --printer "XP-80T" --cut full --kick 0
+NuqtaPrinter.exe print --printer "XP-80T" --text "Text Here" --cut full --kick 0 --feed 5
+NuqtaPrinter.exe print --printer "XP-80T" --text "Text Here" --lf-only --feed 3

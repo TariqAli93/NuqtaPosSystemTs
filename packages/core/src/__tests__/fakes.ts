@@ -8,46 +8,46 @@ import { Product } from '../entities/Product';
 import { Sale } from '../entities/Sale';
 import { Customer } from '../entities/Customer';
 import { Payment } from '../entities/Payment';
-import { Settings } from '../entities/Settings';
+import { Settings, CompanySettings } from '../entities/Settings';
 import { AuditEvent } from '../entities/AuditEvent';
 
 export class FakeProductRepository implements IProductRepository {
   private products: Product[] = [];
   private idCounter = 1;
 
-  async create(product: Product): Promise<Product> {
+  create(product: Product): Product {
     const newProduct = { ...product, id: this.idCounter++ };
     this.products.push(newProduct);
     return newProduct;
   }
 
-  async findById(id: number): Promise<Product | null> {
+  findById(id: number): Product | null {
     return this.products.find((p) => p.id === id) || null;
   }
 
-  async findAll(): Promise<{ items: Product[]; total: number }> {
+  findAll(): { items: Product[]; total: number } {
     return { items: this.products, total: this.products.length };
   }
 
-  async update(id: number, data: Partial<Product>): Promise<Product> {
+  update(id: number, data: Partial<Product>): Product {
     const index = this.products.findIndex((p) => p.id === id);
     if (index === -1) throw new Error('Product not found');
     this.products[index] = { ...this.products[index], ...data };
     return this.products[index];
   }
 
-  async delete(id: number): Promise<void> {
+  delete(id: number): void {
     this.products = this.products.filter((p) => p.id !== id);
   }
 
-  async updateStock(id: number, quantityChange: number): Promise<void> {
-    const product = await this.findById(id);
+  updateStock(id: number, quantityChange: number): void {
+    const product = this.findById(id);
     if (product) {
       product.stock += quantityChange;
     }
   }
 
-  async countLowStock(threshold: number): Promise<number> {
+  countLowStock(threshold: number): number {
     return this.products.filter((p) => p.stock <= threshold).length;
   }
 }
@@ -56,38 +56,53 @@ export class FakeSaleRepository implements ISaleRepository {
   private sales: Sale[] = [];
   private idCounter = 1;
 
-  async create(sale: Sale): Promise<Sale> {
+  create(sale: Sale): Sale {
     const newSale = { ...sale, id: this.idCounter++ };
     this.sales.push(newSale);
     return newSale;
   }
 
-  async findById(id: number): Promise<Sale | null> {
+  findById(id: number): Sale | null {
     return this.sales.find((s) => s.id === id) || null;
   }
 
-  async findAll(): Promise<{ items: Sale[]; total: number }> {
+  findAll(): { items: Sale[]; total: number } {
     return { items: this.sales, total: this.sales.length };
   }
 
-  async updateStatus(id: number, status: 'completed' | 'cancelled'): Promise<void> {
+  updateStatus(id: number, status: 'completed' | 'cancelled'): void {
     const sale = this.sales.find((s) => s.id === id);
     if (sale) sale.status = status;
   }
 
-  async update(id: number, data: Partial<Sale>): Promise<void> {
+  update(id: number, data: Partial<Sale>): void {
     const index = this.sales.findIndex((s) => s.id === id);
     if (index !== -1) {
       this.sales[index] = { ...this.sales[index], ...data };
     }
   }
 
-  async getDailySummary(): Promise<any> {
+  getDailySummary(_date: Date): {
+    revenue: number;
+    count: number;
+    cash: number;
+    card: number;
+    transfer: number;
+  } {
     return { revenue: 0, count: 0, cash: 0, card: 0, transfer: 0 };
   }
 
-  async getTopSelling(): Promise<any[]> {
+  getTopSelling(_limit: number): {
+    productId: number;
+    productName: string;
+    quantity: number;
+    revenue: number;
+  }[] {
     return [];
+  }
+
+  generateReceipt(_saleId: number): string {
+    return '<html><body>Fake receipt</body></html>';
   }
 }
 
@@ -95,40 +110,40 @@ export class FakeCustomerRepository implements ICustomerRepository {
   private customers: Customer[] = [];
   private idCounter = 1;
 
-  async create(customer: Customer): Promise<Customer> {
+  create(customer: Customer): Customer {
     const newCustomer = { ...customer, id: this.idCounter++ };
     this.customers.push(newCustomer);
     return newCustomer;
   }
 
-  async findById(id: number): Promise<Customer | null> {
+  findById(id: number): Customer | null {
     return this.customers.find((c) => c.id === id) || null;
   }
 
-  async findAll(): Promise<{ items: Customer[]; total: number }> {
+  findAll(): { items: Customer[]; total: number } {
     return { items: this.customers, total: this.customers.length };
   }
 
-  async update(id: number, data: Partial<Customer>): Promise<Customer> {
+  update(id: number, data: Partial<Customer>): Customer {
     const index = this.customers.findIndex((c) => c.id === id);
     if (index === -1) throw new Error('Customer not found');
     this.customers[index] = { ...this.customers[index], ...data };
     return this.customers[index];
   }
 
-  async delete(id: number): Promise<void> {
+  delete(id: number): void {
     this.customers = this.customers.filter((c) => c.id !== id);
   }
 
-  async updateDebt(id: number, amount: number): Promise<void> {
-    const customer = await this.findById(id);
+  updateDebt(id: number, amount: number): void {
+    const customer = this.findById(id);
     if (customer) {
       customer.totalDebt = (customer.totalDebt || 0) + amount;
       customer.totalPurchases = (customer.totalPurchases || 0) + 1;
     }
   }
 
-  async search(query: string): Promise<Customer[]> {
+  search(query: string): Customer[] {
     return this.customers.filter((c) => c.name.includes(query));
   }
 }
@@ -136,15 +151,14 @@ export class FakeCustomerRepository implements ICustomerRepository {
 export class FakeSettingsRepository implements ISettingsRepository {
   private settings: Settings[] = [];
 
-  async get(key: string): Promise<any> {
-    // Default settings for tests
+  get(key: string): string | null {
     if (key === 'currency_base') return 'USD';
-    if (key === 'exchange_rate_iqd') return 1450;
+    if (key === 'exchange_rate_iqd') return '1450';
     const setting = this.settings.find((s) => s.key === key);
-    return setting ? setting.value : null;
+    return setting ? String(setting.value) : null;
   }
 
-  async set(key: string, value: any): Promise<void> {
+  set(key: string, value: string): void {
     const index = this.settings.findIndex((s) => s.key === key);
     if (index !== -1) {
       this.settings[index].value = value;
@@ -153,15 +167,30 @@ export class FakeSettingsRepository implements ISettingsRepository {
     }
   }
 
-  async getCurrencySettings(): Promise<{
+  getCurrencySettings(): {
     defaultCurrency: string;
     usdRate: number;
     iqdRate: number;
-  }> {
+  } {
     return { defaultCurrency: 'USD', usdRate: 1, iqdRate: 1450 };
   }
 
-  async getAll(): Promise<Settings[]> {
+  getCompanySettings(): CompanySettings | null {
+    const raw = this.get('company_settings');
+    if (!raw) return null;
+
+    try {
+      return JSON.parse(raw) as CompanySettings;
+    } catch {
+      return null;
+    }
+  }
+
+  setCompanySettings(settings: CompanySettings): void {
+    this.set('company_settings', JSON.stringify(settings));
+  }
+
+  getAll(): Settings[] {
     return this.settings;
   }
 }
@@ -170,59 +199,75 @@ export class FakePaymentRepository implements IPaymentRepository {
   private payments: Payment[] = [];
   private idCounter = 1;
 
-  async create(payment: Payment): Promise<Payment> {
+  create(payment: Payment): Payment {
     const newPayment = { ...payment, id: this.idCounter++ };
     this.payments.push(newPayment);
     return newPayment;
   }
 
-  async findBySaleId(saleId: number): Promise<Payment[]> {
+  findBySaleId(saleId: number): Payment[] {
     return this.payments.filter((p) => p.saleId === saleId);
   }
 
-  async delete(id: number): Promise<void> {
+  delete(id: number): void {
     this.payments = this.payments.filter((p) => p.id !== id);
   }
 }
 
 export class FakeAuditRepository implements IAuditRepository {
-  async log(event: AuditEvent): Promise<void> {
-    // No-op
+  create(event: AuditEvent): AuditEvent {
+    return event;
   }
 
-  async create(event: Omit<AuditEvent, 'id' | 'timestamp'>): Promise<AuditEvent> {
-    return { ...event, id: 1, timestamp: new Date().toISOString() } as AuditEvent;
-  }
-
-  async find(): Promise<AuditEvent[]> {
+  getByFilters(_filters: {
+    userId?: number;
+    entityType?: string;
+    entityId?: number;
+    action?: string;
+    startDate?: string;
+    endDate?: string;
+    limit?: number;
+    offset?: number;
+  }): AuditEvent[] {
     return [];
   }
 
-  async getByFilters(filters: any): Promise<AuditEvent[]> {
-    return [];
-  }
-
-  async getById(id: number): Promise<AuditEvent | null> {
+  getById(_id: number): AuditEvent | null {
     return null;
   }
 
-  async count(filters: any): Promise<number> {
+  count(_filters: {
+    userId?: number;
+    entityType?: string;
+    entityId?: number;
+    action?: string;
+    startDate?: string;
+    endDate?: string;
+  }): number {
     return 0;
   }
 
-  async cleanOldLogs(retentionDays: number): Promise<number> {
-    return 0;
-  }
-
-  async getStats(fromDate?: Date, toDate?: Date): Promise<any> {
-    return {};
-  }
-
-  async getAuditTrail(entityType: string, entityId: number, limit?: number): Promise<AuditEvent[]> {
+  getAuditTrail(_entityType: string, _entityId: number, _limit?: number): AuditEvent[] {
     return [];
   }
 
-  async deleteOlderThan(olderThanDays: number): Promise<number> {
+  deleteOlderThan(_olderThanDays: number): number {
     return 0;
+  }
+
+  log(event: AuditEvent): void {
+    void event;
+  }
+
+  find(): AuditEvent[] {
+    return [];
+  }
+
+  cleanOldLogs(): number {
+    return 0;
+  }
+
+  getStats(): Record<string, unknown> {
+    return {};
   }
 }

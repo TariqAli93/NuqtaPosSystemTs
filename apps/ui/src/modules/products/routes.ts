@@ -12,12 +12,12 @@ export const productsRoutes: RouteRecordRaw[] = [
     path: 'products/new',
     name: 'ProductCreate',
     component: ProductFormView,
-    meta: { requiresManageProducts: true },
+    meta: { requiresManageProducts: true, enableBarcode: 'product' },
   },
   {
     path: 'products/:id/edit',
     name: 'ProductEdit',
     component: ProductFormView,
-    meta: { requiresManageProducts: true },
+    meta: { requiresManageProducts: true, enableBarcode: 'product' },
   },
 ];

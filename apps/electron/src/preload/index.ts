@@ -10,6 +10,7 @@ const ALLOWED_CHANNELS = new Set([
   // Products
   'products:getAll',
   'products:getById',
+  'products:findByBarcode',
   'products:create',
   'products:update',
   'products:delete',
@@ -21,6 +22,8 @@ const ALLOWED_CHANNELS = new Set([
   'sales:getById',
   'sales:addPayment',
   'sales:cancel',
+  'sales:refund',
+  'sales:generateReceipt',
 
   // Auth
   'auth:login',
@@ -67,6 +70,7 @@ const ALLOWED_CHANNELS = new Set([
   'settings:update',
   'settings:getCompany',
   'settings:setCompany',
+  'settings:getAppVersion',
 
   // Audit
   'audit:getAll',
@@ -92,6 +96,10 @@ const ALLOWED_CHANNELS = new Set([
 
   // Printers
   'printers:getAll',
+  'printers:print',
+
+  // POS
+  'pos:afterPay',
 ]);
 
 const safeInvoke = (channel: string, data?: any) => {

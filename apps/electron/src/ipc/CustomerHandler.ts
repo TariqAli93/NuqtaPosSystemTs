@@ -5,16 +5,14 @@ import {
   UpdateCustomerUseCase,
   DeleteCustomerUseCase,
 } from '@nuqtaplus/core';
-import { SqliteCustomerRepository, SqliteAuditRepository } from '@nuqtaplus/data';
-import { DatabaseType, withTransaction } from '@nuqtaplus/data';
-import { userContextService } from '../services/UserContextService.js';
-import { mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
+import { SqliteCustomerRepository } from '@nuqtaplus/data';
+import { DatabaseType } from '@nuqtaplus/data';
+import { ok, mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
 import { requirePermission } from '../services/PermissionGuardService.js';
 import { assertPayload, buildValidationError } from '../services/IpcPayloadValidator.js';
 
 export function registerCustomerHandlers(db: DatabaseType) {
   const customerRepo = new SqliteCustomerRepository(db.db);
-  const auditRepo = new SqliteAuditRepository(db.db);
   const getCustomersUseCase = new GetCustomersUseCase(customerRepo);
   const createCustomerUseCase = new CreateCustomerUseCase(customerRepo);
   const updateCustomerUseCase = new UpdateCustomerUseCase(customerRepo);
@@ -101,44 +99,29 @@ export function registerCustomerHandlers(db: DatabaseType) {
       requirePermission({ permission: 'customers:read' });
 
       const { params } = assertPayload('customers:getAll', payload, ['params']);
-      return await getCustomersUseCase.execute(params);
-    } catch (error: any) {
+      return ok(await getCustomersUseCase.execute(params as any));
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
 
-  /**
-   * PHASE 9: TRANSACTION INTEGRITY
-   * Wraps multi-write operation in a transaction for atomicity
-   */
   ipcMain.handle('customers:create', async (_event, params) => {
     try {
-      // Check permission
       requirePermission({ permission: 'customers:create' });
 
       const payload = assertPayload('customers:create', params, ['data']);
       validateCreateCustomerPayload('customers:create', payload);
 
-      const userId = userContextService.getUserId() || 1;
+      const result = await createCustomerUseCase.execute(payload.data as any);
 
-      // PHASE 9: Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return createCustomerUseCase.execute(payload.data);
-      });
-
-      return result;
-    } catch (error: any) {
+      return ok(result);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
 
-  /**
-   * PHASE 9: TRANSACTION INTEGRITY
-   * Wraps multi-write operation in a transaction for atomicity
-   */
   ipcMain.handle('customers:update', async (_event, params) => {
     try {
-      // Check permission
       requirePermission({ permission: 'customers:update' });
 
       const payload = assertPayload('customers:update', params, ['id', 'data']);
@@ -147,22 +130,16 @@ export function registerCustomerHandlers(db: DatabaseType) {
       }
       validateUpdateCustomerPayload('customers:update', payload);
 
-      const userId = userContextService.getUserId() || 1;
+      const result = await updateCustomerUseCase.execute(payload.id as number, payload.data as any);
 
-      // PHASE 9: Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return updateCustomerUseCase.execute(payload.id, payload.data);
-      });
-
-      return result;
-    } catch (error: any) {
+      return ok(result);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
 
   ipcMain.handle('customers:delete', async (_event, params) => {
     try {
-      // Check permission
       requirePermission({ permission: 'customers:delete' });
 
       const payload = assertPayload('customers:delete', params, ['id']);
@@ -170,15 +147,10 @@ export function registerCustomerHandlers(db: DatabaseType) {
         throw buildValidationError('customers:delete', payload, 'ID must be a number');
       }
 
-      const userId = userContextService.getUserId() || 1;
+      await deleteCustomerUseCase.execute(payload.id as number);
 
-      // Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return deleteCustomerUseCase.execute(payload.id);
-      });
-
-      return result;
-    } catch (error: any) {
+      return ok(null);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });

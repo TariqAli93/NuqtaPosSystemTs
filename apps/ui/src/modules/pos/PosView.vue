@@ -36,9 +36,11 @@
           density="comfortable"
           clearable
           :placeholder="t('pos.searchPlaceholder')"
-          prepend-inner-icon="mdi-magnify"
+          prepend-inner-icon="mdi-barcode-scan"
           @update:model-value="handleSearch"
+          @keydown.enter.prevent="handleSearchSubmit"
           @click:clear="clearSearch"
+          :autofocus="false"
         />
       </v-card-text>
     </v-app-bar>
@@ -88,6 +90,19 @@
       </div>
     </v-sheet>
   </v-container>
+
+  <PaymentOverlay
+    v-model="payOpen"
+    :total="total"
+    :subtotal="subtotal"
+    :discount="discount"
+    :tax="tax"
+    :currency="currency"
+    :cashier-name="cashierName"
+    :cashier-title="'POS Client'"
+    :busy="isProcessingPayment"
+    @confirmed="handlePaymentConfirm"
+  />
 
   <v-dialog v-model="showClearConfirm" max-width="420" :fullscreen="$vuetify.display.xs">
     <v-card rounded="lg" class="pa-6">
@@ -311,29 +326,49 @@
     confirm-color="primary"
     @confirm="showStockAlert = false"
   />
+
+  <v-snackbar v-model="showScanFeedback" :color="scanFeedbackColor" :timeout="2000" location="top">
+    <div class="d-flex align-center">
+      <v-icon :icon="scanFeedbackIcon" class="mr-2" />
+      {{ scanFeedbackMessage }}
+    </div>
+  </v-snackbar>
+
+  <v-snackbar
+    v-model="showPaymentToast"
+    :color="paymentToastColor"
+    :timeout="2200"
+    location="bottom"
+  >
+    {{ paymentToastMessage }}
+  </v-snackbar>
 </template>
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
 import { useHotkey } from 'vuetify';
 import { mapErrorToArabic, t } from '@/i18n/t';
 import { useProductsStore } from '@/stores/productsStore';
 import { useSalesStore } from '@/stores/salesStore';
+import { useSettingsStore } from '@/stores/settingsStore';
 import { useCustomersStore } from '@/stores/customersStore';
+import { useAuthStore } from '@/stores/authStore';
 import { useCurrency } from '@/composables/useCurrency';
 import ProductTile from '@/components/pos/ProductTile.vue';
 import CategoryStrip from '@/components/pos/CategoryStrip.vue';
 import CartPanel from '@/components/pos/CartPanel.vue';
 import TotalsPanel from '@/components/pos/TotalsPanel.vue';
 import PosActionBar from '@/components/pos/PosActionBar.vue';
+import PaymentOverlay from '@/components/pos/PaymentOverlay.vue';
 import StockAlert from '@/components/StockAlert.vue';
 import type { Product, SaleItem, SaleInput, Category } from '@/types/domain';
-import { categoriesClient } from '@/ipc';
+import { categoriesClient, posClient } from '@/ipc';
+import { useGlobalBarcodeScanner } from '@/composables/useGlobalBarcodeScanner';
 
-const router = useRouter();
 const productsStore = useProductsStore();
 const salesStore = useSalesStore();
 const customersStore = useCustomersStore();
+const settingsStore = useSettingsStore();
+const authStore = useAuthStore();
 const { currency, formatCurrency: currencyFormatter } = useCurrency();
 
 type TextFieldRef = {
@@ -354,6 +389,7 @@ const selectedCustomerId = ref<number | null>(null);
 const saleNote = ref<string | null>(null);
 
 const isProcessingPayment = ref(false);
+const payOpen = ref(false);
 
 const showClearConfirm = ref(false);
 const showRemoveConfirm = ref(false);
@@ -365,6 +401,14 @@ const showResumeDialog = ref(false);
 const showMoreDialog = ref(false);
 const showStockAlert = ref(false);
 const stockAlertMessage = ref('');
+
+const showScanFeedback = ref(false);
+const scanFeedbackMessage = ref('');
+const scanFeedbackColor = ref('success');
+const scanFeedbackIcon = ref('mdi-check-circle');
+const showPaymentToast = ref(false);
+const paymentToastMessage = ref('');
+const paymentToastColor = ref<'success' | 'error'>('success');
 
 const pendingRemoveIndex = ref<number | null>(null);
 const customerSearch = ref('');
@@ -383,7 +427,53 @@ interface HeldSale {
   timestamp: number;
 }
 
+type PaymentOverlayPayload = {
+  paid: number;
+  paymentType: SaleInput['paymentType'];
+  discount?: number;
+};
+
 const heldSales = ref<HeldSale[]>([]);
+
+// Global barcode scanner integration
+const scanner = useGlobalBarcodeScanner({
+  mode: 'pos',
+  onScan: handleBarcodeScan,
+  minLength: 4,
+  maxInterKeyMs: 35,
+  idleTimeoutMs: 180,
+});
+
+async function handleBarcodeScan(barcode: string) {
+  // Find product by barcode
+  const product = await productsStore.findProductByBarcode(barcode);
+
+  if (!product) {
+    showScanError();
+    return;
+  }
+
+  if (!product.isActive) {
+    showScanWarning(t('pos.productInactive'));
+    return;
+  }
+
+  // Check if adding would exceed stock
+  const existingItem = cartItems.value.find((item) => item.productId === product.id);
+  const currentQtyInCart = existingItem ? existingItem.quantity : 0;
+  const newQtyInCart = currentQtyInCart + 1;
+
+  if (newQtyInCart > product.stock) {
+    showScanWarning(t('pos.insufficientStock'));
+    return;
+  }
+
+  // Add to cart
+  const success = await addToCart(product);
+  if (success) {
+    showScanSuccess(product.name);
+  }
+}
 
 const categories = computed(() => {
   const allCategories = [{ id: null as number | null, name: t('common.all') }];
@@ -427,6 +517,8 @@ const filteredCustomers = computed(() => {
   );
 });
 
+const cashierName = computed(() => authStore.currentUser?.fullName || 'POS Client');
+
 const subtotal = computed(() => {
   return cartItems.value.reduce((sum, item) => {
     return sum + item.quantity * item.unitPrice - (item.discount || 0);
@@ -439,6 +531,7 @@ const total = computed(() => {
 
 const anyDialogOpen = computed(() => {
   return (
+    payOpen.value ||
     showClearConfirm.value ||
     showRemoveConfirm.value ||
     showCustomerDialog.value ||
@@ -494,12 +587,6 @@ const focusSearchInput = () => {
   if (!searchInput.value) {
     resolveSearchInput();
   }
-
-  if (searchField.value?.focus) {
-    searchField.value.focus();
-  } else {
-    searchInput.value?.focus();
-  }
 };
 
 const loadHeldSales = () => {
@@ -534,18 +621,85 @@ function clearSearch() {
   searchQuery.value = '';
 }
 
-async function addToCart(product: Product) {
+function normalizeSearchToken(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+function findProductByScanToken(scanToken: string): Product | undefined {
+  //  focus search input
+  focusSearchInput();
+  const token = normalizeSearchToken(scanToken);
+  return productsStore.items.find((product) => {
+    if (!product.isActive) return false;
+    const barcode = normalizeSearchToken(product.barcode ?? '');
+    const sku = normalizeSearchToken(product.sku ?? '');
+    return barcode === token || sku === token;
+  });
+}
+
+function showScanSuccess(productName: string) {
+  scanFeedbackMessage.value = `${t('pos.productAdded')}: ${productName}`;
+  scanFeedbackColor.value = 'success';
+  scanFeedbackIcon.value = 'mdi-check-circle';
+  showScanFeedback.value = true;
+}
+
+function showScanError() {
+  scanFeedbackMessage.value = `${t('pos.barcodeNotFound')}`;
+  scanFeedbackColor.value = 'error';
+  scanFeedbackIcon.value = 'mdi-alert-circle';
+  showScanFeedback.value = true;
+}
+
+function showScanWarning(message: string) {
+  scanFeedbackMessage.value = message;
+  scanFeedbackColor.value = 'warning';
+  scanFeedbackIcon.value = 'mdi-alert';
+  showScanFeedback.value = true;
+}
+
+function showPaymentMessage(message: string, color: 'success' | 'error') {
+  paymentToastMessage.value = message;
+  paymentToastColor.value = color;
+  showPaymentToast.value = true;
+}
+
+async function handleSearchSubmit() {
+  const scanToken = normalizeSearchToken(searchQuery.value);
+  if (!scanToken || productsStore.loading) return;
+
+  const product = findProductByScanToken(scanToken);
+
+  if (!product) {
+    showScanError();
+    clearSearch();
+    focusSearchInput();
+    return;
+  }
+
+  const success = await addToCart(product);
+
+  if (success) {
+    showScanSuccess(product.name);
+  }
+
+  clearSearch();
+  focusSearchInput();
+}
+
+async function addToCart(product: Product): Promise<boolean> {
   if (product.sellingPrice <= 0) {
     const proceed = confirm(t('pos.zeroPriceWarning'));
-    if (!proceed) return;
+    if (!proceed) return false;
   }
 
   const productId = product.id ?? 0;
 
   // CRITICAL: Decrease stock in Product Store FIRST before adding to cart
   if (!adjustProductStock(productId, -1)) {
-    // Stock adjustment failed - alert already shown by adjustProductStock
-    return;
+    // Stock adjustment failed - show warning via scan feedback
+    showScanWarning(t('errors.outOfStock'));
+    return false;
   }
 
   const existingIndex = cartItems.value.findIndex((item) => item.productId === productId);
@@ -562,6 +716,8 @@ async function addToCart(product: Product) {
       subtotal: product.sellingPrice,
     });
   }
+
+  return true;
 }
 
 // Increase quantity - decreases Product Store stock
@@ -779,8 +935,47 @@ function resetSale() {
   }
 }
 
-async function handlePay() {
+function handlePay() {
   if (cartItems.value.length === 0 || isProcessingPayment.value) return;
+  payOpen.value = true;
+}
+
+function triggerAfterPay(saleId: number) {
+  void posClient
+    .afterPay({
+      saleId,
+      printerName: settingsStore.selectedPrinter || undefined,
+    })
+    .then((result) => {
+      if (!result.ok) {
+        console.error('pos:afterPay failed', result.error);
+      }
+    })
+    .catch((error) => {
+      console.error('pos:afterPay failed', error);
+    });
+}
+
+async function handlePaymentConfirm(overlayPayload: PaymentOverlayPayload) {
+  if (cartItems.value.length === 0 || isProcessingPayment.value) return;
+
+  const appliedDiscount = Math.min(
+    Math.max(overlayPayload.discount ?? discount.value, 0),
+    subtotal.value
+  );
+  const payableTotal = Math.max(0, subtotal.value - appliedDiscount + tax.value);
+  const paidAmount = Math.max(overlayPayload.paid, 0);
+
+  if (payableTotal <= 0) {
+    showPaymentMessage('إجمالي المستحق يجب أن يكون أكبر من صفر', 'error');
+    return;
+  }
+
+  const strictPaymentRequired = true;
+  if (strictPaymentRequired && paidAmount < payableTotal) {
+    showPaymentMessage('المبلغ المدفوع أقل من إجمالي المستحق', 'error');
+    return;
+  }
 
   isProcessingPayment.value = true;
 
@@ -792,61 +987,58 @@ async function handlePay() {
       subtotal: item.quantity * item.unitPrice - (item.discount || 0),
     }));
 
+    const remainingAmount = Math.max(payableTotal - paidAmount, 0);
+
     const payload: SaleInput = {
       invoiceNumber,
       customerId: selectedCustomerId.value,
       subtotal: subtotal.value,
-      discount: discount.value,
+      discount: appliedDiscount,
       tax: tax.value,
-      total: total.value,
+      total: payableTotal,
       currency: currency.value,
       exchangeRate: 1,
       interestRate: 0,
       interestAmount: 0,
-      paymentType: 'cash',
-      paidAmount: total.value,
-      remainingAmount: 0,
-      status: 'completed',
+      paymentType: overlayPayload.paymentType || 'cash',
+      paidAmount,
+      remainingAmount,
+      status: remainingAmount <= 0 ? 'completed' : 'pending',
       notes: saleNote.value,
       items: itemsWithSubtotals,
     };
 
-    console.log(payload);
-
     const result = await salesStore.createSale(payload);
 
     if (result.ok) {
-      // Sale completed successfully - stock already decreased, just clear cart
+      const saleData = result.ok && 'data' in result ? result.data : null;
+
       cartItems.value = [];
       discount.value = 0;
       tax.value = 0;
       selectedCustomerId.value = null;
       saleNote.value = null;
+      payOpen.value = false;
 
-      alert(t('pos.saleCompleted'));
+      showPaymentMessage(t('pos.saleCompleted'), 'success');
       setTimeout(() => focusSearchInput(), 100);
 
-      if (result.ok && 'data' in result && result.data?.id) {
-        const goToDetails = confirm(t('pos.viewDetails'));
-        if (goToDetails) {
-          await router.push(`/sales/${result.data.id}`);
-        }
+      if (saleData?.id) {
+        triggerAfterPay(saleData.id);
       }
     } else if (!result.ok && 'error' in result) {
-      // Sale failed - restore ALL stock back to Product Store
       cartItems.value.forEach((item) => {
         adjustProductStock(item.productId, item.quantity);
       });
       console.error(result.error);
-      alert(mapErrorToArabic(result.error, 'errors.unexpected'));
+      showPaymentMessage(mapErrorToArabic(result.error, 'errors.unexpected'), 'error');
     }
   } catch (error) {
-    // Sale failed - restore ALL stock back to Product Store
     cartItems.value.forEach((item) => {
       adjustProductStock(item.productId, item.quantity);
     });
     console.error(error);
-    alert(t('errors.unexpected'));
+    showPaymentMessage(t('errors.unexpected'), 'error');
   } finally {
     isProcessingPayment.value = false;
   }
@@ -911,7 +1103,7 @@ useHotkey(
 );
 
 useHotkey(
-  'enter',
+  'f10',
   (e) => {
     const target = e.target as HTMLElement;
     if (
@@ -923,7 +1115,7 @@ useHotkey(
     }
     if (anyDialogOpen.value) return;
     if (cartItems.value.length > 0) {
-      void handlePay();
+      handlePay();
     }
   },
   { preventDefault: true }
@@ -932,7 +1124,9 @@ useHotkey(
 useHotkey(
   'escape',
   () => {
-    if (showClearConfirm.value) {
+    if (payOpen.value) {
+      payOpen.value = false;
+    } else if (showClearConfirm.value) {
       showClearConfirm.value = false;
     } else if (showRemoveConfirm.value) {
       showRemoveConfirm.value = false;
@@ -983,14 +1177,23 @@ async function loadCategories() {
 }
 
 onMounted(async () => {
-  await nextTick();
-
-  resolveSearchInput();
-  focusSearchInput();
+  // Initialize held sales from localStorage (synchronous, fast)
   loadHeldSales();
 
-  await productsStore.fetchProducts();
+  // Wait for DOM to fully render, then resolve and focus search input for immediate barcode scanning
+  await nextTick();
+  resolveSearchInput();
+  focusSearchInput();
 
-  await loadCategories();
+  // Load products and categories in parallel for faster startup
+  await Promise.all([productsStore.fetchProducts(), loadCategories()]);
+
+  // Start global barcode scanner
+  scanner.start();
+});
+
+onUnmounted(() => {
+  // Stop scanner when leaving POS page
+  scanner.stop();
 });
 </script>

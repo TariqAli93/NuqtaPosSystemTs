@@ -17,6 +17,11 @@ extraResources:
       - '**/*.sql'
       - '**/meta/**'
 
+  - from: src/Printer
+    to: Printer
+    filter:
+      - '**/*'
+
 win:
   target:
     - target: nsis

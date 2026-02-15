@@ -1,12 +1,9 @@
-/**
- * Fluent Design Blueprint for Vuetify
- * Based on Microsoft Fluent Design System
- */
 export const fluentBlueprint = {
   theme: {
-    defaultTheme: 'light',
+    defaultTheme: localStorage.getItem('vuetify-theme') || 'dark',
     themes: {
       light: {
+        dark: false,
         colors: {
           primary: '#0078D4',
           secondary: '#2B88D8',
@@ -46,55 +43,51 @@ export const fluentBlueprint = {
       },
     },
   },
-    
-    defaults: {
-      VBtn: {
-        rounded: 'md',
-        elevation: 0,
-        style: {
-          textTransform: 'none',
-          letterSpacing: 'normal',
-          fontWeight: 600,
-        },
-      },
-      
-      VCard: {
-        rounded: 'lg',
-        elevation: 0,
-        border: 'sm',
-      },
-      
-      VTextField: {
-        rounded: 'md',
-        variant: 'outlined',
-        density: 'comfortable',
-        hideDetails: 'auto',
-      },
-      
-      VSelect: {
-        rounded: 'md',
-        variant: 'outlined',
-        density: 'comfortable',
-        hideDetails: 'auto',
-      },
-      
-      VDialog: {
-        rounded: 'xl',
-        elevation: 24,
-      },
-      
-      VList: {
-        rounded: 'lg',
-        density: 'comfortable',
-      },
-      
-      VListItem: {
-        rounded: 'md',
-      },
-      
-      VAppBar: {
-        elevation: 0,
-        border: 'b-sm',
-      },
+
+  defaults: {
+    VBtn: {
+      rounded: 'md',
+      elevation: 0,
+      fontFamily: 'Cairo, sans-serif',
     },
-  }
+
+    VCard: {
+      rounded: 'lg',
+      elevation: 0,
+      border: 'sm',
+    },
+
+    VTextField: {
+      rounded: 'md',
+      variant: 'outlined',
+      density: 'comfortable',
+      hideDetails: 'auto',
+    },
+
+    VSelect: {
+      rounded: 'md',
+      variant: 'outlined',
+      density: 'comfortable',
+      hideDetails: 'auto',
+    },
+
+    VDialog: {
+      rounded: 'xl',
+      elevation: 24,
+    },
+
+    VList: {
+      rounded: 'lg',
+      density: 'comfortable',
+    },
+
+    VListItem: {
+      rounded: 'md',
+    },
+
+    VAppBar: {
+      elevation: 0,
+      border: 'b-sm',
+    },
+  },
+};

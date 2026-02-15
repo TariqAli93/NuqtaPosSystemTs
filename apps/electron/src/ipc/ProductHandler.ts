@@ -6,16 +6,14 @@ import {
   DeleteProductUseCase,
   AdjustProductStockUseCase,
 } from '@nuqtaplus/core';
-import { SqliteProductRepository, SqliteAuditRepository } from '@nuqtaplus/data';
-import { DatabaseType, withTransaction } from '@nuqtaplus/data';
-import { userContextService } from '../services/UserContextService.js';
-import { mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
+import { SqliteProductRepository } from '@nuqtaplus/data';
+import { DatabaseType } from '@nuqtaplus/data';
+import { ok, mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
 import { requirePermission } from '../services/PermissionGuardService.js';
 import { assertPayload, buildValidationError } from '../services/IpcPayloadValidator.js';
 
 export function registerProductHandlers(db: DatabaseType) {
   const productRepo = new SqliteProductRepository(db.db);
-  const auditRepo = new SqliteAuditRepository(db.db);
   const getProductsUseCase = new GetProductsUseCase(productRepo);
   const createProductUseCase = new CreateProductUseCase(productRepo);
   const updateProductUseCase = new UpdateProductUseCase(productRepo);
@@ -136,8 +134,8 @@ export function registerProductHandlers(db: DatabaseType) {
       const { params } = assertPayload('products:getAll', payload, ['params']);
       const result = await getProductsUseCase.execute(params || {});
 
-      return result;
-    } catch (e: any) {
+      return ok(result);
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });
@@ -147,47 +145,51 @@ export function registerProductHandlers(db: DatabaseType) {
       // Check permission (read access)
       requirePermission({ permission: 'products:read' });
 
-      const { params } = assertPayload('products:getById', payload, ['params']);
-      const result = await getProductsUseCase.execute(params || {});
+      const { id } = assertPayload('products:getById', payload, ['id']);
+      const result = productRepo.findById(id as number);
 
-      return result;
-    } catch (e: any) {
+      return ok(result);
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });
 
-  /**
-   * PHASE 9: TRANSACTION INTEGRITY
-   * Wraps multi-write operation in a transaction for atomicity
-   */
+  ipcMain.handle('products:findByBarcode', async (_event, payload) => {
+    try {
+      // Check permission (read access)
+      requirePermission({ permission: 'products:read' });
+
+      const { barcode } = assertPayload('products:findByBarcode', payload, ['barcode']);
+
+      if (!barcode || typeof barcode !== 'string') {
+        throw buildValidationError('products:findByBarcode', payload, 'Barcode must be a string');
+      }
+
+      const result = productRepo.findByBarcode(barcode as string);
+
+      return ok(result);
+    } catch (e: unknown) {
+      return mapErrorToIpcResponse(e);
+    }
+  });
+
   ipcMain.handle('products:create', async (_event, params) => {
     try {
-      // Check permission
       requirePermission({ permission: 'products:create' });
 
       const payload = assertPayload('products:create', params, ['data']);
       validateCreateProductPayload('products:create', payload);
 
-      const userId = userContextService.getUserId() || 1;
+      const result = await createProductUseCase.execute(payload.data as any);
 
-      // PHASE 9: Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return createProductUseCase.execute(payload.data as any);
-      });
-
-      return result;
-    } catch (e: any) {
+      return ok(result);
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });
 
-  /**
-   * PHASE 9: TRANSACTION INTEGRITY
-   * Wraps multi-write operation in a transaction for atomicity
-   */
   ipcMain.handle('products:update', async (_event, params) => {
     try {
-      // Check permission
       requirePermission({ permission: 'products:update' });
 
       const payload = assertPayload('products:update', params, ['id', 'data']);
@@ -196,22 +198,16 @@ export function registerProductHandlers(db: DatabaseType) {
       }
       validateUpdateProductPayload('products:update', payload);
 
-      const userId = userContextService.getUserId() || 1;
+      const result = await updateProductUseCase.execute(payload.id as number, payload.data as any);
 
-      // PHASE 9: Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return updateProductUseCase.execute(payload.id as number, payload.data as any);
-      });
-
-      return result;
-    } catch (e: any) {
+      return ok(result);
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });
 
   ipcMain.handle('products:delete', async (_event, params) => {
     try {
-      // Check permission
       requirePermission({ permission: 'products:delete' });
 
       const payload = assertPayload('products:delete', params, ['id']);
@@ -219,20 +215,14 @@ export function registerProductHandlers(db: DatabaseType) {
         throw buildValidationError('products:delete', payload, 'ID must be a number');
       }
 
-      const userId = userContextService.getUserId() || 1;
+      await deleteProductUseCase.execute(payload.id as number);
 
-      // Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return deleteProductUseCase.execute(payload.id as number);
-      });
-
-      return result;
-    } catch (e: any) {
+      return ok(null);
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });
 
-  // Stock adjustment handler
   ipcMain.handle('products:adjustStock', async (_event, params) => {
     try {
       requirePermission({ permission: 'products:update' });
@@ -252,8 +242,9 @@ export function registerProductHandlers(db: DatabaseType) {
         );
       }
 
-      return await adjustStockUseCase.execute(data.productId, data.quantityChange);
-    } catch (error: any) {
+      await adjustStockUseCase.execute(data.productId, data.quantityChange);
+      return ok(null);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });

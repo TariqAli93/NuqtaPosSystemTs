@@ -8,6 +8,20 @@
       "when": 1770326507056,
       "tag": "0000_sad_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "5",
+      "when": 1770846464483,
+      "tag": "0001_omniscient_black_crow",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1770852116976,
+      "tag": "0002_normal_gorgon",
+      "breakpoints": true
     }
   ]
 }

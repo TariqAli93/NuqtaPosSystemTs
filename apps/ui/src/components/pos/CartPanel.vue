@@ -1,16 +1,14 @@
 <template>
   <v-navigation-drawer right permanent mobile-breakpoint="md" width="425" retain-focus class="pa-0">
     <v-card flat rounded="0" border="0">
-      <v-card-title class="d-flex align-center justify-space-between pa-4" style="min-height: 64px">
-        <span class="text-subtitle-1 font-weight-medium">{{ t('pos.cart') }}</span>
+      <v-card-title class="d-flex align-center justify-space-between pa-4" style="min-height: 72px">
+        <span class="font-weight-medium">{{ t('pos.cart') }}</span>
         <v-chip size="small" variant="tonal" color="primary">
           {{ items.length }} {{ t('common.items') }}
         </v-chip>
       </v-card-title>
 
-      <v-divider />
-
-      <v-card-text class="flex-grow-1 overflow-y-auto pa-0">
+      <v-card-text class="overflow-y-auto pa-0">
         <v-list v-if="items.length > 0" density="comfortable" bg-color="transparent" class="py-2">
           <v-list-item v-for="(item, index) in items" :key="index" min-height="72" class="px-4">
             <v-list-item-title class="text-body-2 font-weight-medium">
@@ -32,8 +30,17 @@
                   <v-icon size="18">mdi-minus</v-icon>
                 </v-btn>
 
-                <v-sheet color="grey-lighten-4" rounded="md" class="px-3 py-1">
-                  <span class="text-body-2 font-weight-medium">{{ item.quantity }}</span>
+                <v-sheet rounded="md" class="px-3 py-1">
+                  <v-text-field
+                    :model-value="item.quantity"
+                    max-width="120"
+                    width="65"
+                    hide-details
+                    variant="solo-filled"
+                    density="compact"
+                    counter
+                    :readonly="true"
+                  />
                 </v-sheet>
 
                 <v-btn
@@ -75,10 +82,15 @@
     </v-card>
 
     <template #append>
-      <v-divider />
-      <slot name="totals"></slot>
-      <v-divider />
-      <slot name="actions"></slot>
+      <v-card border="0" class="px-0">
+        <v-card-title>
+          <slot name="totals"></slot>
+        </v-card-title>
+
+        <v-card-text>
+          <slot name="actions"></slot>
+        </v-card-text>
+      </v-card>
     </template>
   </v-navigation-drawer>
 </template>
@@ -86,17 +98,20 @@
 <script setup lang="ts">
 import { t } from '@/i18n/t';
 import type { SaleItem } from '@/types/domain';
+import { watch } from 'vue';
 
 interface Props {
   items: SaleItem[];
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 
-defineEmits<{
+const emit = defineEmits<{
   increase: [index: number];
   decrease: [index: number];
   remove: [index: number];
+  setQuantity: [{ index: number; quantity: number }];
+  resetQuantityInput: [index: number];
 }>();
 
 const formatPrice = (price: number) => {

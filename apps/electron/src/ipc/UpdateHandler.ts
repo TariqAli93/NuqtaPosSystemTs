@@ -1,7 +1,7 @@
 import { ipcMain } from 'electron';
 import { UpdateService } from '../services/UpdateService.js';
 import { requirePermission } from '../services/PermissionGuardService.js';
-import { mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
+import { ok, mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
 
 /**
  * Register update-related IPC handlers.
@@ -19,15 +19,15 @@ export function registerUpdateHandlers(updateService: UpdateService): void {
    * Endpoint: update:checkForUpdates
    * Permission: admin only
    *
-   * @returns { success: true }
+   * @returns ApiResult<null>
    */
   ipcMain.handle('update:checkForUpdates', async () => {
     try {
       requirePermission({ permission: 'update:check', allowRoles: ['admin'] });
 
       await updateService.checkForUpdates();
-      return { success: true };
-    } catch (error: any) {
+      return ok(null);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -37,15 +37,15 @@ export function registerUpdateHandlers(updateService: UpdateService): void {
    * Endpoint: update:getCurrentVersion
    * Permission: admin only
    *
-   * @returns { success: true, version: string }
+   * @returns ApiResult<{ version: string }>
    */
   ipcMain.handle('update:getCurrentVersion', () => {
     try {
       requirePermission({ permission: 'update:check', allowRoles: ['admin'] });
 
       const version = updateService.getCurrentVersion();
-      return { success: true, version };
-    } catch (error: any) {
+      return ok({ version });
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -55,15 +55,15 @@ export function registerUpdateHandlers(updateService: UpdateService): void {
    * Endpoint: update:isUpdateAvailable
    * Permission: admin only
    *
-   * @returns { success: true, available: boolean }
+   * @returns ApiResult<{ available: boolean }>
    */
   ipcMain.handle('update:isUpdateAvailable', () => {
     try {
       requirePermission({ permission: 'update:check', allowRoles: ['admin'] });
 
       const available = updateService.isUpdateAvailable();
-      return { success: true, available };
-    } catch (error: any) {
+      return ok({ available });
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -73,15 +73,15 @@ export function registerUpdateHandlers(updateService: UpdateService): void {
    * Endpoint: update:downloadUpdate
    * Permission: admin only
    *
-   * @returns { success: true }
+   * @returns ApiResult<null>
    */
   ipcMain.handle('update:downloadUpdate', () => {
     try {
       requirePermission({ permission: 'update:download', allowRoles: ['admin'] });
 
       updateService.downloadUpdate();
-      return { success: true };
-    } catch (error: any) {
+      return ok(null);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -92,15 +92,15 @@ export function registerUpdateHandlers(updateService: UpdateService): void {
    * WARNING: This will close the app immediately.
    * Permission: admin only
    *
-   * @returns { success: true }
+   * @returns ApiResult<null>
    */
   ipcMain.handle('update:installAndRestart', () => {
     try {
       requirePermission({ permission: 'update:install', allowRoles: ['admin'] });
 
       updateService.installAndRestart();
-      return { success: true };
-    } catch (error: any) {
+      return ok(null);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });

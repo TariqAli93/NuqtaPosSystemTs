@@ -1,9 +1,17 @@
+/**
+ * UI-side API contract types and helpers.
+ *
+ * These types mirror the shared contract from @nuqtaplus/core.
+ * All IPC handlers now return ApiResult<T> = { ok: true, data: T } | { ok: false, error: ApiError }.
+ */
+
 export type ApiErrorCode = string;
 
 export interface ApiError {
   code: ApiErrorCode;
   message: string;
   details?: unknown;
+  status?: number;
 }
 
 export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: ApiError };
@@ -27,12 +35,19 @@ export const normalizeApiError = (error: unknown): ApiError => {
   }
 
   if (typeof error === 'object') {
-    const err = error as { code?: string; message?: string; error?: string; details?: unknown };
+    const err = error as {
+      code?: string;
+      message?: string;
+      error?: string;
+      details?: unknown;
+      status?: number;
+    };
     if (err.message || err.error) {
       return {
         code: err.code || 'UNKNOWN',
         message: err.message || err.error || 'Unknown error',
         details: err.details,
+        status: err.status,
       };
     }
   }
@@ -40,27 +55,29 @@ export const normalizeApiError = (error: unknown): ApiError => {
   return { code: 'UNKNOWN', message: 'Unknown error' };
 };
 
-const unwrapPayload = (response: any) => {
-  if (response?.ok === true && 'data' in response) return response.data;
-  if (response?.success === true && 'data' in response) return response.data;
-  if (response?.data !== undefined) return response.data;
-  if (response?.items !== undefined) return response;
-  if (response?.result !== undefined) return response.result;
-  if (response?.payload !== undefined) return response.payload;
-  return response;
-};
-
+/**
+ * Normalise a raw IPC response into ApiResult<T>.
+ *
+ * Because handlers now always return ApiResult, the primary path simply
+ * validates the envelope. The fallback paths handle legacy/edge cases.
+ */
 export const normalizeApiResult = <T>(response: any, mapData?: (data: any) => T): ApiResult<T> => {
   if (response === null || response === undefined) {
     return createFailure({ code: 'EMPTY_RESPONSE', message: 'Empty response' });
   }
 
-  if (response?.ok === false || response?.success === false || response?.error) {
-    return createFailure(normalizeApiError(response));
+  // Standard envelope from handlers
+  if (response.ok === true && 'data' in response) {
+    const data = mapData ? mapData(response.data) : response.data;
+    return createSuccess(data as T);
   }
 
-  const payload = unwrapPayload(response);
-  const data = mapData ? mapData(payload) : payload;
+  if (response.ok === false && response.error) {
+    return createFailure(normalizeApiError(response.error));
+  }
+
+  // Fallback: raw data without envelope (shouldn't happen after migration)
+  const data = mapData ? mapData(response) : response;
   return createSuccess(data as T);
 };
 

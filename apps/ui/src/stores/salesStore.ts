@@ -2,7 +2,6 @@
 import { ref } from 'vue';
 import { salesClient } from '../ipc';
 import type { Payment, Sale, SaleInput } from '../types/domain';
-import { useAuthStore } from './authStore';
 
 export const useSalesStore = defineStore('sales', () => {
   const items = ref<Sale[]>([]);
@@ -25,12 +24,11 @@ export const useSalesStore = defineStore('sales', () => {
   }
 
   async function createSale(payload: SaleInput) {
-    const { user } = useAuthStore();
     loading.value = true;
     error.value = null;
     try {
-      console.log('Creating sale with payload:', payload);
-      const result = await salesClient.create(payload, user?.id);
+      // userId is resolved by UserContextService at the IPC boundary — never sent from UI
+      const result = await salesClient.create(payload);
       if (!result.ok) {
         error.value = result.error.message;
       }
@@ -76,6 +74,15 @@ export const useSalesStore = defineStore('sales', () => {
     return result;
   }
 
+  async function generateReceipt(saleId: number): Promise<string> {
+    const result = await salesClient.generateReceipt(saleId);
+    if (result.ok) {
+      return result.data.receiptHtml;
+    } else {
+      throw new Error(result.error.message || 'Failed to generate receipt');
+    }
+  }
+
   return {
     items,
     total,
@@ -86,5 +93,6 @@ export const useSalesStore = defineStore('sales', () => {
     addPayment,
     getSale,
     cancelSale,
+    generateReceipt,
   };
 });

@@ -41,6 +41,7 @@
 <script setup lang="ts">
 import { t } from '@/i18n/t';
 import type { Product } from '@/types/domain';
+import { onMounted, onUnmounted } from 'vue';
 
 interface Props {
   product: Product;

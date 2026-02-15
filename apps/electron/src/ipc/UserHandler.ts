@@ -1,15 +1,13 @@
 import { ipcMain } from 'electron';
 import { GetUsersUseCase, CreateUserUseCase, UpdateUserUseCase } from '@nuqtaplus/core';
-import { SqliteUserRepository, SqliteAuditRepository } from '@nuqtaplus/data';
-import { DatabaseType, withTransaction } from '@nuqtaplus/data';
-import { userContextService } from '../services/UserContextService.js';
-import { mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
+import { SqliteUserRepository } from '@nuqtaplus/data';
+import { DatabaseType } from '@nuqtaplus/data';
+import { ok, mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
 import { requirePermission } from '../services/PermissionGuardService.js';
 import { assertPayload, buildValidationError } from '../services/IpcPayloadValidator.js';
 
 export function registerUserHandlers(db: DatabaseType) {
   const userRepo = new SqliteUserRepository(db.db);
-  const auditRepo = new SqliteAuditRepository(db.db);
   const getUsersUseCase = new GetUsersUseCase(userRepo);
   const createUserUseCase = new CreateUserUseCase(userRepo);
   const updateUserUseCase = new UpdateUserUseCase(userRepo);
@@ -102,16 +100,12 @@ export function registerUserHandlers(db: DatabaseType) {
       requirePermission({ permission: 'users:read' });
 
       assertPayload('users:getAll', payload, ['params']);
-      return await getUsersUseCase.execute();
-    } catch (error: any) {
+      return ok(await getUsersUseCase.execute());
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
 
-  /**
-   * PHASE 9: TRANSACTION INTEGRITY
-   * Wraps multi-write operation in a transaction for atomicity
-   */
   ipcMain.handle('users:create', async (_event, params) => {
     try {
       // Check permission (admin only)
@@ -121,23 +115,14 @@ export function registerUserHandlers(db: DatabaseType) {
       validateCreateUserPayload('users:create', payload);
       const data = payload.data as any;
 
-      const userId = userContextService.getUserId() || 1;
+      const result = await createUserUseCase.execute(data);
 
-      // PHASE 9: Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return createUserUseCase.execute(data);
-      });
-
-      return result;
-    } catch (error: any) {
+      return ok(result);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
 
-  /**
-   * PHASE 9: TRANSACTION INTEGRITY
-   * Wraps multi-write operation in a transaction for atomicity
-   */
   ipcMain.handle('users:update', async (_event, params) => {
     try {
       // Check permission (admin only)
@@ -151,15 +136,10 @@ export function registerUserHandlers(db: DatabaseType) {
       const data = payload.data as any;
       const id = payload.id as number;
 
-      const userId = userContextService.getUserId() || 1;
+      const result = await updateUserUseCase.execute(id, data);
 
-      // PHASE 9: Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return updateUserUseCase.execute(id, data);
-      });
-
-      return result;
-    } catch (error: any) {
+      return ok(result);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });

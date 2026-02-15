@@ -19,7 +19,11 @@
           <v-text-field v-model="form.name" :label="t('products.name')" required />
           <div class="d-flex flex-wrap ga-2">
             <v-text-field v-model="form.sku" :label="t('products.sku')" />
-            <v-text-field v-model="form.barcode" :label="t('products.barcode')" />
+            <v-text-field
+              v-model="form.barcode"
+              :label="t('products.barcode')"
+              data-barcode-field
+            />
             <v-text-field
               v-model.number="form.costPrice"
               :label="t('products.costPrice')"
@@ -66,15 +70,23 @@
         </v-form>
       </v-card>
     </div>
+
+    <v-snackbar v-model="showScanFeedback" :timeout="1500" location="top" color="info">
+      <div class="d-flex align-center">
+        <v-icon icon="mdi-barcode-scan" class="mr-2" />
+        {{ scanFeedbackMessage }}
+      </div>
+    </v-snackbar>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue';
+import { computed, onMounted, reactive, ref, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useProductsStore } from '../../stores/productsStore';
 import type { ProductInput } from '../../types/domain';
+import { useGlobalBarcodeScanner } from '../../composables/useGlobalBarcodeScanner';
 
 const store = useProductsStore();
 const route = useRoute();
@@ -109,11 +121,34 @@ const form = reactive<ProductInput>({
   isActive: true,
 });
 
+const showScanFeedback = ref(false);
+const scanFeedbackMessage = ref('');
+
+// Global barcode scanner integration
+const scanner = useGlobalBarcodeScanner({
+  mode: 'product',
+  onScan: handleBarcodeScan,
+  minLength: 4,
+  maxInterKeyMs: 35,
+  idleTimeoutMs: 180,
+});
+
+function handleBarcodeScan(barcode: string) {
+  form.barcode = barcode;
+  scanFeedbackMessage.value = t('pos.barcodeScanHint');
+  showScanFeedback.value = true;
+  setTimeout(() => {
+    showScanFeedback.value = false;
+  }, 1500);
+}
+
 async function loadProduct() {
   if (!isEdit.value) return;
   const id = Number(idParam.value);
   if (Number.isNaN(id)) return;
-  const result = await store.fetchProductById(id);
+  const result = await store.fetchProductById(Number(id));
+
+  console.log('Load Product Result:', result);
   if (result.ok && result.data) {
     Object.assign(form, {
       name: result.data.name,
@@ -159,5 +194,10 @@ async function submit() {
 
 onMounted(() => {
   void loadProduct();
+  scanner.start();
+});
+
+onUnmounted(() => {
+  scanner.stop();
 });
 </script>

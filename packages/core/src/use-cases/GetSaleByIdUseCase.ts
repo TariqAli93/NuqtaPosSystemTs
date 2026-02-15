@@ -5,11 +5,7 @@ export class GetSaleByIdUseCase {
   constructor(private saleRepo: ISaleRepository) {}
 
   async execute(id: number): Promise<Sale | null> {
-    return this.saleRepo.findById(id).then((sale) => {
-      if (sale) {
-        return sale;
-      }
-      return null;
-    });
+    const sale = this.saleRepo.findById(id);
+    return sale || null;
   }
 }

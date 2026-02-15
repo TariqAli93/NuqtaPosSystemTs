@@ -1,4 +1,5 @@
 import { FastifyInstance } from 'fastify';
+import { ok, failWith, mapErrorToResult } from '@nuqtaplus/core';
 import { SyncService } from '../services/SyncService.js';
 import { DeviceRegisterRequest, SyncPushRequest, SyncPullRequest } from '../types/sync.js';
 
@@ -26,21 +27,24 @@ export async function registerSyncRoutes(fastify: FastifyInstance, syncService: 
 
       // Validate input
       if (!body.name || !body.type || !body.version || !body.platform) {
-        return reply.status(400).send({
-          success: false,
-          error: 'Missing required fields: name, type, version, platform',
-        });
+        return reply
+          .status(400)
+          .send(
+            failWith(
+              'VALIDATION_ERROR',
+              'Missing required fields: name, type, version, platform',
+              400
+            )
+          );
       }
 
       const result = await syncService.registerDevice(body);
 
-      return reply.status(201).send(result);
-    } catch (error: any) {
+      return reply.status(201).send(ok(result));
+    } catch (error: unknown) {
       fastify.log.error('Register device error:', error);
-      return reply.status(500).send({
-        success: false,
-        error: error.message || 'Failed to register device',
-      });
+      const apiResult = mapErrorToResult(error);
+      return reply.status(500).send(apiResult);
     }
   });
 
@@ -61,38 +65,29 @@ export async function registerSyncRoutes(fastify: FastifyInstance, syncService: 
 
       // Validate authentication
       if (!body.deviceId || !body.apiKey) {
-        return reply.status(401).send({
-          success: false,
-          error: 'Missing authentication: deviceId or apiKey',
-        });
+        return reply
+          .status(401)
+          .send(failWith('AUTH_FAILED', 'Missing authentication: deviceId or apiKey', 401));
       }
 
       // Validate input
       if (!Array.isArray(body.changes)) {
-        return reply.status(400).send({
-          success: false,
-          error: 'Invalid request: changes must be an array',
-        });
+        return reply
+          .status(400)
+          .send(failWith('VALIDATION_ERROR', 'Invalid request: changes must be an array', 400));
       }
 
       const result = await syncService.pushChanges(body);
 
-      return reply.status(200).send(result);
-    } catch (error: any) {
+      return reply.status(200).send(ok(result));
+    } catch (error: unknown) {
       fastify.log.error('Push changes error:', error);
-
-      // Authentication error
-      if (error.message.includes('Authentication')) {
-        return reply.status(401).send({
-          success: false,
-          error: 'Authentication failed',
-        });
-      }
-
-      return reply.status(500).send({
-        success: false,
-        error: error.message || 'Failed to push changes',
-      });
+      const apiResult = mapErrorToResult(error);
+      const status =
+        !apiResult.ok && error instanceof Error && error.message.includes('Authentication')
+          ? 401
+          : 500;
+      return reply.status(status).send(apiResult);
     }
   });
 
@@ -112,30 +107,22 @@ export async function registerSyncRoutes(fastify: FastifyInstance, syncService: 
 
       // Validate authentication
       if (!body.deviceId || !body.apiKey) {
-        return reply.status(401).send({
-          success: false,
-          error: 'Missing authentication: deviceId or apiKey',
-        });
+        return reply
+          .status(401)
+          .send(failWith('AUTH_FAILED', 'Missing authentication: deviceId or apiKey', 401));
       }
 
       const result = await syncService.pullChanges(body);
 
-      return reply.status(200).send(result);
-    } catch (error: any) {
+      return reply.status(200).send(ok(result));
+    } catch (error: unknown) {
       fastify.log.error('Pull changes error:', error);
-
-      // Authentication error
-      if (error.message.includes('Authentication')) {
-        return reply.status(401).send({
-          success: false,
-          error: 'Authentication failed',
-        });
-      }
-
-      return reply.status(500).send({
-        success: false,
-        error: error.message || 'Failed to pull changes',
-      });
+      const apiResult = mapErrorToResult(error);
+      const status =
+        !apiResult.ok && error instanceof Error && error.message.includes('Authentication')
+          ? 401
+          : 500;
+      return reply.status(status).send(apiResult);
     }
   });
 
@@ -154,32 +141,22 @@ export async function registerSyncRoutes(fastify: FastifyInstance, syncService: 
 
       // Validate input
       if (!deviceId || !apiKey) {
-        return reply.status(400).send({
-          success: false,
-          error: 'Missing query parameters: deviceId, apiKey',
-        });
+        return reply
+          .status(400)
+          .send(failWith('VALIDATION_ERROR', 'Missing query parameters: deviceId, apiKey', 400));
       }
 
       const status = await syncService.getSyncStatus(deviceId, apiKey);
 
-      return reply.status(200).send({
-        success: true,
-        status,
-      });
-    } catch (error: any) {
+      return reply.status(200).send(ok(status));
+    } catch (error: unknown) {
       fastify.log.error('Get sync status error:', error);
-
-      if (error.message.includes('Authentication')) {
-        return reply.status(401).send({
-          success: false,
-          error: 'Authentication failed',
-        });
-      }
-
-      return reply.status(500).send({
-        success: false,
-        error: error.message || 'Failed to get sync status',
-      });
+      const apiResult = mapErrorToResult(error);
+      const httpStatus =
+        !apiResult.ok && error instanceof Error && error.message.includes('Authentication')
+          ? 401
+          : 500;
+      return reply.status(httpStatus).send(apiResult);
     }
   });
 
@@ -193,16 +170,11 @@ export async function registerSyncRoutes(fastify: FastifyInstance, syncService: 
     try {
       const stats = await syncService.getSyncStats();
 
-      return reply.status(200).send({
-        success: true,
-        stats,
-      });
-    } catch (error: any) {
+      return reply.status(200).send(ok(stats));
+    } catch (error: unknown) {
       fastify.log.error('Get sync stats error:', error);
-      return reply.status(500).send({
-        success: false,
-        error: error.message || 'Failed to get sync stats',
-      });
+      const apiResult = mapErrorToResult(error);
+      return reply.status(500).send(apiResult);
     }
   });
 
@@ -218,16 +190,11 @@ export async function registerSyncRoutes(fastify: FastifyInstance, syncService: 
 
       await syncService.suspendDevice(deviceId);
 
-      return reply.status(200).send({
-        success: true,
-        message: `Device ${deviceId} suspended`,
-      });
-    } catch (error: any) {
+      return reply.status(200).send(ok({ message: `Device ${deviceId} suspended` }));
+    } catch (error: unknown) {
       fastify.log.error('Suspend device error:', error);
-      return reply.status(500).send({
-        success: false,
-        error: error.message || 'Failed to suspend device',
-      });
+      const apiResult = mapErrorToResult(error);
+      return reply.status(500).send(apiResult);
     }
   });
 
@@ -243,16 +210,11 @@ export async function registerSyncRoutes(fastify: FastifyInstance, syncService: 
 
       await syncService.deleteDevice(deviceId);
 
-      return reply.status(200).send({
-        success: true,
-        message: `Device ${deviceId} deleted`,
-      });
-    } catch (error: any) {
+      return reply.status(200).send(ok({ message: `Device ${deviceId} deleted` }));
+    } catch (error: unknown) {
       fastify.log.error('Delete device error:', error);
-      return reply.status(500).send({
-        success: false,
-        error: error.message || 'Failed to delete device',
-      });
+      const apiResult = mapErrorToResult(error);
+      return reply.status(500).send(apiResult);
     }
   });
 }

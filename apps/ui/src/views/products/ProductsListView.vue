@@ -56,18 +56,12 @@
               </span>
             </template>
             <template #item.status="{ item }">
-              <span class="ds-badge" :class="statusBadgeClass(item.status)">
-                {{ statusLabel(item.status) }}
-              </span>
+              <v-chip size="small" variant="tonal" :color="statusBadgeClass(item.status)">{{
+                statusLabel(item.status)
+              }}</v-chip>
             </template>
             <template #item.actions="{ item }">
-              <v-btn
-                size="small"
-                variant="text"
-                class="win-ghost-btn"
-                :to="`/products/${item.id}/edit`"
-                prepend-icon="mdi-pencil"
-              >
+              <v-btn variant="text" :to="`/products/${item.id}/edit`" prepend-icon="mdi-pencil">
                 {{ t('common.edit') }}
               </v-btn>
             </template>
@@ -90,7 +84,6 @@ import { computed, onMounted, ref } from 'vue';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useProductsStore } from '../../stores/productsStore';
 import EmptyState from '../../components/emptyState.vue';
-
 const store = useProductsStore();
 const searchQuery = ref('');
 
@@ -113,7 +106,7 @@ const filteredProducts = computed(() => {
   }
   const query = searchQuery.value.toLowerCase();
   return store.items.filter(
-    (p) => p.name.toLowerCase().includes(query) || p.sku?.toLowerCase().includes(query)
+    (p: any) => p.name.toLowerCase().includes(query) || p.sku?.toLowerCase().includes(query)
   );
 });
 
@@ -123,12 +116,16 @@ function statusLabel(status: string): string {
 }
 
 function statusBadgeClass(status: string): string {
+  console.log('Product status:', status);
+
+  // out_of_stock | low_stock | available
   const statusMap: Record<string, string> = {
-    active: 'ds-badge-success',
-    inactive: 'ds-badge-neutral',
-    discontinued: 'ds-badge-error',
+    out_of_stock: 'error',
+    low_stock: 'warning',
+    available: 'success',
   };
-  return statusMap[status] || 'ds-badge-neutral';
+
+  return statusMap[status] || 'default';
 }
 
 function formatAmount(value: number): string {

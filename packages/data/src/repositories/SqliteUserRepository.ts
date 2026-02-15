@@ -6,9 +6,9 @@ import { IUserRepository, User } from '@nuqtaplus/core';
 export class SqliteUserRepository implements IUserRepository {
   constructor(private db: DbClient) {}
 
-  async findByUsername(username: string): Promise<User | null> {
+  findByUsername(username: string): User | null {
     try {
-      const [user] = await this.db.select().from(users).where(eq(users.username, username));
+      const user = this.db.select().from(users).where(eq(users.username, username)).get();
       return (user as User) || null;
     } catch (e: any) {
       console.error('Error finding user by username:', e);
@@ -16,38 +16,40 @@ export class SqliteUserRepository implements IUserRepository {
     }
   }
 
-  async findById(id: number): Promise<User | null> {
-    const [user] = await this.db.select().from(users).where(eq(users.id, id));
+  findById(id: number): User | null {
+    const user = this.db.select().from(users).where(eq(users.id, id)).get();
     return (user as User) || null;
   }
 
-  async create(user: User): Promise<User> {
-    const [created] = await this.db
+  create(user: User): User {
+    const created = this.db
       .insert(users)
       .values(user as any)
-      .returning();
+      .returning()
+      .get();
     return created as User;
   }
 
-  async findAll(): Promise<User[]> {
-    const results = await this.db.select().from(users);
+  findAll(): User[] {
+    const results = this.db.select().from(users).all();
     return results as User[];
   }
 
-  async update(id: number, data: Partial<User>): Promise<User> {
-    const [updatedUser] = await this.db.update(users).set(data).where(eq(users.id, id)).returning();
+  update(id: number, data: Partial<User>): User {
+    const updatedUser = this.db.update(users).set(data).where(eq(users.id, id)).returning().get();
     return updatedUser as unknown as User;
   }
 
-  async count(): Promise<number> {
-    const [result] = await this.db.select({ count: sql<number>`count(*)` }).from(users);
-    return result.count;
+  count(): number {
+    const result = this.db.select({ count: sql<number>`count(*)` }).from(users).get();
+    return result?.count || 0;
   }
 
-  async updateLastLogin(id: number): Promise<void> {
-    await this.db
+  updateLastLogin(id: number): void {
+    this.db
       .update(users)
       .set({ lastLoginAt: new Date().toISOString() })
-      .where(eq(users.id, id));
+      .where(eq(users.id, id))
+      .run();
   }
 }

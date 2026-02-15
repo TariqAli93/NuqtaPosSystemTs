@@ -82,6 +82,9 @@ export const sales = sqliteTable('sales', {
   remainingAmount: real('remaining_amount').default(0),
   status: text('status').notNull().default('pending'),
   notes: text('notes'),
+  printStatus: text('print_status').notNull().default('pending'), // 'pending'|'printing'|'printed'|'failed'
+  printedAt: text('printed_at'),
+  printError: text('print_error'),
   createdAt: text('created_at').default(sql`(datetime('now','localtime'))`),
   updatedAt: text('updated_at').default(sql`(datetime('now','localtime'))`),
   createdBy: integer('created_by'),

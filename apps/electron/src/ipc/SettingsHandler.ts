@@ -5,12 +5,14 @@ import {
   SetSettingUseCase,
   GetCompanySettingsUseCase,
   SetCompanySettingsUseCase,
+  mapErrorToResult,
 } from '@nuqtaplus/core';
 import { SqliteSettingsRepository } from '@nuqtaplus/data';
 import { DatabaseType } from '@nuqtaplus/data';
 import { requirePermission } from '../services/PermissionGuardService.js';
-import { mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
+import { ok, mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
 import { assertPayload, buildValidationError } from '../services/IpcPayloadValidator.js';
+import { app } from 'electron';
 
 export function registerSettingsHandlers(db: DatabaseType) {
   const settingsRepo = new SqliteSettingsRepository(db.db);
@@ -30,8 +32,8 @@ export function registerSettingsHandlers(db: DatabaseType) {
         throw buildValidationError('settings:get', payload, 'Key must be a string');
       }
 
-      return await getSettingUseCase.execute(key);
-    } catch (error: any) {
+      return ok(await getSettingUseCase.execute(key));
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -47,8 +49,9 @@ export function registerSettingsHandlers(db: DatabaseType) {
         throw buildValidationError('settings:set', payload, 'Key and value must be strings');
       }
 
-      return await setSettingUseCase.execute(data.key, data.value);
-    } catch (error: any) {
+      await setSettingUseCase.execute(data.key, data.value);
+      return ok(null);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -61,8 +64,8 @@ export function registerSettingsHandlers(db: DatabaseType) {
         allowRoles: ['admin', 'manager', 'cashier'],
       });
 
-      return await getCurrencySettingsUseCase.execute();
-    } catch (error: any) {
+      return ok(await getCurrencySettingsUseCase.execute());
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -74,8 +77,8 @@ export function registerSettingsHandlers(db: DatabaseType) {
         allowRoles: ['admin', 'manager', 'cashier'],
       });
 
-      return await getCompanySettingsUseCase.execute();
-    } catch (error: any) {
+      return ok(await getCompanySettingsUseCase.execute());
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
@@ -95,9 +98,20 @@ export function registerSettingsHandlers(db: DatabaseType) {
         );
       }
 
-      return await setCompanySettingsUseCase.execute(data as any);
-    } catch (error: any) {
+      await setCompanySettingsUseCase.execute(data as any);
+      return ok(null);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
+    }
+  });
+
+  ipcMain.handle('settings:getAppVersion', async () => {
+    try {
+      // App version can be read by anyone
+      console.log('Fetching app version', app.getVersion());
+      return ok({ version: app.getVersion() });
+    } catch (error: unknown) {
+      return mapErrorToResult(error);
     }
   });
 }

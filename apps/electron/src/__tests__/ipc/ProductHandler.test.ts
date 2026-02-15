@@ -62,7 +62,7 @@ describe('Product IPC Handlers', () => {
     const result = await (ipcMain as any)._invoke('products:create', payload);
 
     expect(result).toBeDefined();
-    expect(result.success).toBe(true);
+    expect(result.ok).toBe(true);
     expect(result.data.id).toBeDefined();
     expect(result.data.name).toBe('IPC Product');
   });

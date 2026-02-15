@@ -6,11 +6,11 @@ import { ICustomerRepository, Customer } from '@nuqtaplus/core';
 export class SqliteCustomerRepository implements ICustomerRepository {
   constructor(private db: DbClient) {}
 
-  async findAll(params?: {
+  findAll(params?: {
     search?: string;
     limit?: number;
     offset?: number;
-  }): Promise<{ items: Customer[]; total: number }> {
+  }): { items: Customer[]; total: number } {
     const query = this.db.select().from(customers);
 
     if (params?.search) {
@@ -20,46 +20,49 @@ export class SqliteCustomerRepository implements ICustomerRepository {
     if (params?.limit) query.limit(params.limit);
     if (params?.offset) query.offset(params.offset);
 
-    const items = (await query.all()) as Customer[];
+    const items = query.all() as Customer[];
     // simplify count for now
-    const [totalResult] = await this.db.select({ count: count() }).from(customers);
+    const totalResult = this.db.select({ count: count() }).from(customers).get();
 
-    return { items, total: totalResult.count };
+    return { items, total: totalResult?.count || 0 };
   }
 
-  async findById(id: number): Promise<Customer | null> {
-    const [item] = await this.db.select().from(customers).where(eq(customers.id, id));
+  findById(id: number): Customer | null {
+    const item = this.db.select().from(customers).where(eq(customers.id, id)).get();
     return (item as Customer) || null;
   }
 
-  async create(customer: Customer): Promise<Customer> {
-    const [created] = await this.db
+  create(customer: Customer): Customer {
+    const created = this.db
       .insert(customers)
       .values(customer as any)
-      .returning();
+      .returning()
+      .get();
     return created as Customer;
   }
 
-  async update(id: number, customer: Partial<Customer>): Promise<Customer> {
-    const [updated] = await this.db
+  update(id: number, customer: Partial<Customer>): Customer {
+    const updated = this.db
       .update(customers)
       .set(customer as any)
       .where(eq(customers.id, id))
-      .returning();
+      .returning()
+      .get();
     return updated as Customer;
   }
 
-  async delete(id: number): Promise<void> {
-    await this.db.delete(customers).where(eq(customers.id, id));
+  delete(id: number): void {
+    this.db.delete(customers).where(eq(customers.id, id)).run();
   }
 
-  async updateDebt(id: number, amountChange: number): Promise<void> {
-    const customer = await this.findById(id);
+  updateDebt(id: number, amountChange: number): void {
+    const customer = this.findById(id);
     if (customer) {
-      await this.db
+      this.db
         .update(customers)
         .set({ totalDebt: (customer.totalDebt || 0) + amountChange })
-        .where(eq(customers.id, id));
+        .where(eq(customers.id, id))
+        .run();
     }
   }
 }

@@ -177,7 +177,9 @@ const items = ref<SaleItem[]>([
 const itemSubtotal = (item: SaleItem) =>
   Math.max(0, item.quantity * item.unitPrice - (item.discount || 0));
 
-const subtotal = computed(() => items.value.reduce((sum, item) => sum + itemSubtotal(item), 0));
+const subtotal = computed(() =>
+  items.value.reduce((sum: number, item: SaleItem) => sum + itemSubtotal(item), 0)
+);
 const total = computed(() => subtotal.value - form.discount + form.tax);
 
 function formatAmount(value: number): string {
@@ -219,7 +221,7 @@ async function submit() {
     remainingAmount: total.value - form.paidAmount,
     status: 'pending',
     notes: form.notes,
-    items: items.value.map((item) => ({
+    items: items.value.map((item: SaleItem) => ({
       ...item,
       subtotal: itemSubtotal(item),
     })),

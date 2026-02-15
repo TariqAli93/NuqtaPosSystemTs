@@ -4,7 +4,7 @@ import { SqliteSaleRepository } from '@nuqtaplus/data';
 import { SqliteProductRepository } from '@nuqtaplus/data';
 import { DatabaseType } from '@nuqtaplus/data';
 import { requirePermission } from '../services/PermissionGuardService.js';
-import { mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
+import { ok, mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
 
 export function registerDashboardHandlers(db: DatabaseType) {
   const saleRepo = new SqliteSaleRepository(db.db);
@@ -25,8 +25,8 @@ export function registerDashboardHandlers(db: DatabaseType) {
       }
 
       const result = await getStatsUseCase.execute();
-      return result;
-    } catch (error: any) {
+      return ok(result);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });

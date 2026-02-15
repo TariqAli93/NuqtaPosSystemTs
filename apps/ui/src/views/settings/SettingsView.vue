@@ -1,10 +1,18 @@
 ﻿<template>
   <v-container>
     <div class="win-page">
-      <div>
-        <div class="win-title">{{ t('settings.title') }}</div>
-        <div class="win-subtitle">{{ t('settings.subtitle') }}</div>
-      </div>
+      <v-app-bar>
+        <v-app-bar-title>
+          <div class="win-title mb-0">{{ t('settings.title') }}</div>
+          <div class="text-sm">{{ t('settings.subtitle') }}</div>
+        </v-app-bar-title>
+
+        <template #append>
+          <v-btn color="primary" @click="loadCompanySettings" prepend-icon="mdi-refresh">
+            {{ t('common.refresh') }}
+          </v-btn>
+        </template>
+      </v-app-bar>
 
       <!-- Company Information Section -->
       <v-card class="win-card win-card--padded mb-4" flat>
@@ -12,19 +20,10 @@
           {{ localizedError }}
         </v-alert>
 
-        <div class="win-section">
-          <div class="d-flex align-center justify-space-between mb-4">
-            <div class="text-subtitle-1 font-weight-bold">{{ t('settings.companyInfo') }}</div>
-            <v-btn
-              size="small"
-              variant="text"
-              prepend-icon="mdi-refresh"
-              class="win-ghost-btn"
-              @click="loadCompanySettings"
-            >
-              {{ t('common.refresh') }}
-            </v-btn>
-          </div>
+        <v-card class="pa-4">
+          <v-card-title class="flex items-center justify-between mb-4">
+            <span>{{ t('settings.companyInfo') }}</span>
+          </v-card-title>
 
           <v-form @submit.prevent="saveCompanySettings">
             <v-row>
@@ -101,6 +100,31 @@
                   persistent-hint
                 />
               </v-col>
+
+              <!-- select printer / the printer saved only in pinia store and localstorage no need to save it in db -->
+              <v-col cols="12" md="6">
+                <v-select
+                  v-model="selectedPrinter"
+                  :items="printers"
+                  item-title="name"
+                  item-value="name"
+                  :label="t('settings.receiptPrinter')"
+                  variant="outlined"
+                  density="comfortable"
+                  clearable
+                  @update:model-value="saveSelectedPrinter"
+                >
+                  <template #item="{ props, item }">
+                    <v-list-item v-bind="props">
+                      <template #append>
+                        <v-chip v-if="item.raw.isDefault" size="x-small" color="primary">
+                          {{ t('settings.default') }}
+                        </v-chip>
+                      </template>
+                    </v-list-item>
+                  </template>
+                </v-select>
+              </v-col>
             </v-row>
 
             <v-btn
@@ -113,62 +137,19 @@
               {{ t('common.save') }}
             </v-btn>
           </v-form>
-        </div>
-      </v-card>
-
-      <!-- Currency Display Section -->
-      <v-card class="win-card win-card--padded mb-4" flat>
-        <div class="win-section">
-          <div class="d-flex align-center justify-space-between">
-            <div class="text-subtitle-1 font-weight-bold">{{ t('settings.currency') }}</div>
-            <v-btn size="small" variant="text" class="win-ghost-btn" @click="loadCurrency">
-              {{ t('common.refresh') }}
-            </v-btn>
-          </div>
-          <div v-if="currency" class="mt-2">
-            <div>{{ t('settings.defaultCurrency') }}: {{ currency.defaultCurrency }}</div>
-            <div>{{ t('settings.usdRate') }}: {{ currency.usdRate }}</div>
-            <div>{{ t('settings.iqdRate') }}: {{ currency.iqdRate }}</div>
-          </div>
-        </div>
-      </v-card>
-
-      <!-- Key-Value Settings (Advanced) -->
-      <v-card class="win-card win-card--padded" flat>
-        <div class="win-section">
-          <div class="text-subtitle-1 font-weight-bold">{{ t('settings.keyValue') }}</div>
-          <v-form class="win-form mt-4" @submit.prevent="save">
-            <div class="d-flex flex-wrap ga-2">
-              <v-text-field v-model="key" :label="t('settings.key')" required />
-              <v-text-field v-model="value" :label="t('settings.value')" required />
-            </div>
-            <div class="d-flex ga-2">
-              <v-btn
-                type="submit"
-                color="primary"
-                variant="flat"
-                class="win-btn"
-                :loading="store.loading"
-              >
-                {{ t('common.save') }}
-              </v-btn>
-              <v-btn variant="text" class="win-ghost-btn" @click="load">{{
-                t('common.load')
-              }}</v-btn>
-            </div>
-          </v-form>
-        </div>
+        </v-card>
       </v-card>
     </div>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { settingsClient } from '@/ipc/settingsClient';
 import type { SettingsCurrencyResponse, CompanySettings } from '../../types/domain';
+import type { Ref } from 'vue';
 
 const store = useSettingsStore();
 
@@ -176,8 +157,6 @@ const localizedError = computed(() =>
   store.error ? mapErrorToArabic(store.error, 'errors.unexpected') : null
 );
 
-const key = ref('');
-const value = ref('');
 const currency = ref<SettingsCurrencyResponse | null>(null);
 const savingCompany = ref(false);
 
@@ -193,7 +172,7 @@ const companyForm = reactive<CompanySettings>({
   lowStockThreshold: 5,
 });
 
-const currencyOptions = [
+const currencyOptions: Ref<{ title: string; value: string }[]> = ref([
   { title: 'USD - US Dollar', value: 'USD' },
   { title: 'IQD - Iraqi Dinar', value: 'IQD' },
   { title: 'EUR - Euro', value: 'EUR' },
@@ -203,20 +182,11 @@ const currencyOptions = [
   { title: 'EGP - Egyptian Pound', value: 'EGP' },
   { title: 'JOD - Jordanian Dinar', value: 'JOD' },
   { title: 'KWD - Kuwaiti Dinar', value: 'KWD' },
-];
+]);
 
-async function load() {
-  if (!key.value) return;
-  const result = await store.fetchSetting(key.value);
-  if (result.ok) {
-    value.value = result.data || '';
-  }
-}
-
-async function save() {
-  if (!key.value) return;
-  await store.saveSetting(key.value, value.value);
-}
+const printers: Ref<{ title: string; isDefault: boolean; value: string }[]> = ref([]);
+const selectedPrinter =
+  ref<string | null>(null) || JSON.parse(localStorage.getItem('selectedPrinter') || 'null');
 
 async function loadCurrency() {
   const result = await store.fetchCurrencySettings();
@@ -259,8 +229,28 @@ async function saveCompanySettings() {
   }
 }
 
+async function loadPrinters() {
+  try {
+    const result: any = await store.fetchPrinters();
+    if (!result.ok) {
+      console.error('Failed to load printers:', result.error);
+    }
+
+    printers.value = result?.data?.printers || [];
+  } catch (err) {
+    console.error('Failed to load printers:', err);
+  }
+}
+
+function saveSelectedPrinter() {
+  if (selectedPrinter.value) {
+    localStorage.setItem('selectedPrinter', JSON.stringify(selectedPrinter.value));
+  }
+}
+
 onMounted(() => {
   loadCompanySettings();
   loadCurrency();
+  loadPrinters();
 });
 </script>

@@ -35,6 +35,7 @@ export const routes: RouteRecordRaw[] = [
         path: 'pos',
         name: 'POS',
         component: PosView,
+        meta: { enableBarcode: 'pos' },
       },
       {
         path: 'dashboard',
@@ -62,6 +63,3 @@ export const routes: RouteRecordRaw[] = [
     component: NotFoundView,
   },
 ];
-
-
-

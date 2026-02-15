@@ -10,18 +10,17 @@ export class GetSaleUseCase {
     startDate?: string;
     endDate?: string;
   }): Promise<Sale | null> {
-    return this.saleRepo
-      .findAll({
-        page: params.page || 1,
-        limit: params.limit || 10,
-        startDate: params.startDate,
-        endDate: params.endDate,
-      })
-      .then((result) => {
-        if (result.items.length > 0) {
-          return result.items[0];
-        }
-        return null;
-      });
+    const result = this.saleRepo.findAll({
+      page: params.page || 1,
+      limit: params.limit || 10,
+      startDate: params.startDate,
+      endDate: params.endDate,
+    });
+
+    if (result.items.length > 0) {
+      return result.items[0];
+    }
+
+    return null;
   }
 }

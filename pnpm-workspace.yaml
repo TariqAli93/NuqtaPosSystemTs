@@ -3,6 +3,9 @@ packages:
   - packages/*
   - servers/*
 
+ignoredBuiltDependencies:
+  - usb
+
 onlyBuiltDependencies:
   - '@parcel/watcher'
   - better-sqlite3
@@ -10,3 +13,4 @@ onlyBuiltDependencies:
   - es5-ext
   - esbuild
   - lzma-native
+  - printer

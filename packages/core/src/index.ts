@@ -1,3 +1,5 @@
+export * from './contract.js';
+
 export * from './entities/Category.js';
 export * from './entities/Customer.js';
 export * from './entities/Payment.js';

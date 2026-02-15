@@ -9,8 +9,8 @@ type AuditLogRow = typeof auditLogs.$inferSelect;
 export class SqliteAuditRepository implements IAuditRepository {
   constructor(private db: DbClient) {}
 
-  async create(auditEvent: AuditEvent): Promise<AuditEvent> {
-    const inserted = await this.db
+  create(auditEvent: AuditEvent): AuditEvent {
+    const inserted = this.db
       .insert(auditLogs)
       .values({
         userId: auditEvent.userId,
@@ -24,12 +24,13 @@ export class SqliteAuditRepository implements IAuditRepository {
         userAgent: auditEvent.userAgent || null,
         metadata: auditEvent.metadata ? JSON.stringify(auditEvent.metadata) : null,
       })
-      .returning();
+      .returning()
+      .get();
 
-    return this.toDomain(inserted[0]);
+    return this.toDomain(inserted);
   }
 
-  async getByFilters(filters: {
+  getByFilters(filters: {
     userId?: number;
     entityType?: string;
     entityId?: number;
@@ -38,7 +39,7 @@ export class SqliteAuditRepository implements IAuditRepository {
     endDate?: string;
     limit?: number;
     offset?: number;
-  }): Promise<AuditEvent[]> {
+  }): AuditEvent[] {
     const conditions = [];
 
     if (filters.userId !== undefined) {
@@ -75,24 +76,23 @@ export class SqliteAuditRepository implements IAuditRepository {
       query = query.offset(filters.offset);
     }
 
-    const results = await query;
+    const results = query.all();
     return results.map((row) => this.toDomain(row));
   }
 
-  async getById(id: number): Promise<AuditEvent | null> {
-    const result = await this.db.select().from(auditLogs).where(eq(auditLogs.id, id)).limit(1);
-
-    return result.length > 0 ? this.toDomain(result[0]) : null;
+  getById(id: number): AuditEvent | null {
+    const result = this.db.select().from(auditLogs).where(eq(auditLogs.id, id)).get();
+    return result ? this.toDomain(result) : null;
   }
 
-  async count(filters: {
+  count(filters: {
     userId?: number;
     entityType?: string;
     entityId?: number;
     action?: string;
     startDate?: string;
     endDate?: string;
-  }): Promise<number> {
+  }): number {
     const conditions = [];
 
     if (filters.userId !== undefined) {
@@ -115,16 +115,14 @@ export class SqliteAuditRepository implements IAuditRepository {
     }
 
     let query = this.db.select().from(auditLogs).$dynamic();
-
     if (conditions.length > 0) {
       query = query.where(and(...conditions));
     }
 
-    const results = await query;
-    return results.length;
+    return query.all().length;
   }
 
-  async getAuditTrail(entityType: string, entityId: number, limit?: number): Promise<AuditEvent[]> {
+  getAuditTrail(entityType: string, entityId: number, limit?: number): AuditEvent[] {
     let query = this.db
       .select()
       .from(auditLogs)
@@ -136,17 +134,15 @@ export class SqliteAuditRepository implements IAuditRepository {
       query = query.limit(limit);
     }
 
-    const results = await query;
-    return results.map((row) => this.toDomain(row));
+    return query.all().map((row) => this.toDomain(row));
   }
 
-  async deleteOlderThan(olderThanDays: number): Promise<number> {
+  deleteOlderThan(olderThanDays: number): number {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
     const cutoffISO = cutoffDate.toISOString();
 
-    const result = await this.db.delete(auditLogs).where(lte(auditLogs.timestamp, cutoffISO));
-
+    const result = this.db.delete(auditLogs).where(lte(auditLogs.timestamp, cutoffISO)).run();
     return result.changes || 0;
   }
 

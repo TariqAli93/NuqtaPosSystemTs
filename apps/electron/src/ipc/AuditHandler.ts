@@ -7,7 +7,7 @@ import { AuditService, IAuditRepository } from '@nuqtaplus/core';
 import { SqliteAuditRepository } from '@nuqtaplus/data';
 import { DatabaseType } from '@nuqtaplus/data';
 import { userContextService } from '../services/UserContextService.js';
-import { mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
+import { ok, mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
 import { requirePermission } from '../services/PermissionGuardService.js';
 import { safeSerialize, safeSerializeArray } from '../services/IpcSerializeService.js';
 
@@ -25,8 +25,8 @@ export function registerAuditHandlers(db: DatabaseType) {
       requirePermission({ permission: 'audit:read', allowRoles: ['admin', 'manager'] });
 
       const trail = await auditService.getAuditTrail(entityType, entityId, limit || 50);
-      return safeSerializeArray(trail);
-    } catch (e: any) {
+      return ok(safeSerializeArray(trail));
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });
@@ -47,8 +47,8 @@ export function registerAuditHandlers(db: DatabaseType) {
         limit,
         offset,
       });
-      return safeSerializeArray(events);
-    } catch (e: any) {
+      return ok(safeSerializeArray(events));
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });
@@ -62,8 +62,8 @@ export function registerAuditHandlers(db: DatabaseType) {
       requirePermission({ permission: 'audit:read' });
 
       const events = await auditService.getByDateRange(startDate, endDate, limit);
-      return safeSerializeArray(events);
-    } catch (e: any) {
+      return ok(safeSerializeArray(events));
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });
@@ -77,8 +77,8 @@ export function registerAuditHandlers(db: DatabaseType) {
       requirePermission({ permission: 'audit:read' });
 
       const events = await auditService.getByAction(action, limit || 100);
-      return safeSerializeArray(events);
-    } catch (e: any) {
+      return ok(safeSerializeArray(events));
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });
@@ -96,8 +96,8 @@ export function registerAuditHandlers(db: DatabaseType) {
         startDate,
         endDate,
       });
-      return stats;
-    } catch (e: any) {
+      return ok(stats);
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });
@@ -111,12 +111,11 @@ export function registerAuditHandlers(db: DatabaseType) {
       requirePermission({ permission: 'audit:admin' });
 
       const deletedCount = await auditService.cleanupOldRecords(olderThanDays);
-      return {
-        success: true,
+      return ok({
         deletedCount,
         message: `Deleted ${deletedCount} audit records older than ${olderThanDays} days`,
-      };
-    } catch (e: any) {
+      });
+    } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
     }
   });

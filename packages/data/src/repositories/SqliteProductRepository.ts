@@ -6,12 +6,12 @@ import { IProductRepository, Product } from '@nuqtaplus/core';
 export class SqliteProductRepository implements IProductRepository {
   constructor(private db: DbClient) {}
 
-  async findAll(params?: {
+  findAll(params?: {
     search?: string;
     limit?: number;
     offset?: number;
     categoryId?: number;
-  }): Promise<{ items: Product[]; total: number }> {
+  }): { items: Product[]; total: number } {
     const conditions = [];
     if (params?.search) {
       conditions.push(like(products.name, `%${params.search}%`));
@@ -27,28 +27,31 @@ export class SqliteProductRepository implements IProductRepository {
     if (params?.limit) query.limit(params.limit);
     if (params?.offset) query.offset(params.offset);
 
-    const items = (await query.all()) as Product[];
+    const items = query.all() as Product[];
 
-    const [totalResult] = await this.db
-      .select({ count: count() })
-      .from(products)
-      .where(whereClause);
+    const totalResult = this.db.select({ count: count() }).from(products).where(whereClause).get();
 
-    return { items, total: totalResult.count };
+    return { items, total: totalResult?.count || 0 };
   }
 
-  async findById(id: number): Promise<Product | null> {
-    const [item] = await this.db.select().from(products).where(eq(products.id, id));
+  findById(id: number): Product | null {
+    const item = this.db.select().from(products).where(eq(products.id, id)).get();
     return (item as Product) || null;
   }
 
-  async create(product: Product): Promise<Product> {
+  findByBarcode(barcode: string): Product | null {
+    const item = this.db.select().from(products).where(eq(products.barcode, barcode)).get();
+    return (item as Product) || null;
+  }
+
+  create(product: Product): Product {
     try {
       const { id, ...data } = product; // Exclude ID to allow auto-increment
-      const [created] = await this.db
+      const created = this.db
         .insert(products)
         .values(data as any)
-        .returning();
+        .returning()
+        .get();
       return created as Product;
     } catch (error: any) {
       console.error('Failed to create product:', error);
@@ -56,35 +59,38 @@ export class SqliteProductRepository implements IProductRepository {
     }
   }
 
-  async update(id: number, product: Partial<Product>): Promise<Product> {
-    const [updated] = await this.db
+  update(id: number, product: Partial<Product>): Product {
+    const updated = this.db
       .update(products)
       .set(product as any)
       .where(eq(products.id, id))
-      .returning();
+      .returning()
+      .get();
     return updated as Product;
   }
 
-  async delete(id: number): Promise<void> {
-    await this.db.delete(products).where(eq(products.id, id));
+  delete(id: number): void {
+    this.db.delete(products).where(eq(products.id, id)).run();
   }
 
-  async updateStock(id: number, quantityChange: number): Promise<void> {
-    const product = await this.findById(id);
+  updateStock(id: number, quantityChange: number): void {
+    const product = this.findById(id);
     if (product) {
-      await this.db
+      this.db
         .update(products)
         .set({ stock: (product.stock || 0) + quantityChange })
-        .where(eq(products.id, id));
+        .where(eq(products.id, id))
+        .run();
     }
   }
 
-  async countLowStock(threshold: number): Promise<number> {
-    const [result] = await this.db
+  countLowStock(threshold: number): number {
+    const result = this.db
       .select({ count: count() })
       .from(products)
-      .where(lte(products.stock, threshold));
+      .where(lte(products.stock, threshold))
+      .get();
 
-    return result.count;
+    return result?.count || 0;
   }
 }

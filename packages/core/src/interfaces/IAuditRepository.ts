@@ -8,7 +8,7 @@ export interface IAuditRepository {
   /**
    * Create audit event record
    */
-  create(auditEvent: AuditEvent): Promise<AuditEvent>;
+  create(auditEvent: AuditEvent): AuditEvent;
 
   /**
    * Retrieve audit events by filters
@@ -22,12 +22,12 @@ export interface IAuditRepository {
     endDate?: string;
     limit?: number;
     offset?: number;
-  }): Promise<AuditEvent[]>;
+  }): AuditEvent[];
 
   /**
    * Retrieve single audit event by ID
    */
-  getById(id: number): Promise<AuditEvent | null>;
+  getById(id: number): AuditEvent | null;
 
   /**
    * Count audit events matching filters
@@ -39,16 +39,16 @@ export interface IAuditRepository {
     action?: string;
     startDate?: string;
     endDate?: string;
-  }): Promise<number>;
+  }): number;
 
   /**
    * Get audit trail for specific entity (all events for entityType + entityId)
    */
-  getAuditTrail(entityType: string, entityId: number, limit?: number): Promise<AuditEvent[]>;
+  getAuditTrail(entityType: string, entityId: number, limit?: number): AuditEvent[];
 
   /**
    * Delete old audit records (retention policy)
    * @param olderThanDays Delete records older than N days
    */
-  deleteOlderThan(olderThanDays: number): Promise<number>;
+  deleteOlderThan(olderThanDays: number): number;
 }

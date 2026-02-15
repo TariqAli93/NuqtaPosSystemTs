@@ -5,16 +5,14 @@ import {
   UpdateCategoryUseCase,
   DeleteCategoryUseCase,
 } from '@nuqtaplus/core';
-import { SqliteCategoryRepository, SqliteAuditRepository } from '@nuqtaplus/data';
-import { DatabaseType, withTransaction } from '@nuqtaplus/data';
-import { userContextService } from '../services/UserContextService.js';
-import { mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
+import { SqliteCategoryRepository } from '@nuqtaplus/data';
+import { DatabaseType } from '@nuqtaplus/data';
+import { ok, mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
 import { requirePermission } from '../services/PermissionGuardService.js';
 import { assertPayload, buildValidationError } from '../services/IpcPayloadValidator.js';
 
 export function registerCategoryHandlers(db: DatabaseType) {
   const categoryRepo = new SqliteCategoryRepository(db.db);
-  const auditRepo = new SqliteAuditRepository(db.db);
   const getCategoriesUseCase = new GetCategoriesUseCase(categoryRepo);
   const createCategoryUseCase = new CreateCategoryUseCase(categoryRepo);
   const updateCategoryUseCase = new UpdateCategoryUseCase(categoryRepo);
@@ -84,45 +82,30 @@ export function registerCategoryHandlers(db: DatabaseType) {
       requirePermission({ permission: 'categories:read' });
 
       assertPayload('categories:getAll', payload, ['params']);
-      return await getCategoriesUseCase.execute();
-    } catch (error: any) {
+      return ok(await getCategoriesUseCase.execute());
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
 
-  /**
-   * PHASE 9: TRANSACTION INTEGRITY
-   * Wraps multi-write operation in a transaction for atomicity
-   */
   ipcMain.handle('categories:create', async (_event, params) => {
     try {
-      // Check permission
       requirePermission({ permission: 'categories:create' });
 
       const payload = assertPayload('categories:create', params, ['data']);
       validateCreateCategoryPayload('categories:create', payload);
       const data = payload.data as any;
 
-      const userId = userContextService.getUserId() || 1;
+      const result = await createCategoryUseCase.execute(data);
 
-      // PHASE 9: Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return createCategoryUseCase.execute(data);
-      });
-
-      return result;
-    } catch (error: any) {
+      return ok(result);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
 
-  /**
-   * PHASE 9: TRANSACTION INTEGRITY
-   * Wraps multi-write operation in a transaction for atomicity
-   */
   ipcMain.handle('categories:update', async (_event, params) => {
     try {
-      // Check permission
       requirePermission({ permission: 'categories:update' });
 
       const payload = assertPayload('categories:update', params, ['id', 'data']);
@@ -133,22 +116,16 @@ export function registerCategoryHandlers(db: DatabaseType) {
       const data = payload.data as any;
       const id = payload.id as number;
 
-      const userId = userContextService.getUserId() || 1;
+      const result = await updateCategoryUseCase.execute(id, data);
 
-      // PHASE 9: Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return updateCategoryUseCase.execute(id, data);
-      });
-
-      return result;
-    } catch (error: any) {
+      return ok(result);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });
 
   ipcMain.handle('categories:delete', async (_event, params) => {
     try {
-      // Check permission
       requirePermission({ permission: 'categories:delete' });
 
       const payload = assertPayload('categories:delete', params, ['id']);
@@ -156,15 +133,10 @@ export function registerCategoryHandlers(db: DatabaseType) {
         throw buildValidationError('categories:delete', payload, 'ID must be a number');
       }
 
-      const userId = userContextService.getUserId() || 1;
+      await deleteCategoryUseCase.execute(payload.id as number);
 
-      // Execute in transaction
-      const result = withTransaction(db.sqlite, () => {
-        return deleteCategoryUseCase.execute(payload.id as number);
-      });
-
-      return result;
-    } catch (error: any) {
+      return ok(null);
+    } catch (error: unknown) {
       return mapErrorToIpcResponse(error);
     }
   });

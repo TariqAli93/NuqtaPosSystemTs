@@ -6,11 +6,11 @@ export interface IProductRepository {
     limit?: number;
     offset?: number;
     categoryId?: number;
-  }): Promise<{ items: Product[]; total: number }>;
-  findById(id: number): Promise<Product | null>;
-  create(product: Product): Promise<Product>;
-  update(id: number, product: Partial<Product>): Promise<Product>;
-  delete(id: number): Promise<void>;
-  updateStock(id: number, quantityChange: number): Promise<void>;
-  countLowStock(threshold: number): Promise<number>;
+  }): { items: Product[]; total: number };
+  findById(id: number): Product | null;
+  create(product: Product): Product;
+  update(id: number, product: Partial<Product>): Product;
+  delete(id: number): void;
+  updateStock(id: number, quantityChange: number): void;
+  countLowStock(threshold: number): number;
 }

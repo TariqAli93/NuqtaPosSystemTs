@@ -14,9 +14,9 @@ import { registerAuditHandlers } from '../ipc/AuditHandler';
 import { registerBackupHandlers } from '../ipc/BackupHandler';
 import { registerUpdateHandlers } from '../ipc/UpdateHandler';
 import { registerPrinterHandlers } from '../ipc/PrinterHandler';
+import { registerPosHandlers } from '../ipc/PosHandler';
 import { UpdateService } from '../services/UpdateService.js';
 import { applyMigrations } from '../services/MigrationService.js';
-import { initializeDatabase } from '@nuqtaplus/data';
 
 // Default DB path (same as Electron main process)
 const defaultDbPath = path.join(
@@ -119,11 +119,11 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 // Initialize Update Service
 const updateService = new UpdateService();
-
+let win: BrowserWindow | null = null;
 function createWindow() {
-  const win = new BrowserWindow({
+  win = new BrowserWindow({
     width: 1200,
-    height: 800,
+    height: 1200,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.cjs'),
       nodeIntegration: false,
@@ -159,6 +159,7 @@ app.whenReady().then(() => {
   registerBackupHandlers(db);
   registerUpdateHandlers(updateService);
   registerPrinterHandlers();
+  registerPosHandlers(db);
 
   // Initialize auto-update
   updateService.initialize();

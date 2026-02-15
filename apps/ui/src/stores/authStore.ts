@@ -19,6 +19,7 @@ export const useAuthStore = defineStore('auth', () => {
   const loading = ref(false);
   const error = ref<string | null>(null);
   const isLoggingOut = ref(false);
+  const lastLoginUsers = ref<{ username: string; timestamp: number }[]>([]);
 
   const currentUser = computed(() =>
     user.value ? { ...user.value, permissions: permissions.value } : null
@@ -72,6 +73,10 @@ export const useAuthStore = defineStore('auth', () => {
       localStorage.setItem('user', JSON.stringify(result.data.user));
       localStorage.setItem('permissions', JSON.stringify(result.data.permissions || []));
 
+      lastLoginUsers.value.push({ username: result.data.user.username, timestamp: Date.now() });
+      localStorage.setItem('lastLogin', JSON.stringify(lastLoginUsers.value));
+
+      // Start session check after successful login
       startSessionCheck();
 
       return result;
@@ -80,6 +85,26 @@ export const useAuthStore = defineStore('auth', () => {
       throw err;
     } finally {
       loading.value = false;
+    }
+  }
+
+  // This can be used to check if the user has recently logged in, for example to show a welcome back message
+  async function recntlyLoggedIn(userData: UserPublic): Promise<boolean> {
+    const lastLogin = localStorage.getItem('lastLogin');
+    if (!lastLogin) return false;
+
+    try {
+      const { username, timestamp } = JSON.parse(lastLogin);
+      const now = Date.now();
+      const oneDay = 24 * 60 * 60 * 1000;
+      return username === userData.username && now - timestamp < oneDay;
+    } catch {
+      return false;
+    } finally {
+      localStorage.setItem(
+        'lastLogin',
+        JSON.stringify({ username: userData.username, timestamp: Date.now() })
+      );
     }
   }
 

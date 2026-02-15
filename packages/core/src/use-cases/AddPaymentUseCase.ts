@@ -15,6 +15,10 @@ export interface AddPaymentInput {
   notes?: string;
 }
 
+export interface AddPaymentCommitResult {
+  updatedSale: Sale;
+}
+
 export class AddPaymentUseCase {
   constructor(
     private saleRepo: ISaleRepository,
@@ -22,8 +26,8 @@ export class AddPaymentUseCase {
     private customerRepo: ICustomerRepository
   ) {}
 
-  async execute(input: AddPaymentInput, userId: number): Promise<Sale> {
-    const sale = await this.saleRepo.findById(input.saleId);
+  executeCommitPhase(input: AddPaymentInput, userId: number): AddPaymentCommitResult {
+    const sale = this.saleRepo.findById(input.saleId);
     if (!sale) throw new NotFoundError('Sale not found', { saleId: input.saleId });
 
     if (sale.status === 'cancelled') {
@@ -47,11 +51,9 @@ export class AddPaymentUseCase {
     const amount = roundByCurrency(input.amount, currency);
     const saleRemaining = roundByCurrency(sale.remainingAmount, currency);
 
-    // Cap payment at remaining amount
     const actualPaymentAmount = Math.min(amount, saleRemaining);
 
-    // Create Payment
-    await this.paymentRepo.create({
+    this.paymentRepo.create({
       saleId: sale.id!,
       customerId: sale.customerId || undefined,
       amount: actualPaymentAmount,
@@ -62,28 +64,34 @@ export class AddPaymentUseCase {
       createdBy: userId,
     });
 
-    // Update Sale
     const newPaidAmount = roundByCurrency(sale.paidAmount + actualPaymentAmount, currency);
     let newRemainingAmount = roundByCurrency(sale.remainingAmount - actualPaymentAmount, currency);
 
-    // Threshold check
     const threshold = currency === 'IQD' ? 250 : 0.01;
     if (newRemainingAmount < threshold) newRemainingAmount = 0;
 
     const newStatus = newRemainingAmount <= 0 ? 'completed' : 'pending';
 
-    await this.saleRepo.update(sale.id!, {
+    this.saleRepo.update(sale.id!, {
       paidAmount: newPaidAmount,
       remainingAmount: newRemainingAmount,
       status: newStatus,
       updatedAt: new Date().toISOString(),
     });
 
-    // Update Customer Debt
     if (sale.customerId) {
-      await this.customerRepo.updateDebt(sale.customerId, -actualPaymentAmount);
+      this.customerRepo.updateDebt(sale.customerId, -actualPaymentAmount);
     }
 
-    return (await this.saleRepo.findById(sale.id!))!;
+    const updatedSale = this.saleRepo.findById(sale.id!);
+    if (!updatedSale) {
+      throw new NotFoundError('Sale not found after payment update', { saleId: sale.id });
+    }
+
+    return { updatedSale };
+  }
+
+  async execute(input: AddPaymentInput, userId: number): Promise<Sale> {
+    return this.executeCommitPhase(input, userId).updatedSale;
   }
 }

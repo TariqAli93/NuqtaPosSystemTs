@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
-import { CreateSaleUseCase } from '@nuqtaplus/core';
+import { CreateSaleUseCase, ok, mapErrorToResult } from '@nuqtaplus/core';
+import type { ApiResult } from '@nuqtaplus/core';
 import { SqliteSaleRepository } from '@nuqtaplus/data';
 import { SqliteProductRepository } from '@nuqtaplus/data';
 import { SqliteCustomerRepository } from '@nuqtaplus/data';
@@ -13,12 +14,11 @@ const dbPath = path.join(process.cwd(), 'cloud.db');
 const db = createDb(dbPath);
 
 export async function saleRoutes(fastify: FastifyInstance) {
-  // Logic is Identical to Electron Handler - JUST THE DELIVERY MECHANISM CHANGES
-  const saleRepo = new SqliteSaleRepository(db);
-  const productRepo = new SqliteProductRepository(db);
-  const customerRepo = new SqliteCustomerRepository(db);
-  const settingsRepo = new SqliteSettingsRepository(db);
-  const paymentRepo = new SqlitePaymentRepository(db);
+  const saleRepo = new SqliteSaleRepository(db.db);
+  const productRepo = new SqliteProductRepository(db.db);
+  const customerRepo = new SqliteCustomerRepository(db.db);
+  const settingsRepo = new SqliteSettingsRepository(db.db);
+  const paymentRepo = new SqlitePaymentRepository(db.db);
 
   const createSaleUseCase = new CreateSaleUseCase(
     saleRepo,
@@ -28,17 +28,25 @@ export async function saleRoutes(fastify: FastifyInstance) {
     paymentRepo
   );
 
+  /**
+   * POST /sales
+   * Request body: CreateSaleInput (flat DTO, same shape as IPC { data: DTO })
+   * Response: ApiResult<Sale>
+   *
+   * userId inferred from auth token, NOT from request body.
+   */
   fastify.post('/sales', async (request, reply) => {
     try {
-      const data = request.body as any;
-      // Extract User ID from Auth Middleware (assuming it exists in request.user)
+      const saleInput = request.body as any;
+      // In cloud mode, userId comes from auth middleware (request.user)
       const userId = (request as any).user?.id || 1;
 
-      const result = await createSaleUseCase.execute(data, userId);
-      return reply.code(201).send(result);
-    } catch (error: any) {
-      fastify.log.error(error);
-      return reply.code(400).send({ error: error.message });
+      const result = await createSaleUseCase.execute(saleInput, userId);
+      return reply.code(201).send(ok(result));
+    } catch (error: unknown) {
+      const apiResult = mapErrorToResult(error);
+      const status = apiResult.ok === false ? apiResult.error.status || 400 : 400;
+      return reply.code(status).send(apiResult);
     }
   });
 }

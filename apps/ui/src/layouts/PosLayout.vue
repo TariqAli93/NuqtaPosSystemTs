@@ -1,16 +1,57 @@
 ﻿<template>
   <v-app>
-    <v-navigation-drawer permanent rail rail-width="120">
-      <v-list nav density="comfortable">
+    <v-navigation-drawer location="bottom" rail rail-width="80" permanent>
+      <div class="flex items-center justify-center h-full pa-3">
+        <div>
+          <v-btn
+            variant="text"
+            class="mx-2"
+            size="large"
+            v-for="item in primaryNav"
+            :key="item.to"
+            :to="item.to"
+          >
+            <template #prepend>
+              <v-icon size="20">{{ item.icon }}</v-icon>
+            </template>
+
+            <template #default>
+              <span class="text-caption">{{ item.label }}</span>
+            </template>
+          </v-btn>
+        </div>
+
+        <v-spacer />
+
+        <div>
+          <v-btn
+            variant="text"
+            class="mx-2"
+            size="large"
+            v-for="item in footerNav"
+            :key="item.to"
+            :to="item.to"
+          >
+            <template #prepend>
+              <v-icon size="20">{{ item.icon }}</v-icon>
+            </template>
+
+            <template #default>
+              <span class="text-caption">{{ item.label }}</span>
+            </template>
+          </v-btn>
+        </div>
+      </div>
+      <!-- <v-list nav density="comfortable" class="flex">
         <v-list-item v-for="item in primaryNav" :key="item.to" :to="item.to">
           <div class="d-flex flex-column gap-4 py-4 align-center justify-center">
             <v-icon size="20">{{ item.icon }}</v-icon>
             <v-list-item-title>{{ item.label }}</v-list-item-title>
           </div>
         </v-list-item>
-      </v-list>
+      </v-list> -->
 
-      <template #append>
+      <!-- <template #append>
         <v-list nav density="comfortable">
           <v-list-item v-for="item in footerNav" :key="item.to" :to="item.to">
             <div class="d-flex flex-column gap-4 py-4 align-center justify-center">
@@ -19,20 +60,21 @@
             </div>
           </v-list-item>
         </v-list>
-      </template>
+      </template> -->
     </v-navigation-drawer>
 
     <v-app-bar flat density="comfortable" height="56" border="b">
       <v-sheet class="d-flex align-center ga-4 px-6">
         <div>
-          <div class="text-body-2 font-weight-medium">{{ t('app.posName') }}</div>
-          <div class="text-caption text-medium-emphasis">{{ currentDate }} • {{ currentUser }}</div>
+          <div class="text-caption text-medium-emphasis">
+            {{ currentDate }} <span class="mx-2">|</span> {{ currentUser }}
+          </div>
         </div>
-        <v-sheet color="grey-lighten-4" rounded="md" class="d-flex align-center ga-2 px-3 py-1">
+        <v-card class="d-flex align-center ga-2 px-3 py-1">
           <v-icon size="16">mdi-clock-outline</v-icon>
-          <span class="text-caption font-weight-medium">{{ t('pos.shift') }}:</span>
+          <span class="text-caption">{{ t('pos.shift') }}:</span>
           <span class="text-caption">{{ shiftTime }}</span>
-        </v-sheet>
+        </v-card>
       </v-sheet>
 
       <v-spacer />
@@ -85,13 +127,14 @@ const { toggleTheme } = useVuetifyStore();
 const isOnline = ref(navigator.onLine);
 const onLineText = ref(isOnline.value ? t('pos.online') : t('pos.offline'));
 
-const currentUser = computed(() => authStore.user?.fullName ?? t('common.none'));
+const currentUser = computed(() => authStore.user?.username ?? t('common.none'));
 const currentDate = computed(() => {
   const now = new Date();
   return now.toLocaleDateString('ar-IQ', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
+    year: 'numeric',
+    month: 'numeric',
+    day: '2-digit',
+    numberingSystem: 'latn',
   });
 });
 
@@ -100,6 +143,7 @@ const shiftTime = computed(() => {
   return now.toLocaleTimeString('ar-IQ', {
     hour: '2-digit',
     minute: '2-digit',
+    numberingSystem: 'latn',
   });
 });
 

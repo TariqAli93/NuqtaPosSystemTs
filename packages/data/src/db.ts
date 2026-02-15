@@ -9,6 +9,12 @@ export type DbConnection = {
   sqlite: Database.Database;
 };
 
+type Thenable = {
+  then: (...args: unknown[]) => unknown;
+};
+
+type SyncResult<T> = T extends PromiseLike<unknown> ? never : T;
+
 // Helper to initialize DB
 export function createDb(sqlitePath: string): DbConnection {
   const sqlite = new Database(sqlitePath);
@@ -28,30 +34,33 @@ export function createDb(sqlitePath: string): DbConnection {
  * NOTE: Use this for multi-write atomic workflows.
  *
  * IMPORTANT: Only pass SYNCHRONOUS functions.
- * For async operations, use Drizzle ORM's built-in db.transaction(...) instead.
  *
  * @param sqlite - Must be a better-sqlite3 Database instance
- * @param fn - Synchronous function with side effects
+ * @param fn - Synchronous callback (must not return Promise)
  * @throws Error if sqlite is not a real better-sqlite3 instance
  */
-export function withTransaction<T>(sqlite: Database.Database, fn: () => T): T {
-  // Runtime guard: verify we have the correct type
+export function withTransaction<T>(
+  sqlite: Database.Database,
+  fn: () => SyncResult<T>
+): SyncResult<T> {
   if (!sqlite || typeof sqlite.transaction !== 'function') {
-    throw new Error(
-      `[withTransaction] Expected better-sqlite3 Database instance, got ${typeof sqlite}. ` +
-        'Did you pass conn.db (Drizzle) instead of conn.sqlite (better-sqlite3)? ' +
-        'For async operations, use Drizzle ORM db.transaction(...) instead.'
-    );
+    throw new Error('[withTransaction] invalid sqlite instance');
   }
 
-  // Verify we're not getting an async function
-  if (fn.constructor.name === 'AsyncFunction') {
-    throw new Error(
-      '[withTransaction] Async functions are not supported. ' +
-        'withTransaction uses better-sqlite3 synchronous transactions. ' +
-        'For async operations, use Drizzle ORM db.transaction(...) instead.'
-    );
+  const fnConstructorName = (fn as Function).constructor?.name;
+  if (fnConstructorName === 'AsyncFunction') {
+    throw new Error('Transaction function cannot be async. Use a synchronous callback.');
   }
 
-  return sqlite.transaction(fn)();
+  const wrapped = sqlite.transaction(() => {
+    const result = fn();
+
+    if (result && typeof (result as unknown as Thenable).then === 'function') {
+      throw new Error('Transaction function cannot return a promise');
+    }
+
+    return result as SyncResult<T>;
+  });
+
+  return wrapped();
 }

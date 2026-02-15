@@ -1,12 +1,9 @@
 import { FastifyInstance } from 'fastify';
-import { GetProductsUseCase } from '@nuqtaplus/core';
+import { GetProductsUseCase, ok, mapErrorToResult } from '@nuqtaplus/core';
 import { SqliteProductRepository } from '@nuqtaplus/data';
 import { createDb } from '@nuqtaplus/data';
 import path from 'path';
 
-// In a real cloud app, this would be a Postgres connection string
-// For now, reusing the Sqlite logic for consistency with the "Cloud Server" requirement
-// but operating on a specific "cloud" db file
 const dbPath = path.join(process.cwd(), 'cloud.db');
 const db = createDb(dbPath);
 
@@ -25,10 +22,11 @@ export async function productRoutes(fastify: FastifyInstance) {
       };
 
       const result = await getProductsUseCase.execute(params);
-      return result;
-    } catch (error: any) {
-      fastify.log.error(error);
-      return reply.code(500).send({ error: error.message });
+      return ok(result);
+    } catch (error: unknown) {
+      const apiResult = mapErrorToResult(error);
+      const status = !apiResult.ok ? apiResult.error.status || 500 : 500;
+      return reply.code(status).send(apiResult);
     }
   });
 }

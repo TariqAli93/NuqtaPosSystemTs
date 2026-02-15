@@ -16,6 +16,7 @@ export const useProductsStore = defineStore('products', () => {
     if (result.ok) {
       items.value = result.data.items;
       total.value = result.data.total;
+      rebuildBarcodeCache(); // Rebuild cache after loading products
     } else {
       error.value = result.error.message;
     }
@@ -68,6 +69,35 @@ export const useProductsStore = defineStore('products', () => {
     return result;
   }
 
+  // Barcode cache for fast lookups
+  const barcodeCache = ref<Map<string, Product>>(new Map());
+
+  function rebuildBarcodeCache() {
+    barcodeCache.value.clear();
+    items.value.forEach((product) => {
+      if (product.barcode) {
+        barcodeCache.value.set(product.barcode, product);
+      }
+    });
+  }
+
+  async function findProductByBarcode(barcode: string): Promise<Product | null> {
+    // Try cache first (fast path)
+    if (barcodeCache.value.has(barcode)) {
+      return barcodeCache.value.get(barcode) || null;
+    }
+
+    // Fallback to IPC (slow path)
+    const result = await productsClient.findByBarcode(barcode);
+    if (result.ok && result.data) {
+      // Update cache
+      barcodeCache.value.set(barcode, result.data);
+      return result.data;
+    }
+
+    return null;
+  }
+
   return {
     items,
     total,
@@ -78,5 +108,7 @@ export const useProductsStore = defineStore('products', () => {
     createProduct,
     updateProduct,
     deleteProduct,
+    findProductByBarcode,
+    rebuildBarcodeCache,
   };
 });

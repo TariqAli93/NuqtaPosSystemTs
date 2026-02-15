@@ -1,5 +1,5 @@
 <template>
-  <v-sheet class="px-4 py-3">
+  <v-sheet class="px-0 py-3">
     <v-list density="comfortable" bg-color="transparent">
       <v-list-item class="px-0" min-height="32">
         <template #title>

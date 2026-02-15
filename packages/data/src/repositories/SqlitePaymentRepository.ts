@@ -6,20 +6,21 @@ import { IPaymentRepository, Payment } from '@nuqtaplus/core';
 export class SqlitePaymentRepository implements IPaymentRepository {
   constructor(private db: DbClient) {}
 
-  async create(payment: Payment): Promise<Payment> {
-    const [created] = await this.db
+  create(payment: Payment): Payment {
+    const created = this.db
       .insert(payments)
       .values(payment as any)
-      .returning();
+      .returning()
+      .get();
     return created as Payment;
   }
 
-  async findBySaleId(saleId: number): Promise<Payment[]> {
-    const results = await this.db.select().from(payments).where(eq(payments.saleId, saleId));
+  findBySaleId(saleId: number): Payment[] {
+    const results = this.db.select().from(payments).where(eq(payments.saleId, saleId)).all();
     return results as Payment[];
   }
 
-  async delete(id: number): Promise<void> {
-    await this.db.delete(payments).where(eq(payments.id, id));
+  delete(id: number): void {
+    this.db.delete(payments).where(eq(payments.id, id)).run();
   }
 }

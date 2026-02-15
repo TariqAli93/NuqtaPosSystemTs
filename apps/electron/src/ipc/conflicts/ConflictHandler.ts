@@ -7,6 +7,7 @@ import {
 } from '@nuqtaplus/core';
 import type { IConflictRepository } from '@nuqtaplus/core';
 import { assertPayload, buildValidationError } from '../../services/IpcPayloadValidator.js';
+import { ok, mapErrorToIpcResponse } from '../../services/IpcErrorMapperService.js';
 
 /**
  * Conflict Handler
@@ -33,9 +34,9 @@ export function registerConflictHandlers(
         limit: params.limit,
         offset: params.offset,
       });
-      return { success: true, data: result };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+      return ok(result);
+    } catch (error: unknown) {
+      return mapErrorToIpcResponse(error);
     }
   });
 
@@ -53,9 +54,9 @@ export function registerConflictHandlers(
       if (!conflict) {
         throw buildValidationError('conflicts:getDetail', payload, `Conflict not found: ${id}`);
       }
-      return { success: true, data: conflict };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+      return ok(conflict);
+    } catch (error: unknown) {
+      return mapErrorToIpcResponse(error);
     }
   });
 
@@ -74,9 +75,9 @@ export function registerConflictHandlers(
         feedback: data.feedback,
         resolvedBy: data.resolvedBy,
       });
-      return { success: true, data: result };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+      return ok(result);
+    } catch (error: unknown) {
+      return mapErrorToIpcResponse(error);
     }
   });
 
@@ -92,9 +93,9 @@ export function registerConflictHandlers(
         fromDate: params.fromDate,
         toDate: params.toDate,
       });
-      return { success: true, data: result };
-    } catch (error: any) {
-      return { success: false, error: error.message };
+      return ok(result);
+    } catch (error: unknown) {
+      return mapErrorToIpcResponse(error);
     }
   });
 }

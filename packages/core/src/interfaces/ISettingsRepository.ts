@@ -1,9 +1,9 @@
 import type { CompanySettings } from '../entities/Settings.js';
 
 export interface ISettingsRepository {
-  getCurrencySettings(): Promise<{ defaultCurrency: string; usdRate: number; iqdRate: number }>;
-  get(key: string): Promise<string | null>;
-  set(key: string, value: string): Promise<void>;
-  getCompanySettings(): Promise<CompanySettings | null>;
-  setCompanySettings(settings: CompanySettings): Promise<void>;
+  getCurrencySettings(): { defaultCurrency: string; usdRate: number; iqdRate: number };
+  get(key: string): string | null;
+  set(key: string, value: string): void;
+  getCompanySettings(): CompanySettings | null;
+  setCompanySettings(settings: CompanySettings): void;
 }

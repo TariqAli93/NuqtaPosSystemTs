@@ -1,5 +1,5 @@
 import { FastifyInstance } from 'fastify';
-import { LoginUseCase } from '@nuqtaplus/core';
+import { LoginUseCase, ok, failWith, mapErrorToResult } from '@nuqtaplus/core';
 import { CheckInitialSetupUseCase } from '@nuqtaplus/core';
 import { RegisterFirstUserUseCase } from '@nuqtaplus/core';
 import { UpdateUserUseCase } from '@nuqtaplus/core';
@@ -35,7 +35,7 @@ export async function authRoutes(fastify: FastifyInstance) {
       const result = await loginUseCase.execute(credentials);
 
       if (!result.user || !result.user.id) {
-        return reply.code(401).send({ error: 'Invalid credentials' });
+        return reply.code(401).send(failWith('AUTH_FAILED', 'Invalid credentials', 401));
       }
 
       // Create access token payload
@@ -67,18 +67,19 @@ export async function authRoutes(fastify: FastifyInstance) {
       const accessToken = signJwt(accessTokenPayload);
       const refreshToken = signJwt(refreshTokenPayload);
 
-      return {
+      return ok({
         accessToken,
         refreshToken,
-        expiresIn: 3600, // seconds
+        expiresIn: 3600,
         user: {
           id: result.user.id,
           username: result.user.username,
           role: result.user.role,
         },
-      };
-    } catch (error: any) {
-      return reply.code(401).send({ error: error.message });
+      });
+    } catch (error: unknown) {
+      const apiResult = mapErrorToResult(error);
+      return reply.code(401).send(apiResult);
     }
   });
 
@@ -91,12 +92,12 @@ export async function authRoutes(fastify: FastifyInstance) {
       const { refreshToken } = request.body as any;
 
       if (!refreshToken) {
-        return reply.code(400).send({ error: 'Refresh token is required' });
+        return reply.code(400).send(failWith('VALIDATION_ERROR', 'Refresh token is required', 400));
       }
 
       // Check if token is blacklisted
       if (refreshTokenBlacklist.has(refreshToken)) {
-        return reply.code(401).send({ error: 'Refresh token has been revoked' });
+        return reply.code(401).send(failWith('AUTH_FAILED', 'Refresh token has been revoked', 401));
       }
 
       // Verify refresh token
@@ -104,8 +105,10 @@ export async function authRoutes(fastify: FastifyInstance) {
       try {
         const { verifyJwt } = await import('../services/jwt.js');
         refreshPayload = verifyJwt(refreshToken);
-      } catch (error: any) {
-        return reply.code(401).send({ error: 'Invalid or expired refresh token' });
+      } catch (error: unknown) {
+        return reply
+          .code(401)
+          .send(failWith('AUTH_FAILED', 'Invalid or expired refresh token', 401));
       }
 
       // Create new access token
@@ -123,12 +126,13 @@ export async function authRoutes(fastify: FastifyInstance) {
 
       const accessToken = signJwt(accessTokenPayload);
 
-      return {
+      return ok({
         accessToken,
         expiresIn: 3600,
-      };
-    } catch (error: any) {
-      return reply.code(500).send({ error: error.message });
+      });
+    } catch (error: unknown) {
+      const apiResult = mapErrorToResult(error);
+      return reply.code(500).send(apiResult);
     }
   });
 
@@ -145,9 +149,10 @@ export async function authRoutes(fastify: FastifyInstance) {
         refreshTokenBlacklist.add(refreshToken);
       }
 
-      return { ok: true };
-    } catch (error: any) {
-      return reply.code(500).send({ error: error.message });
+      return ok(null);
+    } catch (error: unknown) {
+      const apiResult = mapErrorToResult(error);
+      return reply.code(500).send(apiResult);
     }
   });
 
@@ -158,9 +163,10 @@ export async function authRoutes(fastify: FastifyInstance) {
   fastify.get('/auth/setup-status', async (request, reply) => {
     try {
       const result = await checkInitialSetupUseCase.execute();
-      return result;
-    } catch (error: any) {
-      return reply.code(500).send({ error: error.message });
+      return ok(result);
+    } catch (error: unknown) {
+      const apiResult = mapErrorToResult(error);
+      return reply.code(500).send(apiResult);
     }
   });
 
@@ -200,14 +206,15 @@ export async function authRoutes(fastify: FastifyInstance) {
       const accessToken = signJwt(accessTokenPayload);
       const refreshToken = signJwt(refreshTokenPayload);
 
-      return {
+      return ok({
         accessToken,
         refreshToken,
         expiresIn: 3600,
         user: result.user,
-      };
-    } catch (error: any) {
-      return reply.code(400).send({ error: error.message });
+      });
+    } catch (error: unknown) {
+      const apiResult = mapErrorToResult(error);
+      return reply.code(400).send(apiResult);
     }
   });
 
@@ -220,7 +227,15 @@ export async function authRoutes(fastify: FastifyInstance) {
       const { username, currentPassword, newPassword } = request.body as any;
 
       if (!username || !currentPassword || !newPassword) {
-        return reply.code(400).send({ error: 'username, currentPassword and newPassword are required' });
+        return reply
+          .code(400)
+          .send(
+            failWith(
+              'VALIDATION_ERROR',
+              'username, currentPassword and newPassword are required',
+              400
+            )
+          );
       }
 
       const loginResult = await loginUseCase.execute({
@@ -229,14 +244,15 @@ export async function authRoutes(fastify: FastifyInstance) {
       });
 
       if (!loginResult?.user?.id) {
-        return reply.code(404).send({ error: 'User not found' });
+        return reply.code(404).send(failWith('NOT_FOUND', 'User not found', 404));
       }
 
       await updateUserUseCase.execute(loginResult.user.id, { password: newPassword });
 
-      return { success: true };
-    } catch (error: any) {
-      return reply.code(400).send({ error: error.message });
+      return ok(null);
+    } catch (error: unknown) {
+      const apiResult = mapErrorToResult(error);
+      return reply.code(400).send(apiResult);
     }
   });
 }

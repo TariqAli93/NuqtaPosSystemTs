@@ -10,17 +10,17 @@ const COMPANY_SETTINGS_KEY = 'company_settings';
 export class SqliteSettingsRepository implements ISettingsRepository {
   constructor(private db: DbClient) {}
 
-  async getCurrencySettings(): Promise<{
+  getCurrencySettings(): {
     defaultCurrency: string;
     usdRate: number;
     iqdRate: number;
-  }> {
+  } {
     // defaults
     let defaultCurrency = 'USD';
     let usdRate = 1;
     let iqdRate = 1320; // fallback
 
-    const currencies = await this.db.select().from(currencySettings).execute();
+    const currencies = this.db.select().from(currencySettings).all();
 
     // Find base currency
     const base = currencies.find((c: CurrencySettingRow) => c.isBaseCurrency);
@@ -36,7 +36,7 @@ export class SqliteSettingsRepository implements ISettingsRepository {
     if (iqd) iqdRate = iqd.exchangeRate;
 
     // Check company settings for explicit currency
-    const companySettings = await this.getCompanySettings();
+    const companySettings = this.getCompanySettings();
     if (companySettings?.currency) {
       defaultCurrency = companySettings.currency;
     }
@@ -44,29 +44,29 @@ export class SqliteSettingsRepository implements ISettingsRepository {
     return { defaultCurrency, usdRate, iqdRate };
   }
 
-  async get(key: string): Promise<string | null> {
-    const [row] = await this.db.select().from(settings).where(eq(settings.key, key));
+  get(key: string): string | null {
+    const row = this.db.select().from(settings).where(eq(settings.key, key)).get();
     return row ? row.value : null;
   }
 
-  async set(key: string, value: string): Promise<void> {
-    const existing = await this.get(key);
+  set(key: string, value: string): void {
+    const existing = this.get(key);
 
     if (existing !== null) {
       // Update existing setting
-      await this.db
+      this.db
         .update(settings)
         .set({ value, updatedAt: new Date().toISOString() })
         .where(eq(settings.key, key))
-        .execute();
+        .run();
     } else {
       // Insert new setting
-      await this.db.insert(settings).values({ key, value }).execute();
+      this.db.insert(settings).values({ key, value }).run();
     }
   }
 
-  async getCompanySettings(): Promise<CompanySettings | null> {
-    const raw = await this.get(COMPANY_SETTINGS_KEY);
+  getCompanySettings(): CompanySettings | null {
+    const raw = this.get(COMPANY_SETTINGS_KEY);
     if (!raw) {
       return null;
     }
@@ -78,8 +78,8 @@ export class SqliteSettingsRepository implements ISettingsRepository {
     }
   }
 
-  async setCompanySettings(companySettings: CompanySettings): Promise<void> {
+  setCompanySettings(companySettings: CompanySettings): void {
     const serialized = JSON.stringify(companySettings);
-    await this.set(COMPANY_SETTINGS_KEY, serialized);
+    this.set(COMPANY_SETTINGS_KEY, serialized);
   }
 }

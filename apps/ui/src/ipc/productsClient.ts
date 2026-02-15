@@ -16,7 +16,7 @@ export const productsClient = {
   }): Promise<ApiResult<PagedResult<Product>>> =>
     invokePaged<Product>('products:getAll', buildParamsPayload('products:getAll', params)),
   getById: (id: number): Promise<ApiResult<Product | null>> =>
-    invoke<Product | null>('products:getById', buildIdPayload('products:getById', id)),
+    invoke<Product | null>('products:getById', buildIdPayload('products:getById', id as number)),
   create: (product: ProductInput): Promise<ApiResult<Product>> =>
     invoke<Product>('products:create', buildDataPayload('products:create', product)),
   update: (id: number, product: ProductInput): Promise<ApiResult<Product>> =>
@@ -27,5 +27,10 @@ export const productsClient = {
     invoke<{ ok: true }>(
       'products:adjustStock',
       buildDataPayload('products:adjustStock', { productId, quantityChange })
+    ),
+  findByBarcode: (barcode: string): Promise<ApiResult<Product | null>> =>
+    invoke<Product | null>(
+      'products:findByBarcode',
+      buildDataPayload('products:findByBarcode', { barcode })
     ),
 };
