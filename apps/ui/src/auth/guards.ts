@@ -6,8 +6,24 @@ export function applyAuthGuard(router: Router): void {
   router.beforeEach(async (to) => {
     const authStore = useAuthStore();
 
+    // Allow the setup page itself without any checks
     if (to.name === 'InitialSetup') {
       return true;
+    }
+
+    // Lazy-load setup status if not yet fetched
+    if (!authStore.setupStatus) {
+      try {
+        await authStore.checkInitialSetup();
+      } catch {
+        // If we can't reach the backend, allow navigation to continue
+        // (the page itself will handle the error)
+      }
+    }
+
+    // If app is NOT initialized, redirect to setup wizard
+    if (authStore.setupStatus && !authStore.isInitialized) {
+      return { name: 'InitialSetup' };
     }
 
     if (to.meta.requiresGuest) {

@@ -12,7 +12,7 @@
   },
   "scripts": {
     "build": "tsc --project tsconfig.build.json",
-    "db:generate": "drizzle-kit generate:sqlite --config ./drizzle.config.ts",
+    "db:generate": "drizzle-kit generate --config ./drizzle.config.ts",
     "db:migrate": "tsx ./src/migrate.ts",
     "db:seed": "tsx ./src/seed.ts",
     "test": "vitest run"
@@ -20,6 +20,7 @@
   "dependencies": {
     "@nuqtaplus/core": "workspace:*",
     "better-sqlite3": "^11.10.0",
+    "commander": "^14.0.3",
     "drizzle-orm": "^0.45.1",
     "tsc": "^2.0.4"
   },

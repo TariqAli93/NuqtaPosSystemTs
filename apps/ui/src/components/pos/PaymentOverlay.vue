@@ -7,10 +7,27 @@
   >
     <!-- Outer wrapper: flat card filling the dialog -->
     <v-card rounded="0" flat dir="rtl" class="position-relative overflow-hidden h-100">
-      <v-row class="w-100 h-100 ma-0">
+      <v-card-title>
+        <div class="d-flex align-center ga-3">
+          <v-icon size="28">mdi-cash-register</v-icon>
+          <div>
+            <div class="text-h6 font-weight-bold">إتمام الدفع</div>
+            <div class="text-body-2 text-medium-emphasis">
+              <span>الكاشير: {{ cashierNameText }}</span>
+            </div>
+          </div>
+
+          <v-spacer />
+
+          <v-btn variant="text" color="error" class="pa-0" @click="closeOverlay">
+            <v-hotkey border="0" display-mode="symbol" elevation="0" keys="esc" class="mx-0 my-0" />
+          </v-btn>
+        </div>
+      </v-card-title>
+      <v-row dense no-gutters class="w-100 h-100 ma-0">
         <!-- ── Left Panel: Summary ── -->
-        <v-col cols="12" md="4" lg="3">
-          <v-card rounded="0" flat class="position-relative h-100 pa-3 pb-16">
+        <v-col cols="12" md="5" lg="4">
+          <v-card rounded="0" flat class="position-relative h-100 pa-3 pb-16 border-l-0!">
             <v-sheet class="mt-12" color="transparent">
               <!-- Subtotal -->
               <div class="d-flex justify-space-between align-baseline ga-5 py-2">
@@ -20,6 +37,8 @@
                 }}</span>
               </div>
 
+              <v-divider class="my-2" />
+
               <!-- Discount -->
               <div class="d-flex justify-space-between align-baseline ga-5 py-2">
                 <span class="text-body-1 font-weight-medium">الخصم</span>
@@ -27,6 +46,8 @@
                   formatCurrency(appliedDiscount)
                 }}</span>
               </div>
+
+              <v-divider class="my-2" />
 
               <!-- Grand total -->
               <div class="d-flex justify-space-between align-baseline ga-5 py-2">
@@ -36,6 +57,8 @@
                 }}</span>
               </div>
 
+              <v-divider class="my-3" />
+
               <!-- Paid -->
               <div class="d-flex justify-space-between align-baseline ga-5 py-2">
                 <span class="text-body-1 font-weight-medium">مدفوعة</span>
@@ -43,6 +66,8 @@
                   formatCurrency(paidAmount)
                 }}</span>
               </div>
+
+              <v-divider class="my-2" />
 
               <!-- Settlement (remaining / change) -->
               <div class="d-flex justify-space-between align-baseline ga-5 py-2">
@@ -77,11 +102,11 @@
         </v-col>
 
         <!-- ── Right Panel: Input & Controls ── -->
-        <v-col cols="12" md="8" lg="9">
-          <v-sheet rounded="0" class="d-flex flex-column h-100 pa-4 align-center justify-center">
+        <v-col cols="12" md="7" lg="8">
+          <v-card rounded="0" class="d-flex flex-column h-100 pa-4 align-center justify-center">
             <div class="w-100">
-              <div class="text-subtitle-1 font-weight-bold text-end">وسائل الدفع</div>
-              <div class="text-body-2 text-medium-emphasis text-end mt-1">
+              <div class="text-subtitle-1 font-weight-bold text-start">وسائل الدفع</div>
+              <div class="text-body-2 text-medium-emphasis text-start mt-1">
                 {{ selectedMethodLabel }}
               </div>
 
@@ -97,6 +122,8 @@
                   inputmode="decimal"
                   autocomplete="off"
                   @update:model-value="onAmountInput"
+                  @focus="setActiveField('amount')"
+                  @blur="clearActiveField('amount')"
                 >
                   <template #prepend-inner>
                     <span class="text-body-2 text-medium-emphasis">{{ props.currency }}</span>
@@ -118,17 +145,47 @@
 
               <!-- Extra-discount editor (expand transition) -->
               <v-expand-transition>
-                <v-sheet v-if="discountEditorOpen" rounded="lg" class="border pa-3 mt-3">
+                <v-sheet v-if="discountEditorOpen" rounded="lg" class="mt-3">
                   <v-text-field
                     :model-value="extraDiscountInput"
                     variant="outlined"
                     hide-details
-                    inputmode="decimal"
-                    autocomplete="off"
                     label="إضافة خصم"
                     @update:model-value="onExtraDiscountInput"
+                    @focus="setActiveField('discount')"
+                    @blur="clearActiveField('discount')"
                   />
                 </v-sheet>
+              </v-expand-transition>
+
+              <!-- Card reference number input -->
+              <v-expand-transition>
+                <v-text-field
+                  v-if="selectedPaymentMethod === 'card'"
+                  v-model="referenceNumber"
+                  label="رقم المرجع"
+                  variant="outlined"
+                  density="comfortable"
+                  hide-details
+                  class="mt-3"
+                  prepend-inner-icon="mdi-credit-card-outline"
+                  autocomplete="off"
+                  @focus="setActiveField('reference')"
+                  @blur="clearActiveField('reference')"
+                />
+              </v-expand-transition>
+
+              <!-- Credit requires customer warning -->
+              <v-expand-transition>
+                <v-alert
+                  v-if="selectedPaymentMethod === 'credit' && !props.hasCustomer"
+                  type="warning"
+                  density="compact"
+                  variant="tonal"
+                  class="mt-3"
+                >
+                  يجب ربط زبون لاستخدام الدفع الآجل
+                </v-alert>
               </v-expand-transition>
             </div>
 
@@ -136,41 +193,6 @@
 
             <!-- Bottom controls: side actions + numpad -->
             <div class="d-flex ga-5 w-100">
-              <!-- Side action buttons (25 % width) -->
-              <div
-                class="d-flex flex-column align-center justify-space-between ga-3"
-                style="width: 25%"
-              >
-                <v-btn
-                  block
-                  variant="tonal"
-                  color="warning"
-                  :disabled="props.busy"
-                  @click="fillExact"
-                >
-                  تسوية
-                </v-btn>
-                <v-btn
-                  block
-                  variant="tonal"
-                  color="warning"
-                  :disabled="props.busy"
-                  @click="toggleDiscountEditor"
-                >
-                  الخصم
-                </v-btn>
-
-                <v-btn
-                  block
-                  :color="selectedPaymentType === 'cash' ? 'primary' : undefined"
-                  :variant="selectedPaymentType === 'cash' ? 'flat' : 'outlined'"
-                  :disabled="props.busy"
-                  @click="selectedPaymentType = 'cash'"
-                >
-                  نقدي
-                </v-btn>
-              </div>
-
               <!-- Numpad grid (75 % width) -->
               <v-row dense style="width: 75%">
                 <v-col v-for="key in keypadKeys" :key="key.id" cols="4">
@@ -181,15 +203,77 @@
                     height="64"
                     class="text-h6 font-weight-bold"
                     :disabled="props.busy"
+                    @mousedown.prevent
                     @click="handleKeypadPress(key.id)"
                   >
                     <v-icon v-if="key.id === 'backspace'" size="26">mdi-backspace-outline</v-icon>
                     <span v-else>{{ key.label }}</span>
                   </v-btn>
                 </v-col>
+
+                <v-col cols="12">
+                  <!-- Side action buttons (25 % width) -->
+                  <div class="flex flex-col ga-3 items-stretch justify-end">
+                    <div class="grid grid-cols-2 ga-3 order-2">
+                      <v-btn
+                        block
+                        variant="tonal"
+                        color="warning"
+                        size="large"
+                        :disabled="props.busy"
+                        @click="fillExact"
+                      >
+                        تسوية
+                      </v-btn>
+                      <v-btn
+                        block
+                        variant="tonal"
+                        color="warning"
+                        size="large"
+                        :disabled="props.busy"
+                        @click="toggleDiscountEditor"
+                      >
+                        الخصم
+                      </v-btn>
+                    </div>
+
+                    <div class="grid grid-cols-3 ga-3 mt-3 order-1">
+                      <v-btn
+                        block
+                        size="large"
+                        :color="selectedPaymentMethod === 'cash' ? 'primary' : undefined"
+                        :variant="selectedPaymentMethod === 'cash' ? 'flat' : 'outlined'"
+                        :disabled="props.busy"
+                        @click="selectedPaymentMethod = 'cash'"
+                      >
+                        نقدي
+                      </v-btn>
+                      <v-btn
+                        block
+                        size="large"
+                        :color="selectedPaymentMethod === 'card' ? 'primary' : undefined"
+                        :variant="selectedPaymentMethod === 'card' ? 'flat' : 'outlined'"
+                        :disabled="props.busy"
+                        @click="selectedPaymentMethod = 'card'"
+                      >
+                        بطاقة
+                      </v-btn>
+                      <v-btn
+                        block
+                        size="large"
+                        :color="selectedPaymentMethod === 'credit' ? 'primary' : undefined"
+                        :variant="selectedPaymentMethod === 'credit' ? 'flat' : 'outlined'"
+                        :disabled="props.busy"
+                        @click="selectedPaymentMethod = 'credit'"
+                      >
+                        آجل
+                      </v-btn>
+                    </div>
+                  </div>
+                </v-col>
               </v-row>
             </div>
-          </v-sheet>
+          </v-card>
         </v-col>
       </v-row>
     </v-card>
@@ -198,6 +282,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import type { PaymentMethod } from '@nuqtaplus/core';
 import type { SaleInput } from '@/types/domain';
 import { safeParseAmount } from './safeParseAmount';
 
@@ -205,6 +290,8 @@ type ConfirmedPayload = {
   paid: number;
   paymentType: SaleInput['paymentType'];
   discount?: number;
+  paymentMethod?: PaymentMethod;
+  referenceNumber?: string;
 };
 
 interface Props {
@@ -218,6 +305,7 @@ interface Props {
   cashierTitle?: string;
   busy?: boolean;
   allowPartial?: boolean;
+  hasCustomer?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -229,6 +317,7 @@ const props = withDefaults(defineProps<Props>(), {
   cashierTitle: 'POS Client',
   busy: false,
   allowPartial: false,
+  hasCustomer: false,
 });
 
 const emit = defineEmits<{
@@ -239,6 +328,8 @@ const emit = defineEmits<{
 const amountInput = ref('');
 const extraDiscountInput = ref('');
 const selectedPaymentType = ref<SaleInput['paymentType']>('cash');
+const selectedPaymentMethod = ref<PaymentMethod>('cash');
+const referenceNumber = ref('');
 const discountEditorOpen = ref(false);
 
 const keypadKeys = [
@@ -257,8 +348,9 @@ const keypadKeys = [
 ];
 
 const selectedMethodLabel = computed(() => {
-  if (selectedPaymentType.value === 'installment') return 'تقسيط';
-  if (selectedPaymentType.value === 'mixed') return 'مختلط';
+  if (selectedPaymentMethod.value === 'card') return 'بطاقة';
+  if (selectedPaymentMethod.value === 'credit') return 'آجل';
+  if (selectedPaymentMethod.value === 'bank_transfer') return 'حوالة';
   return 'نقدي';
 });
 
@@ -289,6 +381,66 @@ const effectiveTotal = computed(() => {
   return Math.max(0, props.total - extraDiscount.value);
 });
 
+type ActiveField = 'amount' | 'discount' | 'reference' | null;
+const activeField = ref<ActiveField>(null);
+
+function setActiveField(field: Exclude<ActiveField, null>) {
+  activeField.value = field;
+  // For amount, when user focuses it, you probably don't want rewrite mode
+  // (or keep it if you want). I recommend disabling rewrite on focus:
+  if (field === 'amount') isRewriteMode.value = false;
+  console.log('Active field set to', field);
+}
+
+function clearActiveField(field?: Exclude<ActiveField, null>) {
+  // Only clear if the field that's blurring is the current one
+  if (!field || activeField.value === field) activeField.value = null;
+}
+
+function appendNumericTo(model: { value: string }, char: string) {
+  if (props.busy) return;
+  if (!/^\d$/.test(char) && char !== '.') return;
+
+  const current = model.value ?? '';
+
+  if (char === '.') {
+    if (current.includes('.')) return;
+    model.value = current === '' ? '0.' : current + '.';
+    return;
+  }
+
+  if (current === '') {
+    model.value = char;
+    return;
+  }
+
+  // prevent leading zeros (optional)
+  if (current === '0' && !current.includes('.')) {
+    model.value = char;
+    return;
+  }
+
+  model.value = current + char;
+}
+
+function backspaceModel(model: { value: string }) {
+  if (props.busy) return;
+  const cur = model.value ?? '';
+  if (!cur) return;
+  model.value = cur.slice(0, -1);
+}
+
+function clearModel(model: { value: string }) {
+  if (props.busy) return;
+  model.value = '';
+}
+
+function appendDigitsOnlyTo(model: { value: string }, char: string) {
+  if (props.busy) return;
+  if (!/^\d$/.test(char)) return;
+  model.value = (model.value ?? '') + char;
+}
+
 const paidAmount = computed(() => safeParseAmount(amountInput.value));
 const remainingAmount = computed(() => Math.max(effectiveTotal.value - paidAmount.value, 0));
 const changeAmount = computed(() => Math.max(paidAmount.value - effectiveTotal.value, 0));
@@ -307,6 +459,10 @@ const settlementValueClass = computed(() => {
 
 const canConfirm = computed(() => {
   if (props.busy || effectiveTotal.value <= 0) return false;
+  // Card requires reference number
+  if (selectedPaymentMethod.value === 'card' && !referenceNumber.value.trim()) return false;
+  // Credit requires customer
+  if (selectedPaymentMethod.value === 'credit' && !props.hasCustomer) return false;
   if (props.allowPartial) return paidAmount.value > 0;
   return paidAmount.value >= effectiveTotal.value;
 });
@@ -339,7 +495,7 @@ function normalizeDecimalInput(value: string): string {
     normalized = `${integerPart}.${decimalPart}`;
   }
 
-  return normalized;
+  return Math.max(0, parseFloat(normalized) || 0).toString();
 }
 
 function toInputAmount(value: number): string {
@@ -449,11 +605,33 @@ function toggleDiscountEditor() {
 }
 
 function handleKeypadPress(key: string) {
+  const field = activeField.value ?? 'amount';
+
+  console.log('Keypad press:', key, 'Active field:', field);
+
   if (key === 'backspace') {
-    backspaceAmount();
+    if (field === 'amount') backspaceAmount();
+    else if (field === 'discount') backspaceModel(extraDiscountInput);
+    else if (field === 'reference') backspaceModel(referenceNumber);
     return;
   }
-  appendAmount(key);
+
+  // dot + digits
+  if (field === 'amount') {
+    appendAmount(key);
+    return;
+  }
+
+  if (field === 'discount') {
+    appendNumericTo(extraDiscountInput, key);
+    return;
+  }
+
+  if (field === 'reference') {
+    // usually reference is digits-only; ignore '.'
+    appendDigitsOnlyTo(referenceNumber, key);
+    return;
+  }
 }
 
 function closeOverlay() {
@@ -474,10 +652,15 @@ function confirmPayment() {
   const payload: ConfirmedPayload = {
     paid: paidAmount.value,
     paymentType: selectedPaymentType.value,
+    paymentMethod: selectedPaymentMethod.value,
   };
 
   if (appliedDiscount.value !== baseDiscount.value) {
     payload.discount = appliedDiscount.value;
+  }
+
+  if (selectedPaymentMethod.value === 'card' && referenceNumber.value.trim()) {
+    payload.referenceNumber = referenceNumber.value.trim();
   }
 
   emit('confirmed', payload);
@@ -485,6 +668,8 @@ function confirmPayment() {
 
 function resetState() {
   selectedPaymentType.value = 'cash';
+  selectedPaymentMethod.value = 'cash';
+  referenceNumber.value = '';
   discountEditorOpen.value = false;
   extraDiscountInput.value = '';
 
@@ -498,40 +683,53 @@ function handleGlobalKeydown(event: KeyboardEvent) {
   if (!props.modelValue) return;
   if (event.ctrlKey || event.metaKey || event.altKey) return;
 
+  // Route to active field (or amount if none)
+  const field = activeField.value ?? 'amount';
+
+  const routeDigitOrDot = (k: string) => {
+    if (field === 'amount') appendAmount(k);
+    else if (field === 'discount') appendNumericTo(extraDiscountInput, k);
+    else if (field === 'reference') appendDigitsOnlyTo(referenceNumber, k);
+  };
+
   if (/^\d$/.test(event.key)) {
     event.preventDefault();
     event.stopPropagation();
-    appendAmount(event.key);
+    routeDigitOrDot(event.key);
     return;
   }
 
   if (event.key === '.') {
+    // Only amount/discount accept dot
+    if (field === 'reference') return;
     event.preventDefault();
     event.stopPropagation();
-    appendAmount('.');
+    routeDigitOrDot('.');
     return;
   }
 
   if (event.key === 'Backspace') {
     event.preventDefault();
     event.stopPropagation();
-    backspaceAmount();
+    if (field === 'amount') backspaceAmount();
+    else if (field === 'discount') backspaceModel(extraDiscountInput);
+    else if (field === 'reference') backspaceModel(referenceNumber);
     return;
   }
 
   if (event.key === 'Delete') {
     event.preventDefault();
     event.stopPropagation();
-    clearAmount();
+    if (field === 'amount') clearAmount();
+    else if (field === 'discount') clearModel(extraDiscountInput);
+    else if (field === 'reference') clearModel(referenceNumber);
     return;
   }
 
   if (event.key === 'Enter') {
     event.preventDefault();
     event.stopPropagation();
-    if (canConfirm.value) {
-      confirmPayment();
-    }
+    if (canConfirm.value) confirmPayment();
     return;
   }
 

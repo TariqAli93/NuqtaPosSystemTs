@@ -1,6 +1,5 @@
 import { app, BrowserWindow, dialog } from 'electron';
 import path from 'path';
-import os from 'os';
 import { createDb } from '@nuqtaplus/data';
 import { registerProductHandlers } from '../ipc/ProductHandler';
 import { registerSaleHandlers } from '../ipc/SaleHandler';
@@ -18,25 +17,15 @@ import { registerPosHandlers } from '../ipc/PosHandler';
 import { UpdateService } from '../services/UpdateService.js';
 import { applyMigrations } from '../services/MigrationService.js';
 
+app.setAppUserModelId('com.nuqta.nuqtaplus');
+app.setPath('userData', path.join(app.getPath('appData'), 'CodelNuqtaPlus'));
+app.setName('CodelNuqtaPlus');
+
 // Default DB path (same as Electron main process)
-const defaultDbPath = path.join(
-  process.env.APPDATA || path.join(os.homedir(), '.config'),
-  'Nuqta Plus',
-  'nuqta_plus.db'
-);
+const defaultDbPath = path.join(app.getPath('userData'), 'Databases', 'nuqta_plus.db');
 
-const dbPath = process.argv[2] || process.env.NUQTA_DB_PATH || defaultDbPath;
+const dbPath = defaultDbPath;
 
-console.log('[DB] Using database path:', dbPath);
-
-/**
- * PHASE 9: DB HEALTH CHECK ON STARTUP
- *
- * Validates database integrity before app initialization.
- * - Checks if DB file exists
- * - Runs PRAGMA integrity_check
- * - Returns safe error if corruption detected (no stack trace leak)
- */
 function validateDatabase(): void {
   try {
     const fs = require('fs');
@@ -124,6 +113,8 @@ function createWindow() {
   win = new BrowserWindow({
     width: 1200,
     height: 1200,
+    minWidth: 800,
+    minHeight: 600,
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.cjs'),
       nodeIntegration: false,

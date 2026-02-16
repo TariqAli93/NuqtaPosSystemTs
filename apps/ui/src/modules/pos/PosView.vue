@@ -25,7 +25,7 @@
       </template>
     </CartPanel>
 
-    <v-app-bar class="mb-5">
+    <v-app-bar class="mb-5 border-r-0! border-l-0!">
       <v-card-text class="pa-4">
         <v-text-field
           ref="searchField"
@@ -101,6 +101,7 @@
     :cashier-name="cashierName"
     :cashier-title="'POS Client'"
     :busy="isProcessingPayment"
+    :has-customer="selectedCustomerId !== null"
     @confirmed="handlePaymentConfirm"
   />
 
@@ -431,6 +432,8 @@ type PaymentOverlayPayload = {
   paid: number;
   paymentType: SaleInput['paymentType'];
   discount?: number;
+  paymentMethod?: string;
+  referenceNumber?: string;
 };
 
 const heldSales = ref<HeldSale[]>([]);
@@ -517,7 +520,7 @@ const filteredCustomers = computed(() => {
   );
 });
 
-const cashierName = computed(() => authStore.currentUser?.fullName || 'POS Client');
+const cashierName = computed(() => authStore.currentUser?.username || 'POS Client');
 
 const subtotal = computed(() => {
   return cartItems.value.reduce((sum, item) => {
@@ -1006,6 +1009,8 @@ async function handlePaymentConfirm(overlayPayload: PaymentOverlayPayload) {
       status: remainingAmount <= 0 ? 'completed' : 'pending',
       notes: saleNote.value,
       items: itemsWithSubtotals,
+      paymentMethod: overlayPayload.paymentMethod,
+      referenceNumber: overlayPayload.referenceNumber,
     };
 
     const result = await salesStore.createSale(payload);

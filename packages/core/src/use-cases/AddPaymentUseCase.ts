@@ -4,6 +4,7 @@ import { ICustomerRepository } from '../interfaces/ICustomerRepository.js';
 import { NotFoundError, InvalidStateError, ValidationError } from '../errors/DomainErrors.js';
 import { roundByCurrency } from '../utils/helpers.js';
 import { Sale } from '../entities/Sale.js';
+import type { PaymentMethod } from '../entities/Payment.js';
 
 export interface AddPaymentInput {
   saleId: number;
@@ -11,7 +12,8 @@ export interface AddPaymentInput {
   amount: number;
   currency?: string;
   exchangeRate?: number;
-  paymentMethod: 'cash' | 'card' | 'bank_transfer';
+  paymentMethod: PaymentMethod;
+  referenceNumber?: string;
   notes?: string;
 }
 
@@ -47,6 +49,15 @@ export class AddPaymentUseCase {
       });
     }
 
+    // Payment-method-specific validation
+    if (input.paymentMethod === 'card' && !input.referenceNumber?.trim()) {
+      throw new ValidationError('Card payments require a reference number');
+    }
+
+    if (input.paymentMethod === 'credit' && !sale.customerId && !input.customerId) {
+      throw new ValidationError('Credit/debt payments require a customer');
+    }
+
     const currency = sale.currency || 'USD';
     const amount = roundByCurrency(input.amount, currency);
     const saleRemaining = roundByCurrency(sale.remainingAmount, currency);
@@ -60,6 +71,7 @@ export class AddPaymentUseCase {
       currency: input.currency || currency,
       exchangeRate: input.exchangeRate || sale.exchangeRate,
       paymentMethod: input.paymentMethod || 'cash',
+      referenceNumber: input.referenceNumber,
       notes: input.notes,
       createdBy: userId,
     });

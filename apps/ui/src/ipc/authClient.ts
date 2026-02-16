@@ -1,5 +1,5 @@
 import type { ApiResult } from './contracts';
-import type { FirstUserInput, UserPublic } from '../types/domain';
+import type { FirstUserInput, UserPublic, CompanySettings } from '../types/domain';
 import { invoke } from './invoke';
 import { buildDataPayload } from './payloads';
 
@@ -17,9 +17,19 @@ export interface AuthLoginResponse {
 }
 
 export interface AuthSetupStatus {
-  isFirstRun: boolean;
+  isInitialized: boolean;
   hasUsers: boolean;
   hasCompanyInfo: boolean;
+}
+
+export interface InitializeAppRequest {
+  admin: {
+    username: string;
+    password: string;
+    fullName: string;
+    phone?: string;
+  };
+  companySettings: CompanySettings;
 }
 
 export interface AuthVerifyCredentialsRequest {
@@ -58,6 +68,13 @@ export const authClient = {
     invoke<AuthLoginResponse>(
       'auth:createFirstUser',
       buildDataPayload('auth:createFirstUser', userData)
+    ),
+  initializeApp: (
+    data: InitializeAppRequest
+  ): Promise<ApiResult<{ success: boolean; admin: UserPublic }>> =>
+    invoke<{ success: boolean; admin: UserPublic }>(
+      'setup:initialize',
+      buildDataPayload('setup:initialize', data as any)
     ),
   refresh: (): Promise<ApiResult<{ accessToken: string }>> =>
     invoke<{ accessToken: string }>('auth:refresh'),

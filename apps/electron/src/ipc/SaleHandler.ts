@@ -69,6 +69,28 @@ export function registerSaleHandlers(db: DatabaseType) {
       );
     }
 
+    // Validate payment method if provided
+    if (
+      data.paymentMethod &&
+      !['cash', 'card', 'bank_transfer', 'credit'].includes(data.paymentMethod)
+    ) {
+      throw buildValidationError(
+        channel,
+        payload,
+        'Payment method must be cash, card, bank_transfer, or credit'
+      );
+    }
+
+    // Card payments require a reference number
+    if (data.paymentMethod === 'card' && !data.referenceNumber?.trim()) {
+      throw buildValidationError(channel, payload, 'Card payments require a reference number');
+    }
+
+    // Credit payments require a customer
+    if (data.paymentMethod === 'credit' && !data.customerId) {
+      throw buildValidationError(channel, payload, 'Credit/debt payments require a customer');
+    }
+
     // Validate customer ID if installment payment
     if (data.paymentType === 'installment' && !data.customerId) {
       throw buildValidationError(
@@ -94,12 +116,20 @@ export function registerSaleHandlers(db: DatabaseType) {
       throw buildValidationError(channel, payload, 'Amount must be a positive number');
     }
 
-    if (data.paymentMethod && !['cash', 'card', 'bank_transfer'].includes(data.paymentMethod)) {
+    if (
+      data.paymentMethod &&
+      !['cash', 'card', 'bank_transfer', 'credit'].includes(data.paymentMethod)
+    ) {
       throw buildValidationError(
         channel,
         payload,
-        'Payment method must be cash, card, or bank_transfer'
+        'Payment method must be cash, card, bank_transfer, or credit'
       );
+    }
+
+    // Card payments require a reference number
+    if (data.paymentMethod === 'card' && !data.referenceNumber?.trim()) {
+      throw buildValidationError(channel, payload, 'Card payments require a reference number');
     }
   }
 

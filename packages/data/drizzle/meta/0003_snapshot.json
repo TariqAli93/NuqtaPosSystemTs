@@ -1,6 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
+  "id": "5d3ee97a-4bfd-45ce-984e-b72ad98a998c",
+  "prevId": "e5da2f20-c27e-4d00-bb6b-098c4bd22696",
   "tables": {
     "audit_logs": {
       "name": "audit_logs",
@@ -509,6 +511,21 @@
           "primaryKey": false,
           "notNull": true,
           "autoincrement": false
+        },
+        "reference_number": {
+          "name": "reference_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'completed'"
         },
         "payment_date": {
           "name": "payment_date",
@@ -1112,12 +1129,14 @@
       "checkConstraints": {}
     }
   },
+  "views": {},
   "enums": {},
   "_meta": {
+    "schemas": {},
     "tables": {},
     "columns": {}
   },
-  "id": "e5da2f20-c27e-4d00-bb6b-098c4bd22696",
-  "prevId": "87ef828f-a4b0-4776-a240-a48a25e1a88b",
-  "views": {}
+  "internal": {
+    "indexes": {}
+  }
 }

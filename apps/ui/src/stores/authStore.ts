@@ -2,6 +2,7 @@
 import { computed, ref } from 'vue';
 import router from '../app/router';
 import { authClient, registerUnauthorizedHandler } from '../ipc';
+import type { AuthSetupStatus, InitializeAppRequest } from '../ipc/authClient';
 import type { FirstUserInput, UserPublic } from '../types/domain';
 
 export const useAuthStore = defineStore('auth', () => {
@@ -15,7 +16,7 @@ export const useAuthStore = defineStore('auth', () => {
   );
   const token = ref<string | null>(localStorage.getItem('token'));
   const isAuthenticated = ref(false);
-  const isFirstRun = ref(true);
+  const setupStatus = ref<AuthSetupStatus | null>(null);
   const loading = ref(false);
   const error = ref<string | null>(null);
   const isLoggingOut = ref(false);
@@ -24,6 +25,8 @@ export const useAuthStore = defineStore('auth', () => {
   const currentUser = computed(() =>
     user.value ? { ...user.value, permissions: permissions.value } : null
   );
+
+  const isInitialized = computed(() => setupStatus.value?.isInitialized ?? false);
 
   if (typeof window !== 'undefined') {
     registerUnauthorizedHandler(() => {
@@ -45,10 +48,31 @@ export const useAuthStore = defineStore('auth', () => {
       if (!result.ok) {
         throw new Error(result.error.message);
       }
-      isFirstRun.value = result.data.isFirstRun;
+      setupStatus.value = result.data;
       return result;
     } catch (err: any) {
       error.value = err.message || 'Failed to check setup status';
+      throw err;
+    } finally {
+      loading.value = false;
+    }
+  }
+
+  async function initializeApp(payload: InitializeAppRequest) {
+    loading.value = true;
+    error.value = null;
+    try {
+      const result = await authClient.initializeApp(payload);
+      if (!result.ok) {
+        throw new Error(result.error.message);
+      }
+
+      // Mark as initialized locally
+      setupStatus.value = { isInitialized: true, hasUsers: true, hasCompanyInfo: true };
+
+      return result;
+    } catch (err: any) {
+      error.value = err.message || 'Initialization failed';
       throw err;
     } finally {
       loading.value = false;
@@ -121,7 +145,10 @@ export const useAuthStore = defineStore('auth', () => {
       permissions.value = result.data.permissions || [];
       token.value = result.data.accessToken;
       isAuthenticated.value = true;
-      isFirstRun.value = false;
+
+      if (setupStatus.value) {
+        setupStatus.value = { ...setupStatus.value, isInitialized: true, hasUsers: true };
+      }
 
       localStorage.setItem('token', result.data.accessToken);
       localStorage.setItem('user', JSON.stringify(result.data.user));
@@ -237,10 +264,12 @@ export const useAuthStore = defineStore('auth', () => {
     token,
     currentUser,
     isAuthenticated,
-    isFirstRun,
+    setupStatus,
+    isInitialized,
     loading,
     error,
     checkInitialSetup,
+    initializeApp,
     login,
     createFirstUser,
     ensureAuthenticated,

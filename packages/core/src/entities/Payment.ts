@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+export const PaymentMethodEnum = z.enum(['cash', 'card', 'bank_transfer', 'credit']);
+export type PaymentMethod = z.infer<typeof PaymentMethodEnum>;
+
 export const PaymentSchema = z.object({
   id: z.number().optional(),
   saleId: z.number().nullable().optional(),
@@ -7,7 +10,9 @@ export const PaymentSchema = z.object({
   amount: z.number().min(0),
   currency: z.string().default('USD'),
   exchangeRate: z.number().default(1),
-  paymentMethod: z.enum(['cash', 'card', 'bank_transfer']),
+  paymentMethod: PaymentMethodEnum,
+  referenceNumber: z.string().nullable().optional(),
+  status: z.enum(['completed', 'voided', 'refunded']).optional(),
   paymentDate: z.string().datetime().optional(),
   notes: z.string().nullable().optional(),
   createdAt: z.string().datetime().optional(),

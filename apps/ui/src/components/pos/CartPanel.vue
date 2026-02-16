@@ -1,5 +1,13 @@
 <template>
-  <v-navigation-drawer right permanent mobile-breakpoint="md" width="425" retain-focus class="pa-0">
+  <v-navigation-drawer
+    right
+    permanent
+    mobile-breakpoint="md"
+    retain-focus
+    class="pa-0 resizable-drawer border-b-0 border-t-0"
+    :width="drawerWidth"
+    :location="drawerLocation"
+  >
     <v-card flat rounded="0" border="0">
       <v-card-title class="d-flex align-center justify-space-between pa-4" style="min-height: 72px">
         <span class="font-weight-medium">{{ t('pos.cart') }}</span>
@@ -92,19 +100,37 @@
         </v-card-text>
       </v-card>
     </template>
+
+    <!-- Handle للسحب -->
+    <div
+      class="drawer-resize-handle"
+      :class="{ right: drawerLocation === 'right' }"
+      @mousedown.prevent="onMouseDown"
+    />
   </v-navigation-drawer>
 </template>
 
 <script setup lang="ts">
 import { t } from '@/i18n/t';
 import type { SaleItem } from '@/types/domain';
-import { watch } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
+import { useLayoutStore } from '@/stores/layout';
 
 interface Props {
   items: SaleItem[];
 }
 
 const props = defineProps<Props>();
+
+const layout = useLayoutStore();
+
+const isDragging = ref(false);
+const startX = ref(0);
+const startWidth = ref(0);
+
+// RTL support: إذا drawer على اليمين، السحب لازم يعكس الاتجاه
+const drawerLocation = ref<'left' | 'right'>('right'); // غيّرها حسب مشروعك
+const isRight = computed(() => drawerLocation.value === 'right');
 
 const emit = defineEmits<{
   increase: [index: number];
@@ -127,4 +153,75 @@ const formatPrice = (price: number) => {
 const itemSubtotal = (item: SaleItem) => {
   return Math.max(0, item.quantity * item.unitPrice - (item.discount || 0));
 };
+
+const drawerWidth = computed(() => layout.drawerWidth);
+
+function onMouseDown(e: MouseEvent) {
+  isDragging.value = true;
+  startX.value = e.clientX;
+  startWidth.value = drawerWidth.value;
+
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+  document.body.style.userSelect = 'none';
+  document.body.style.cursor = 'col-resize';
+}
+
+function onMouseMove(e: MouseEvent) {
+  if (!isDragging.value) return;
+  const dx = e.clientX - startX.value;
+  const next = isRight.value ? startWidth.value - dx : startWidth.value + dx;
+  layout.setDrawerWidth(next);
+}
+
+function onMouseUp() {
+  isDragging.value = false;
+  document.removeEventListener('mousemove', onMouseMove);
+  document.removeEventListener('mouseup', onMouseUp);
+  document.body.style.userSelect = '';
+  document.body.style.cursor = '';
+}
+
+onBeforeUnmount(() => {
+  document.removeEventListener('mousemove', onMouseMove);
+  document.removeEventListener('mouseup', onMouseUp);
+});
 </script>
+<style scoped>
+.resizable-drawer {
+  position: relative;
+}
+
+:deep(.resizable-drawer) {
+  border: 0 !important;
+}
+
+/* شريط السحب */
+.drawer-resize-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 8px;
+  right: -4px; /* default: drawer على اليسار => السحب من اليمين */
+  cursor: col-resize;
+  z-index: 10;
+}
+
+/* إذا drawer على اليمين، خلي handle على اليسار */
+.drawer-resize-handle.right {
+  left: -4px;
+  right: auto;
+}
+
+/* تحسين UX: خلي جزء "اللمس" أكبر بس بدون ما يبين */
+.drawer-resize-handle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: transparent;
+}
+
+:deep(.v-navigation-drawer--right) {
+  border: 0 !important;
+}
+</style>

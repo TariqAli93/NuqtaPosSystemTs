@@ -5,6 +5,7 @@ import { ISettingsRepository } from '../interfaces/ISettingsRepository.js';
 import { IPaymentRepository } from '../interfaces/IPaymentRepository.js';
 import { IAuditRepository } from '../interfaces/IAuditRepository.js';
 import { Sale } from '../entities/Sale.js';
+import type { PaymentMethod } from '../entities/Payment.js';
 import { ValidationError, NotFoundError, InsufficientStockError } from '../errors/DomainErrors.js';
 import { AuditService } from '../services/AuditService.js';
 import { generateInvoiceNumber, calculateSaleTotals, roundByCurrency } from '../utils/helpers.js';
@@ -20,6 +21,8 @@ export interface CreateSaleInput {
   notes?: string;
   interestRate?: number;
   installmentCount?: number;
+  paymentMethod?: PaymentMethod;
+  referenceNumber?: string;
 }
 
 export interface CreateSaleCommitResult {
@@ -45,6 +48,15 @@ export class CreateSaleUseCase {
   executeCommitPhase(input: CreateSaleInput, userId: number): CreateSaleCommitResult {
     if (!input.items || input.items.length === 0) {
       throw new ValidationError('Sale must have at least one item');
+    }
+
+    // Payment-method-specific validation
+    if (input.paymentMethod === 'card' && !input.referenceNumber?.trim()) {
+      throw new ValidationError('Card payments require a reference number');
+    }
+
+    if (input.paymentMethod === 'credit' && !input.customerId) {
+      throw new ValidationError('Credit/debt payments require a customer');
     }
 
     const currencySettings = this.settingsRepo.getCurrencySettings();
@@ -178,7 +190,8 @@ export class CreateSaleUseCase {
         amount: paidAmount,
         currency,
         exchangeRate: 1,
-        paymentMethod: 'cash',
+        paymentMethod: input.paymentMethod || 'cash',
+        referenceNumber: input.referenceNumber,
         createdBy: userId,
       });
     }

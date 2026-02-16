@@ -46,7 +46,10 @@ export type ProductInput = Pick<
   | 'isActive'
 >;
 
-export type SaleInput = Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'>;
+export type SaleInput = Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'> & {
+  paymentMethod?: string;
+  referenceNumber?: string;
+};
 
 export type FirstUserInput = {
   username: string;

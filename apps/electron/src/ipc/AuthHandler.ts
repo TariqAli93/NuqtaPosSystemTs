@@ -92,7 +92,8 @@ export function registerAuthHandlers(db: DatabaseType) {
   ipcMain.handle('auth:checkInitialSetup', async () => {
     try {
       // No auth required for initial setup check
-      return await checkInitialSetupUseCase.execute();
+      const status = checkInitialSetupUseCase.execute();
+      return ok(status);
     } catch (e: unknown) {
       return mapErrorToResult(e);
     }
@@ -101,8 +102,8 @@ export function registerAuthHandlers(db: DatabaseType) {
   ipcMain.handle('auth:createFirstUser', async (_event, payload) => {
     try {
       // PHASE 9 SECURITY: First-run gate - only allow during initial setup
-      const setupStatus = await checkInitialSetupUseCase.execute();
-      if (setupStatus.hasUsers) {
+      const setupStatus = checkInitialSetupUseCase.execute();
+      if (setupStatus.isInitialized || setupStatus.hasUsers) {
         throw new Error('Cannot create first user: application already initialized');
       }
 
@@ -166,8 +167,8 @@ export function registerAuthHandlers(db: DatabaseType) {
   ipcMain.handle('setup:initialize', async (_event, payload) => {
     try {
       // PHASE 9 SECURITY: First-run gate - only allow during initial setup
-      const setupStatus = await checkInitialSetupUseCase.execute();
-      if (setupStatus.hasUsers) {
+      const setupStatus = checkInitialSetupUseCase.execute();
+      if (setupStatus.isInitialized || setupStatus.hasUsers) {
         throw new Error('Cannot initialize: application already initialized');
       }
 
@@ -179,12 +180,12 @@ export function registerAuthHandlers(db: DatabaseType) {
         throw buildValidationError('setup:initialize', payload, 'Input is required');
       }
 
-      if (!input.adminUser || typeof input.adminUser !== 'object') {
+      if (!input.admin || typeof input.admin !== 'object') {
         throw buildValidationError('setup:initialize', payload, 'Admin user is required');
       }
 
-      if (!input.businessSettings || typeof input.businessSettings !== 'object') {
-        throw buildValidationError('setup:initialize', payload, 'Business settings are required');
+      if (!input.companySettings || typeof input.companySettings !== 'object') {
+        throw buildValidationError('setup:initialize', payload, 'Company settings are required');
       }
 
       // InitializeAppUseCase uses Drizzle's built-in async transaction pattern

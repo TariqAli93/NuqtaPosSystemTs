@@ -83,7 +83,7 @@
 
     <div class="d-flex flex-column flex-grow-1">
       <slot name="header">
-        <v-app-bar flat height="64" class="win-command-bar">
+        <v-app-bar flat height="64" class="win-command-bar border-r-0">
           <v-toolbar-title class="text-subtitle-1">{{ t('layout.workspace') }}</v-toolbar-title>
           <v-spacer />
           <v-menu v-model="showAlerts" offset-y>

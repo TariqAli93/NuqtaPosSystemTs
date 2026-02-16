@@ -1,20 +1,30 @@
 import { IUserRepository } from '../interfaces/IUserRepository.js';
 import { ISettingsRepository } from '../interfaces/ISettingsRepository.js';
 
+export interface SetupStatus {
+  isInitialized: boolean;
+  hasUsers: boolean;
+  hasCompanyInfo: boolean;
+}
+
 export class CheckInitialSetupUseCase {
   constructor(
     private userRepo: IUserRepository,
     private settingsRepo: ISettingsRepository
   ) {}
 
-  async execute(): Promise<{ hasUsers: boolean; hasCompanyInfo: boolean }> {
-    // Fallback checks for legacy detection
-    const userCount = await this.userRepo.count();
+  execute(): SetupStatus {
+    // Primary flag — set atomically at the end of InitializeAppUseCase
+    const initialized = this.settingsRepo.get('app_initialized');
+    const isInitialized = initialized === 'true';
+
+    // Fallback checks for partial-setup detection
+    const userCount = this.userRepo.count();
     const companySettings = {
-      name: await this.settingsRepo.get('company_name'),
-      city: await this.settingsRepo.get('company_city'),
-      area: await this.settingsRepo.get('company_area'),
-      street: await this.settingsRepo.get('company_street'),
+      name: this.settingsRepo.get('company_name'),
+      city: this.settingsRepo.get('company_city'),
+      area: this.settingsRepo.get('company_area'),
+      street: this.settingsRepo.get('company_street'),
     } as const;
 
     const hasUsers = userCount > 0;
@@ -25,6 +35,7 @@ export class CheckInitialSetupUseCase {
       !!companySettings.street;
 
     return {
+      isInitialized,
       hasUsers,
       hasCompanyInfo,
     };

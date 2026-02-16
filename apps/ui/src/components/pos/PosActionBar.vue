@@ -20,28 +20,30 @@
       </template>
     </v-btn>
 
-    <v-item-group class="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2" mandatory>
-      <v-item v-for="action in actions" :key="action.event">
-        <v-btn
-          :color="action.color"
-          :variant="action.variant"
-          :disabled="action.disabled"
-          block
-          class="grow"
-          @click="emitAction(action.event)"
-        >
-          <template #prepend>
-            <v-icon size="18">{{ action.icon }}</v-icon>
-          </template>
-          <template #default>
-            <span class="text-body-2">{{ action.label }}</span>
-          </template>
-          <template #append>
-            <v-hotkey border="0" display-mode="icon" elevation="0" :keys="action.key" />
-          </template>
-        </v-btn>
-      </v-item>
-    </v-item-group>
+    <div class="item-group-container">
+      <v-item-group class="actions-grid-auto mt-2">
+        <v-item v-for="action in actions" :key="action.event">
+          <v-btn
+            :color="action.color"
+            :variant="action.variant"
+            :disabled="action.disabled"
+            block
+            class="grow min-h-10 sm:min-h-12"
+            @click="emitAction(action.event)"
+          >
+            <template #prepend>
+              <v-icon size="18">{{ action.icon }}</v-icon>
+            </template>
+            <template #default>
+              <span class="text-body-2">{{ action.label }}</span>
+            </template>
+            <template #append>
+              <v-hotkey border="0" display-mode="symbol" elevation="0" :keys="action.key" />
+            </template>
+          </v-btn>
+        </v-item>
+      </v-item-group>
+    </div>
   </div>
 </template>
 
@@ -99,15 +101,7 @@ const actions = computed(() => [
     variant: 'outlined' as const,
     disabled: false,
   },
-  {
-    event: 'clear' as ActionEvent,
-    icon: 'mdi-trash-can-outline',
-    label: t('common.clear'),
-    key: 'f9',
-    color: 'error',
-    variant: 'outlined' as const,
-    disabled: !props.canClear,
-  },
+
   {
     event: 'note' as ActionEvent,
     icon: 'mdi-note-text-outline',
@@ -126,6 +120,15 @@ const actions = computed(() => [
     variant: 'outlined' as const,
     disabled: false,
   },
+  {
+    event: 'clear' as ActionEvent,
+    icon: 'mdi-trash-can-outline',
+    label: t('common.clear'),
+    key: 'f9',
+    color: 'error',
+    variant: 'outlined' as const,
+    disabled: !props.canClear,
+  },
 ]);
 
 function emitAction(event: ActionEvent) {
@@ -141,5 +144,30 @@ function emitAction(event: ActionEvent) {
 <style lang="scss" scoped>
 .pay-button {
   justify-content: space-between !important;
+}
+
+.item-group-container {
+  container-type: inline-size; /* يخلي العناصر داخلها تقيس عرض الحاوية */
+}
+
+.actions-grid-auto {
+  display: grid;
+  gap: 0.25rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+/* لما drawer يصير أوسع */
+@container (min-width: 360px) {
+  .actions-grid-auto {
+    gap: 0.5rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* إذا بعد أوسع */
+@container (min-width: 520px) {
+  .actions-grid-auto {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
 }
 </style>

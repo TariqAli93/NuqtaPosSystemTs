@@ -22,7 +22,8 @@ export class BackupService {
 
   constructor(db: DatabaseType) {
     this.db = db.sqlite;
-    this.backupDir = path.join(app.getPath('appData'), 'nuqtaplus', 'backups');
+    const defaultBackupPath = path.join(app.getPath('userData'), 'Backups');
+    this.backupDir = defaultBackupPath;
 
     // Ensure backup directory exists
     if (!fs.existsSync(this.backupDir)) {
