@@ -26,13 +26,16 @@ export function registerConflictHandlers(
   ipcMain.handle('conflicts:getList', async (_event, payload: any) => {
     try {
       const useCase = new GetConflictsUseCase(conflictRepository);
-      const { params } = assertPayload('conflicts:getList', payload, ['params']);
+      const parsed = assertPayload('conflicts:getList', payload, ['params']);
+      const params = (parsed.params || {}) as Record<string, unknown>;
+      const status =
+        params.status === 'pending' || params.status === 'resolved' ? params.status : undefined;
       const result = await useCase.execute({
-        status: params.status,
-        entityType: params.entityType,
-        deviceId: params.deviceId,
-        limit: params.limit,
-        offset: params.offset,
+        status,
+        entityType: typeof params.entityType === 'string' ? params.entityType : undefined,
+        deviceId: typeof params.deviceId === 'string' ? params.deviceId : undefined,
+        limit: typeof params.limit === 'number' ? params.limit : undefined,
+        offset: typeof params.offset === 'number' ? params.offset : undefined,
       });
       return ok(result);
     } catch (error: unknown) {
@@ -47,12 +50,13 @@ export function registerConflictHandlers(
   ipcMain.handle('conflicts:getDetail', async (_event, payload: any) => {
     try {
       const { id } = assertPayload('conflicts:getDetail', payload, ['id']);
-      if (!id) {
+      const conflictId = Number(id);
+      if (!Number.isFinite(conflictId)) {
         throw buildValidationError('conflicts:getDetail', payload, 'Conflict ID is required');
       }
-      const conflict = await conflictRepository.getConflictById(id);
+      const conflict = await conflictRepository.getConflictById(conflictId);
       if (!conflict) {
-        throw buildValidationError('conflicts:getDetail', payload, `Conflict not found: ${id}`);
+        throw buildValidationError('conflicts:getDetail', payload, `Conflict not found: ${conflictId}`);
       }
       return ok(conflict);
     } catch (error: unknown) {
@@ -67,13 +71,32 @@ export function registerConflictHandlers(
   ipcMain.handle('conflicts:resolve', async (_event, payload: any) => {
     try {
       const useCase = new ResolveConflictUseCase(conflictRepository);
-      const { data } = assertPayload('conflicts:resolve', payload, ['data']);
+      const parsed = assertPayload('conflicts:resolve', payload, ['data']);
+      const data = (parsed.data || {}) as Record<string, unknown>;
+      if (typeof data.conflictId !== 'number') {
+        throw buildValidationError('conflicts:resolve', payload, 'conflictId must be a number');
+      }
+      if (
+        data.strategy !== 'lww' &&
+        data.strategy !== 'manual' &&
+        data.strategy !== 'merge' &&
+        data.strategy !== 'custom-rule' &&
+        data.strategy !== 'auto'
+      ) {
+        throw buildValidationError('conflicts:resolve', payload, 'strategy is invalid');
+      }
+      const strategy = data.strategy;
       const result = await useCase.execute({
         conflictId: data.conflictId,
-        strategy: data.strategy,
-        resolvedValue: data.resolvedValue,
-        feedback: data.feedback,
-        resolvedBy: data.resolvedBy,
+        strategy,
+        resolvedValue:
+          data.resolvedValue &&
+          typeof data.resolvedValue === 'object' &&
+          !Array.isArray(data.resolvedValue)
+            ? (data.resolvedValue as Record<string, any>)
+            : undefined,
+        feedback: typeof data.feedback === 'string' ? data.feedback : undefined,
+        resolvedBy: typeof data.resolvedBy === 'number' ? data.resolvedBy : 1,
       });
       return ok(result);
     } catch (error: unknown) {
@@ -88,10 +111,11 @@ export function registerConflictHandlers(
   ipcMain.handle('conflicts:getStats', async (_event, payload: any) => {
     try {
       const useCase = new GetConflictStatsUseCase(conflictRepository);
-      const { params } = assertPayload('conflicts:getStats', payload, ['params']);
+      const parsed = assertPayload('conflicts:getStats', payload, ['params']);
+      const params = (parsed.params || {}) as Record<string, unknown>;
       const result = await useCase.execute({
-        fromDate: params.fromDate,
-        toDate: params.toDate,
+        fromDate: typeof params.fromDate === 'number' ? params.fromDate : undefined,
+        toDate: typeof params.toDate === 'number' ? params.toDate : undefined,
       });
       return ok(result);
     } catch (error: unknown) {

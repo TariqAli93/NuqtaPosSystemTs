@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { salesClient } from '../ipc';
 import type { Payment, Sale, SaleInput } from '../types/domain';
+import { generateIdempotencyKey } from '../utils/idempotency';
 
 export const useSalesStore = defineStore('sales', () => {
   const items = ref<Sale[]>([]);
@@ -44,7 +45,10 @@ export const useSalesStore = defineStore('sales', () => {
   async function addPayment(id: number, payment: Payment) {
     loading.value = true;
     error.value = null;
-    const result = await salesClient.addPayment(id, payment);
+    const result = await salesClient.addPayment(id, {
+      ...payment,
+      idempotencyKey: payment.idempotencyKey || generateIdempotencyKey('sale-payment'),
+    });
     if (!result.ok) {
       error.value = result.error.message;
     }

@@ -15,6 +15,15 @@ const ALLOWED_CHANNELS = new Set([
   'products:update',
   'products:delete',
   'products:adjustStock',
+  'products:getPurchaseHistory',
+  'products:getSalesHistory',
+  'products:getUnits',
+  'products:createUnit',
+  'products:updateUnit',
+  'products:deleteUnit',
+  'products:setDefaultUnit',
+  'products:getBatches',
+  'products:createBatch',
 
   // Sales
   'sales:create',
@@ -100,6 +109,57 @@ const ALLOWED_CHANNELS = new Set([
 
   // POS
   'pos:afterPay',
+
+  // Suppliers
+  'suppliers:getAll',
+  'suppliers:getById',
+  'suppliers:create',
+  'suppliers:update',
+  'suppliers:delete',
+
+  // Purchases
+  'purchases:getAll',
+  'purchases:getById',
+  'purchases:create',
+
+  // Inventory
+  'inventory:getMovements',
+  'inventory:getDashboardStats',
+  'inventory:getExpiryAlerts',
+  'inventory:reconcileStock',
+
+  // Customer Ledger
+  'customerLedger:getLedger',
+  'customerLedger:recordPayment',
+  'customerLedger:addAdjustment',
+  'customerLedger:reconcileDebt',
+
+  // Barcode
+  'barcode:getTemplates',
+  'barcode:createTemplate',
+  'barcode:deleteTemplate',
+  'barcode:getPrintJobs',
+  'barcode:createPrintJob',
+
+  // Accounting
+  'accounting:getAccounts',
+  'accounting:getJournalEntries',
+  'accounting:getEntryById',
+  'accounting:getTrialBalance',
+  'accounting:getProfitLoss',
+  'accounting:getBalanceSheet',
+
+  // Supplier Ledger
+  'supplierLedger:getLedger',
+  'supplierLedger:recordPayment',
+  'supplierLedger:reconcileBalance',
+
+  // Diagnostics
+  'diagnostics:getFinanceInventoryStatus',
+  'diagnostics:createTestTransaction',
+  'diagnostics:createTestSaleCash',
+  'diagnostics:createTestSaleCredit',
+  'diagnostics:createTestPurchase',
 ]);
 
 const safeInvoke = (channel: string, data?: any) => {

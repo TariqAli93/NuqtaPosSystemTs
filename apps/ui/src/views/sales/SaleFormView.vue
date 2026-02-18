@@ -25,17 +25,9 @@
               item-value="value"
             />
             <v-text-field v-model="form.currency" :label="t('products.currency')" />
-            <v-text-field
-              v-model.number="form.discount"
-              :label="t('sales.discount')"
-              type="number"
-            />
-            <v-text-field v-model.number="form.tax" :label="t('sales.tax')" type="number" />
-            <v-text-field
-              v-model.number="form.paidAmount"
-              :label="t('sales.paidAmount')"
-              type="number"
-            />
+            <MoneyInput v-model="form.discount" :label="t('sales.discount')" />
+            <MoneyInput v-model="form.tax" :label="t('sales.tax')" />
+            <MoneyInput v-model="form.paidAmount" :label="t('sales.paidAmount')" />
           </div>
 
           <v-divider class="my-4" />
@@ -65,20 +57,10 @@
               />
             </template>
             <template #item.unitPrice="{ item }">
-              <v-text-field
-                v-model.number="item.unitPrice"
-                type="number"
-                density="compact"
-                hide-details
-              />
+              <MoneyInput v-model="item.unitPrice" density="compact" hide-details />
             </template>
             <template #item.discount="{ item }">
-              <v-text-field
-                v-model.number="item.discount"
-                type="number"
-                density="compact"
-                hide-details
-              />
+              <MoneyInput v-model="item.discount" density="compact" hide-details />
             </template>
             <template #item.subtotal="{ item }">
               {{ formatAmount(itemSubtotal(item)) }}
@@ -122,20 +104,62 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, reactive, ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useSalesStore } from '../../stores/salesStore';
+import { useProductsStore } from '../../stores/productsStore';
+import { useGlobalBarcodeScanner } from '../../composables/useGlobalBarcodeScanner';
 import { useCurrency } from '../../composables/useCurrency';
-import type { SaleInput, SaleItem } from '../../types/domain';
+import MoneyInput from '@/components/shared/MoneyInput.vue';
+import type { SaleInput, SaleItem, Product } from '../../types/domain';
 
 const store = useSalesStore();
+const productsStore = useProductsStore();
 const router = useRouter();
 const { currency } = useCurrency();
 
 const localizedError = computed(() =>
   store.error ? mapErrorToArabic(store.error, 'errors.saveFailed') : null
 );
+
+// Barcode Scanner Integration
+const { start, stop } = useGlobalBarcodeScanner({
+  mode: 'pos',
+  onScan: async (barcode) => {
+    const product = await productsStore.findProductByBarcode(barcode);
+    if (product) {
+      addItemToCart(product);
+    }
+  },
+});
+
+onMounted(() => {
+  start();
+});
+
+onUnmounted(() => {
+  stop();
+});
+
+function addItemToCart(product: Product) {
+  const existingItem = items.value.find((i) => i.productId === product.id);
+  if (existingItem) {
+    existingItem.quantity += 1;
+    existingItem.subtotal = itemSubtotal(existingItem);
+  } else {
+    items.value.push({
+      productId: product.id!,
+      productName: product.name,
+      quantity: 1,
+      unitPrice: product.sellingPrice,
+      discount: 0,
+      subtotal: product.sellingPrice,
+      unitName: product.unit || 'pcs',
+      unitFactor: 1,
+    });
+  }
+}
 
 const itemHeaders = computed(() => [
   { title: t('sales.product'), key: 'productName' },
@@ -148,7 +172,6 @@ const itemHeaders = computed(() => [
 
 const paymentTypes = computed(() => [
   { title: t('sales.cash'), value: 'cash' },
-  { title: t('sales.installment'), value: 'installment' },
   { title: t('sales.mixed'), value: 'mixed' },
 ]);
 
@@ -171,6 +194,8 @@ const items = ref<SaleItem[]>([
     unitPrice: 0,
     discount: 0,
     subtotal: 0,
+    unitName: 'pcs',
+    unitFactor: 1,
   },
 ]);
 
@@ -197,6 +222,8 @@ function addItem() {
     unitPrice: 0,
     discount: 0,
     subtotal: 0,
+    unitName: 'pcs',
+    unitFactor: 1,
   });
 }
 

@@ -2,6 +2,7 @@
   <v-dialog
     :model-value="props.modelValue"
     fullscreen
+    scrollable
     transition="dialog-bottom-transition"
     @update:model-value="updateModelValue"
   >
@@ -192,86 +193,65 @@
             <v-spacer />
 
             <!-- Bottom controls: side actions + numpad -->
-            <div class="d-flex ga-5 w-100">
-              <!-- Numpad grid (75 % width) -->
-              <v-row dense style="width: 75%">
-                <v-col v-for="key in keypadKeys" :key="key.id" cols="4">
+            <div
+              class="flex flex-col ga-3 justify-between w-100 pa-5 rounded-lg bg-surface-variant"
+            >
+              <div class="grid grid-cols-3 gap-3 pa-4 place-items-center rounded-lg">
+                <v-btn
+                  v-for="key in keypadKeys"
+                  :key="key.id"
+                  variant="flat"
+                  color="primary"
+                  size="x-large"
+                  block
+                  :disabled="props.busy"
+                  @mousedown.prevent
+                  @click="handleKeypadPress(key.id)"
+                >
+                  <v-icon v-if="key.id === 'backspace'" size="26">mdi-backspace-outline</v-icon>
+                  <span v-else>{{ key.label }}</span>
+                </v-btn>
+              </div>
+
+              <v-divider class="my-4 mx-auto w-full bg-surface-variant!" inset color="secondary" />
+
+              <div class="flex flex-row justify-items-stretch">
+                <div class="gap-3 w-1/2 grid grid-cols-2 pa-4">
                   <v-btn
-                    variant="elevated"
-                    color="primary"
-                    block
-                    height="64"
-                    class="text-h6 font-weight-bold"
+                    v-for="method in paymentMethodOptions"
+                    size="large"
+                    :color="selectedPaymentMethod === method.value ? 'primary' : 'surface'"
+                    :variant="selectedPaymentMethod === method.value ? 'flat' : 'elevated'"
                     :disabled="props.busy"
-                    @mousedown.prevent
-                    @click="handleKeypadPress(key.id)"
+                    @click="selectedPaymentMethod = method.value"
                   >
-                    <v-icon v-if="key.id === 'backspace'" size="26">mdi-backspace-outline</v-icon>
-                    <span v-else>{{ key.label }}</span>
+                    {{ method.label }}
                   </v-btn>
-                </v-col>
+                </div>
 
-                <v-col cols="12">
-                  <!-- Side action buttons (25 % width) -->
-                  <div class="flex flex-col ga-3 items-stretch justify-end">
-                    <div class="grid grid-cols-2 ga-3 order-2">
-                      <v-btn
-                        block
-                        variant="tonal"
-                        color="warning"
-                        size="large"
-                        :disabled="props.busy"
-                        @click="fillExact"
-                      >
-                        تسوية
-                      </v-btn>
-                      <v-btn
-                        block
-                        variant="tonal"
-                        color="warning"
-                        size="large"
-                        :disabled="props.busy"
-                        @click="toggleDiscountEditor"
-                      >
-                        الخصم
-                      </v-btn>
-                    </div>
-
-                    <div class="grid grid-cols-3 ga-3 mt-3 order-1">
-                      <v-btn
-                        block
-                        size="large"
-                        :color="selectedPaymentMethod === 'cash' ? 'primary' : undefined"
-                        :variant="selectedPaymentMethod === 'cash' ? 'flat' : 'outlined'"
-                        :disabled="props.busy"
-                        @click="selectedPaymentMethod = 'cash'"
-                      >
-                        نقدي
-                      </v-btn>
-                      <v-btn
-                        block
-                        size="large"
-                        :color="selectedPaymentMethod === 'card' ? 'primary' : undefined"
-                        :variant="selectedPaymentMethod === 'card' ? 'flat' : 'outlined'"
-                        :disabled="props.busy"
-                        @click="selectedPaymentMethod = 'card'"
-                      >
-                        بطاقة
-                      </v-btn>
-                      <v-btn
-                        block
-                        size="large"
-                        :color="selectedPaymentMethod === 'credit' ? 'primary' : undefined"
-                        :variant="selectedPaymentMethod === 'credit' ? 'flat' : 'outlined'"
-                        :disabled="props.busy"
-                        @click="selectedPaymentMethod = 'credit'"
-                      >
-                        آجل
-                      </v-btn>
-                    </div>
-                  </div>
-                </v-col>
-              </v-row>
+                <div class="gap-3 w-1/2 grid grid-cols-1 pa-4">
+                  <v-btn
+                    block
+                    variant="flat"
+                    color="primary"
+                    size="large"
+                    :disabled="props.busy"
+                    @click="fillExact"
+                  >
+                    تسوية
+                  </v-btn>
+                  <v-btn
+                    block
+                    variant="flat"
+                    color="secondary"
+                    size="large"
+                    :disabled="props.busy"
+                    @click="toggleDiscountEditor"
+                  >
+                    الخصم
+                  </v-btn>
+                </div>
+              </div>
             </div>
           </v-card>
         </v-col>
@@ -333,18 +313,25 @@ const referenceNumber = ref('');
 const discountEditorOpen = ref(false);
 
 const keypadKeys = [
-  { id: '7', label: '7' },
-  { id: '8', label: '8' },
-  { id: '9', label: '9' },
-  { id: '4', label: '4' },
-  { id: '5', label: '5' },
-  { id: '6', label: '6' },
   { id: '1', label: '1' },
   { id: '2', label: '2' },
   { id: '3', label: '3' },
-  { id: '0', label: '0' },
+  { id: '4', label: '4' },
+  { id: '5', label: '5' },
+  { id: '6', label: '6' },
+  { id: '7', label: '7' },
+  { id: '8', label: '8' },
+  { id: '9', label: '9' },
   { id: '.', label: '.' },
+  { id: '0', label: '0' },
   { id: 'backspace', label: '⌫' },
+];
+
+const paymentMethodOptions: { label: string; value: PaymentMethod }[] = [
+  { label: 'نقدي', value: 'cash' },
+  { label: 'بطاقة', value: 'card' },
+  { label: 'آجل', value: 'credit' },
+  { label: 'حوالة', value: 'bank_transfer' },
 ];
 
 const selectedMethodLabel = computed(() => {
@@ -472,8 +459,8 @@ function formatCurrency(value: number): string {
     return new Intl.NumberFormat('ar-IQ', {
       style: 'currency',
       currency: props.currency,
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
       numberingSystem: 'latn',
     }).format(value);
   } catch {

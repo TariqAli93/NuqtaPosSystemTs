@@ -14,6 +14,14 @@ import { registerBackupHandlers } from '../ipc/BackupHandler';
 import { registerUpdateHandlers } from '../ipc/UpdateHandler';
 import { registerPrinterHandlers } from '../ipc/PrinterHandler';
 import { registerPosHandlers } from '../ipc/PosHandler';
+import { registerSupplierHandlers } from '../ipc/SupplierHandler';
+import { registerPurchaseHandlers } from '../ipc/PurchaseHandler';
+import { registerInventoryHandlers } from '../ipc/InventoryHandler';
+import { registerCustomerLedgerHandlers } from '../ipc/CustomerLedgerHandler';
+import { registerBarcodeHandlers } from '../ipc/BarcodeHandler';
+import { registerAccountingHandlers } from '../ipc/AccountingHandler';
+import { registerSupplierLedgerHandlers } from '../ipc/SupplierLedgerHandler';
+import { registerDiagnosticsHandlers } from '../ipc/DiagnosticsHandler';
 import { UpdateService } from '../services/UpdateService.js';
 import { applyMigrations } from '../services/MigrationService.js';
 
@@ -151,13 +159,19 @@ app.whenReady().then(() => {
   registerUpdateHandlers(updateService);
   registerPrinterHandlers();
   registerPosHandlers(db);
+  registerSupplierHandlers(db);
+  registerPurchaseHandlers(db);
+  registerInventoryHandlers(db);
+  registerCustomerLedgerHandlers(db);
+  registerBarcodeHandlers(db);
+  registerAccountingHandlers(db);
+  registerSupplierLedgerHandlers(db);
+  registerDiagnosticsHandlers(db);
 
   // Initialize auto-update
   updateService.initialize();
 
   createWindow();
-
-  // initializeDatabase(dbPath);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

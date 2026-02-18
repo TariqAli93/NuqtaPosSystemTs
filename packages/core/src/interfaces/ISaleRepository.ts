@@ -3,12 +3,11 @@ import { Sale } from '../entities/Sale.js';
 export interface ISaleRepository {
   create(sale: Sale): Sale;
   findById(id: number): Sale | null;
-  findAll(params?: {
-    page: number;
-    limit: number;
-    startDate?: string;
-    endDate?: string;
-  }): { items: Sale[]; total: number };
+  findByIdempotencyKey(key: string): Sale | null;
+  findAll(params?: { page: number; limit: number; startDate?: string; endDate?: string }): {
+    items: Sale[];
+    total: number;
+  };
   updateStatus(id: number, status: 'completed' | 'cancelled'): void;
   update(id: number, data: Partial<Sale>): void;
   getDailySummary(date: Date): {

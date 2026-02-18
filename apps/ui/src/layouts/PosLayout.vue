@@ -165,16 +165,28 @@ const primaryNav = computed(() => {
       visible: uiAccess.canManageProducts(role),
     },
     {
+      to: '/workspace/finance?section=inventory',
+      icon: 'mdi-warehouse',
+      label: t('nav.inventory'),
+      visible: uiAccess.canViewInventory(role),
+    },
+    {
       to: '/categories',
       icon: 'mdi-shape-outline',
       label: t('nav.categories'),
       visible: uiAccess.canManageProducts(role),
     },
     {
-      to: '/customers',
-      icon: 'mdi-account-group',
-      label: t('nav.customers'),
-      visible: uiAccess.canManageCustomers(role),
+      to: '/purchases',
+      icon: 'mdi-cart-arrow-down',
+      label: t('nav.purchases'),
+      visible: uiAccess.canManagePurchases(role),
+    },
+    {
+      to: '/suppliers',
+      icon: 'mdi-truck-delivery',
+      label: t('nav.suppliers'),
+      visible: uiAccess.canManageSuppliers(role),
     },
     {
       to: '/sales',
@@ -182,6 +194,13 @@ const primaryNav = computed(() => {
       label: t('nav.sales'),
       visible: uiAccess.canCreateSales(role),
     },
+    {
+      to: '/customers',
+      icon: 'mdi-account-group',
+      label: t('nav.customers'),
+      visible: uiAccess.canManageCustomers(role),
+    },
+
     {
       to: '/users',
       icon: 'mdi-account-multiple-outline',

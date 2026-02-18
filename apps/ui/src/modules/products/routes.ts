@@ -1,23 +1,45 @@
 import type { RouteRecordRaw } from 'vue-router';
-import ProductsListView from '../../views/products/ProductsListView.vue';
-import ProductFormView from '../../views/products/ProductFormView.vue';
+import ProductWorkspaceView from '../../views/products/ProductWorkspaceView.vue';
 
 export const productsRoutes: RouteRecordRaw[] = [
   {
     path: 'products',
-    name: 'Products',
-    component: ProductsListView,
+    name: 'ProductWorkspace',
+    component: ProductWorkspaceView,
   },
   {
     path: 'products/new',
     name: 'ProductCreate',
-    component: ProductFormView,
+    redirect: (to) => ({
+      name: 'ProductWorkspace',
+      query: { ...to.query, action: 'create' },
+    }),
     meta: { requiresManageProducts: true, enableBarcode: 'product' },
+  },
+  {
+    path: 'products/:id',
+    name: 'ProductDetail',
+    redirect: (to) => ({
+      name: 'ProductWorkspace',
+      query: { ...to.query, productId: String(to.params.id) },
+    }),
   },
   {
     path: 'products/:id/edit',
     name: 'ProductEdit',
-    component: ProductFormView,
+    redirect: (to) => ({
+      name: 'ProductWorkspace',
+      query: { ...to.query, productId: String(to.params.id), action: 'edit' },
+    }),
     meta: { requiresManageProducts: true, enableBarcode: 'product' },
+  },
+  {
+    path: 'products/:id/barcode',
+    name: 'BarcodePrint',
+    redirect: (to) => ({
+      name: 'ProductWorkspace',
+      query: { ...to.query, productId: String(to.params.id), tab: 'units', action: 'barcode' },
+    }),
+    meta: { requiresManageProducts: true },
   },
 ];

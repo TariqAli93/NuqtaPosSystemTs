@@ -14,6 +14,10 @@ import { usersRoutes } from '../../modules/users/routes';
 import { categoriesRoutes } from '../../modules/categories/routes';
 import { profileRoutes } from '../../modules/profile/routes';
 import { aboutRoutes } from '../../modules/about/routes';
+import { suppliersRoutes } from '../../modules/suppliers/routes';
+import { purchasesRoutes } from '../../modules/purchases/routes';
+import { inventoryRoutes } from '../../modules/inventory/routes';
+import { accountingRoutes } from '../../modules/accounting/routes';
 
 export const routes: RouteRecordRaw[] = [
   setupRoute,
@@ -45,6 +49,10 @@ export const routes: RouteRecordRaw[] = [
       ...customersRoutes,
       ...productsRoutes,
       ...salesRoutes,
+      ...suppliersRoutes,
+      ...purchasesRoutes,
+      ...inventoryRoutes,
+      ...accountingRoutes,
       ...settingsRoutes,
       ...usersRoutes,
       ...categoriesRoutes,

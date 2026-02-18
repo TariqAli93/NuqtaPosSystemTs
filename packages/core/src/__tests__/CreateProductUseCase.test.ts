@@ -17,7 +17,8 @@ describe('CreateProductUseCase', () => {
       minStock: 5,
       unit: 'piece',
       isActive: true,
-      currency: 'USD',
+      isExpire: false,
+      currency: 'IQD',
       status: 'available',
     };
 

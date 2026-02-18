@@ -7,6 +7,9 @@ import {
   SqliteSettingsRepository,
   SqlitePaymentRepository,
   SqliteAuditRepository,
+  SqliteInventoryRepository,
+  SqliteAccountingRepository,
+  SqliteCustomerLedgerRepository,
   withTransaction,
   DatabaseType,
 } from '@nuqtaplus/data';
@@ -22,6 +25,9 @@ export function registerSaleHandlers(db: DatabaseType) {
   const settingsRepo = new SqliteSettingsRepository(db.db);
   const paymentRepo = new SqlitePaymentRepository(db.db);
   const auditRepo = new SqliteAuditRepository(db.db);
+  const inventoryRepo = new SqliteInventoryRepository(db.db);
+  const accountingRepo = new SqliteAccountingRepository(db.db);
+  const customerLedgerRepo = new SqliteCustomerLedgerRepository(db.db);
 
   const createSaleUseCase = new CreateSaleUseCase(
     saleRepo,
@@ -29,10 +35,19 @@ export function registerSaleHandlers(db: DatabaseType) {
     customerRepo,
     settingsRepo,
     paymentRepo,
+    inventoryRepo,
+    accountingRepo,
+    customerLedgerRepo,
     auditRepo
   );
 
-  const addPaymentUseCase = new AddPaymentUseCase(saleRepo, paymentRepo, customerRepo);
+  const addPaymentUseCase = new AddPaymentUseCase(
+    saleRepo,
+    paymentRepo,
+    customerRepo,
+    customerLedgerRepo,
+    accountingRepo
+  );
 
   /**
    * Validates CreateSaleInput DTO (flat, no wrapper keys).
@@ -61,12 +76,11 @@ export function registerSaleHandlers(db: DatabaseType) {
     }
 
     // Validate payment type if provided
-    if (data.paymentType && !['cash', 'installment', 'mixed'].includes(data.paymentType)) {
-      throw buildValidationError(
-        channel,
-        payload,
-        'Payment type must be cash, installment, or mixed'
-      );
+    if (
+      data.paymentType &&
+      !['cash', 'credit', 'mixed', 'installment'].includes(data.paymentType)
+    ) {
+      throw buildValidationError(channel, payload, 'Payment type must be cash, credit, or mixed');
     }
 
     // Validate payment method if provided
@@ -142,6 +156,9 @@ export function registerSaleHandlers(db: DatabaseType) {
 
       // DTO is directly at payload.data — no extra nesting
       const saleInput = payload.data as any;
+      if (saleInput.paymentType === 'installment') {
+        saleInput.paymentType = 'credit';
+      }
 
       // userId comes from UserContextService, NOT from UI payload
       const userId = userContextService.getUserId() || 1;
@@ -224,8 +241,71 @@ export function registerSaleHandlers(db: DatabaseType) {
       if (typeof payload.id !== 'number') {
         throw buildValidationError('sales:cancel', payload, 'ID must be a number');
       }
-      saleRepo.updateStatus(payload.id, 'cancelled');
-      return ok(null);
+      const saleId = payload.id;
+
+      const userId = userContextService.getUserId() || 1;
+      const cancelledSale = withTransaction(db.sqlite, () => {
+        const sale = saleRepo.findById(saleId);
+        if (!sale) {
+          throw buildValidationError('sales:cancel', payload, `Sale ${saleId} not found`);
+        }
+
+        if (sale.status === 'cancelled') {
+          return sale;
+        }
+
+        const items = sale.items || [];
+        for (const item of items) {
+          const quantityBase = item.quantityBase ?? item.quantity * (item.unitFactor || 1);
+          const currentProduct = productRepo.findById(item.productId);
+          if (!currentProduct) continue;
+
+          const stockBefore = currentProduct.stock || 0;
+          const stockAfter = stockBefore + quantityBase;
+
+          inventoryRepo.createMovementSync({
+            productId: item.productId,
+            batchId: item.batchId,
+            movementType: 'in',
+            reason: 'return',
+            quantityBase,
+            unitName: item.unitName || 'piece',
+            unitFactor: item.unitFactor || 1,
+            stockBefore,
+            stockAfter,
+            costPerUnit: currentProduct.costPrice,
+            totalCost: quantityBase * currentProduct.costPrice,
+            sourceType: 'sale',
+            sourceId: sale.id,
+            notes: `Cancel sale #${sale.invoiceNumber}`,
+            createdBy: userId,
+          });
+
+          productRepo.updateStock(item.productId, quantityBase);
+          if (item.batchId) {
+            productRepo.updateBatchStock(item.batchId, quantityBase);
+          }
+        }
+
+        if (sale.customerId && sale.remainingAmount > 0) {
+          const balanceBefore = customerLedgerRepo.getLastBalanceSync(sale.customerId);
+          customerLedgerRepo.createSync({
+            customerId: sale.customerId,
+            transactionType: 'return',
+            amount: -sale.remainingAmount,
+            balanceAfter: balanceBefore - sale.remainingAmount,
+            saleId: sale.id,
+            notes: `Reverse sale debt #${sale.invoiceNumber}`,
+            createdBy: userId,
+          });
+        }
+
+        saleRepo.updateStatus(sale.id!, 'cancelled');
+        const updated = saleRepo.findById(sale.id!);
+        return updated || sale;
+      });
+
+      return ok(cancelledSale);
     } catch (e: unknown) {
       return mapErrorToResult(e);
     }

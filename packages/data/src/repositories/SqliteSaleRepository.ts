@@ -1,76 +1,67 @@
 import { eq, desc, and, gte, lte, sql, count } from 'drizzle-orm';
 import { DbClient } from '../db.js';
-import { sales, saleItems, installments } from '../schema/schema.js';
+import { sales, saleItems } from '../schema/schema.js';
 import { ISaleRepository, Sale } from '@nuqtaplus/core';
 
 export class SqliteSaleRepository implements ISaleRepository {
   constructor(private db: DbClient) {}
 
   create(sale: Sale): Sale {
-    const insertedSale = this.db.transaction((tx) => {
-      const saleRow = tx
-        .insert(sales)
-        .values({
-          invoiceNumber: sale.invoiceNumber,
-          customerId: sale.customerId,
-          subtotal: sale.subtotal,
-          discount: sale.discount,
-          tax: sale.tax,
-          total: sale.total,
-          currency: sale.currency,
-          paymentType: sale.paymentType,
-          paidAmount: sale.paidAmount,
-          remainingAmount: sale.remainingAmount,
-          status: sale.status,
-          notes: sale.notes,
-          interestRate: sale.interestRate,
-          interestAmount: sale.interestAmount,
-          createdBy: sale.createdBy,
-          createdAt: sale.createdAt,
-        })
-        .returning()
-        .get();
+    const saleRow = this.db
+      .insert(sales)
+      .values({
+        invoiceNumber: sale.invoiceNumber,
+        customerId: sale.customerId,
+        subtotal: sale.subtotal,
+        discount: sale.discount,
+        tax: sale.tax,
+        total: sale.total,
+        currency: sale.currency,
+        paymentType: sale.paymentType,
+        paidAmount: sale.paidAmount,
+        remainingAmount: sale.remainingAmount,
+        status: sale.status,
+        notes: sale.notes,
+        interestRate: sale.interestRate,
+        interestAmount: sale.interestAmount,
+        createdBy: sale.createdBy,
+        createdAt: sale.createdAt,
+        idempotencyKey: sale.idempotencyKey || null,
+      })
+      .returning()
+      .get();
 
-      if (sale.items && sale.items.length > 0) {
-        for (const item of sale.items) {
-          tx.insert(saleItems)
-            .values({
-              saleId: saleRow.id,
-              productId: item.productId,
-              productName: item.productName,
-              quantity: item.quantity,
-              unitPrice: item.unitPrice,
-              discount: item.discount,
-              subtotal: item.subtotal,
-              createdAt: sale.createdAt,
-            })
-            .run();
-        }
-      }
-
-      if (sale.installments && sale.installments.length > 0) {
-        tx.insert(installments)
-          .values(
-            sale.installments.map((inst) => ({
-              saleId: saleRow.id,
-              customerId: sale.customerId,
-              installmentNumber: inst.installmentNumber,
-              dueAmount: inst.dueAmount,
-              paidAmount: inst.paidAmount,
-              remainingAmount: inst.remainingAmount,
-              currency: inst.currency,
-              dueDate: inst.dueDate,
-              status: inst.status,
-              notes: inst.notes,
-            }))
-          )
+    if (sale.items && sale.items.length > 0) {
+      for (const item of sale.items) {
+        this.db
+          .insert(saleItems)
+          .values({
+            saleId: saleRow.id,
+            productId: item.productId,
+            productName: item.productName,
+            quantity: item.quantity,
+            unitName: item.unitName || 'piece',
+            unitFactor: item.unitFactor || 1,
+            quantityBase: item.quantityBase || item.quantity,
+            batchId: item.batchId,
+            unitPrice: item.unitPrice,
+            discount: item.discount,
+            subtotal: item.subtotal,
+            createdAt: sale.createdAt,
+          })
           .run();
       }
+    }
 
-      return saleRow;
-    });
+    return { ...sale, id: saleRow.id };
+  }
 
-    return { ...sale, id: insertedSale.id };
+  findByIdempotencyKey(key: string): Sale | null {
+    const row = this.db.select().from(sales).where(eq(sales.idempotencyKey, key)).get();
+    if (!row) return null;
+
+    const items = this.db.select().from(saleItems).where(eq(saleItems.saleId, row.id)).all();
+    return { ...row, items: items as any } as Sale;
   }
 
   update(id: number, data: Partial<Sale>): void {
@@ -92,12 +83,10 @@ export class SqliteSaleRepository implements ISaleRepository {
     return { ...sale, items: items as any } as Sale;
   }
 
-  findAll(params?: {
-    page: number;
-    limit: number;
-    startDate?: string;
-    endDate?: string;
-  }): { items: Sale[]; total: number } {
+  findAll(params?: { page: number; limit: number; startDate?: string; endDate?: string }): {
+    items: Sale[];
+    total: number;
+  } {
     const page = params?.page || 1;
     const limit = params?.limit || 10;
     const offset = (page - 1) * limit;

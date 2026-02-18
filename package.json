@@ -7,7 +7,7 @@
   "scripts": {
     "build:packages": "pnpm --filter \"./packages/*\" run build",
     "dev": "pnpm -C apps/electron dev",
-    "build": "pnpm -C apps/electron build",
+    "build": "concurrently \"pnpm -C apps/electron build\" \"pnpm -C packages/core build\" \"pnpm -C packages/data build\"",
     "dist": "pnpm -C apps/electron dist",
     "db:migrate": "pnpm --filter @nuqtaplus/data run db:migrate",
     "db:generate": "pnpm --filter @nuqtaplus/data run db:generate",

@@ -1,7 +1,6 @@
 ﻿import type {
   Category,
   Customer,
-  Installment,
   Payment,
   Product,
   Sale,
@@ -9,13 +8,25 @@
   Settings,
   User,
   CompanySettings,
+  Supplier,
+  Purchase,
+  PurchaseItem,
+  InventoryMovement,
+  Account,
+  JournalEntry,
+  JournalLine,
+  CustomerLedgerEntry,
+  SupplierLedgerEntry,
+  ProductUnit,
+  ProductBatch,
+  BarcodeTemplate,
+  BarcodePrintJob,
 } from '@nuqtaplus/core';
 import type { UserRole } from '@nuqtaplus/core';
 
 export type {
   Category,
   Customer,
-  Installment,
   Payment,
   Product,
   Sale,
@@ -23,6 +34,19 @@ export type {
   Settings,
   UserRole,
   CompanySettings,
+  Supplier,
+  Purchase,
+  PurchaseItem,
+  InventoryMovement,
+  Account,
+  JournalEntry,
+  JournalLine,
+  CustomerLedgerEntry,
+  SupplierLedgerEntry,
+  ProductUnit,
+  ProductBatch,
+  BarcodeTemplate,
+  BarcodePrintJob,
 };
 
 export type UserPublic = Omit<User, 'password'>;
@@ -42,13 +66,17 @@ export type ProductInput = Pick<
   | 'minStock'
   | 'unit'
   | 'supplier'
+  | 'supplierId'
   | 'status'
   | 'isActive'
+  | 'isExpire'
+  | 'expireDate'
 >;
 
 export type SaleInput = Omit<Sale, 'id' | 'createdAt' | 'updatedAt' | 'createdBy'> & {
   paymentMethod?: string;
   referenceNumber?: string;
+  idempotencyKey?: string;
 };
 
 export type FirstUserInput = {

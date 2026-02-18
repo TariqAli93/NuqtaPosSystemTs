@@ -77,7 +77,7 @@ const router = useRouter();
 const route = useRoute();
 
 const username = ref<string>('admin');
-const password = ref<string>('Admin@123');
+const password = ref<string>('admin123');
 const showPassword = ref<boolean>(false);
 const localError = ref<string | null>(null);
 const loginFormRef = ref<LoginForm>();

@@ -3,6 +3,9 @@ import { ISaleRepository } from '../interfaces/ISaleRepository';
 import { ICustomerRepository } from '../interfaces/ICustomerRepository';
 import { ISettingsRepository } from '../interfaces/ISettingsRepository';
 import { IPaymentRepository } from '../interfaces/IPaymentRepository';
+import { IInventoryRepository } from '../interfaces/IInventoryRepository';
+import { IAccountingRepository } from '../interfaces/IAccountingRepository';
+import { ICustomerLedgerRepository } from '../interfaces/ICustomerLedgerRepository';
 import { IAuditRepository } from '../interfaces/IAuditRepository';
 import { Product } from '../entities/Product';
 import { Sale } from '../entities/Sale';
@@ -10,10 +13,14 @@ import { Customer } from '../entities/Customer';
 import { Payment } from '../entities/Payment';
 import { Settings, CompanySettings } from '../entities/Settings';
 import { AuditEvent } from '../entities/AuditEvent';
+import { InventoryMovement } from '../entities/InventoryMovement';
+import { Account, JournalEntry } from '../entities/Accounting';
+import { CustomerLedgerEntry } from '../entities/Ledger';
 
 export class FakeProductRepository implements IProductRepository {
   private products: Product[] = [];
   private idCounter = 1;
+  batchStockUpdates: Array<{ batchId: number; quantityChange: number }> = [];
 
   create(product: Product): Product {
     const newProduct = { ...product, id: this.idCounter++ };
@@ -47,6 +54,10 @@ export class FakeProductRepository implements IProductRepository {
     }
   }
 
+  updateBatchStock(_batchId: number, _quantityChange: number): void {
+    this.batchStockUpdates.push({ batchId: _batchId, quantityChange: _quantityChange });
+  }
+
   countLowStock(threshold: number): number {
     return this.products.filter((p) => p.stock <= threshold).length;
   }
@@ -64,6 +75,10 @@ export class FakeSaleRepository implements ISaleRepository {
 
   findById(id: number): Sale | null {
     return this.sales.find((s) => s.id === id) || null;
+  }
+
+  findByIdempotencyKey(key: string): Sale | null {
+    return this.sales.find((s) => s.idempotencyKey === key) || null;
   }
 
   findAll(): { items: Sale[]; total: number } {
@@ -200,17 +215,180 @@ export class FakePaymentRepository implements IPaymentRepository {
   private idCounter = 1;
 
   create(payment: Payment): Payment {
-    const newPayment = { ...payment, id: this.idCounter++ };
+    return this.createSync(payment);
+  }
+
+  createSync(payment: Omit<Payment, 'id' | 'createdAt'>): Payment {
+    const newPayment = {
+      ...payment,
+      id: this.idCounter++,
+      createdAt: payment.createdAt || new Date().toISOString(),
+    } as Payment;
     this.payments.push(newPayment);
     return newPayment;
+  }
+
+  findByIdempotencyKey(key: string): Payment | null {
+    return this.payments.find((p) => p.idempotencyKey === key) || null;
   }
 
   findBySaleId(saleId: number): Payment[] {
     return this.payments.filter((p) => p.saleId === saleId);
   }
 
+  findByPurchaseId(purchaseId: number): Payment[] {
+    return this.payments.filter((p) => p.purchaseId === purchaseId);
+  }
+
+  findByCustomerId(customerId: number): Payment[] {
+    return this.payments.filter((p) => p.customerId === customerId);
+  }
+
+  findBySupplierId(supplierId: number): Payment[] {
+    return this.payments.filter((p) => p.supplierId === supplierId);
+  }
+
   delete(id: number): void {
     this.payments = this.payments.filter((p) => p.id !== id);
+  }
+}
+
+export class FakeInventoryRepository implements IInventoryRepository {
+  movements: InventoryMovement[] = [];
+  private idCounter = 1;
+
+  async createMovement(
+    movement: Omit<InventoryMovement, 'id' | 'createdAt'>
+  ): Promise<InventoryMovement> {
+    return this.createMovementSync(movement);
+  }
+
+  createMovementSync(movement: Omit<InventoryMovement, 'id' | 'createdAt'>): InventoryMovement {
+    const newMovement = {
+      ...movement,
+      id: this.idCounter++,
+      createdAt: new Date().toISOString(),
+    } as InventoryMovement;
+    this.movements.push(newMovement);
+    return newMovement;
+  }
+
+  async getMovements(): Promise<{ items: InventoryMovement[]; total: number }> {
+    return { items: this.movements, total: this.movements.length };
+  }
+
+  async getDashboardStats(): Promise<{
+    totalValuation: number;
+    lowStockCount: number;
+    expiryAlertCount: number;
+    topMovingProducts: any[];
+  }> {
+    return { totalValuation: 0, lowStockCount: 0, expiryAlertCount: 0, topMovingProducts: [] };
+  }
+
+  async getExpiryAlerts(): Promise<any[]> {
+    return [];
+  }
+}
+
+export class FakeAccountingRepository implements IAccountingRepository {
+  entries: JournalEntry[] = [];
+  private accounts: Account[] = [];
+  private idCounter = 1;
+
+  /** Seed accounts for test scenarios */
+  seedAccounts(accts: Account[]): void {
+    this.accounts = accts;
+  }
+
+  createJournalEntry(entry: JournalEntry): JournalEntry {
+    const created = { ...entry, id: this.idCounter++ };
+    this.entries.push(created);
+    return created;
+  }
+
+  createJournalEntrySync(entry: JournalEntry): JournalEntry {
+    return this.createJournalEntry(entry);
+  }
+
+  findAccountByCode(code: string): Account | null {
+    return this.accounts.find((a) => a.code === code) || null;
+  }
+
+  async getAccounts(): Promise<Account[]> {
+    return this.accounts;
+  }
+
+  async getJournalEntries(): Promise<{ items: JournalEntry[]; total: number }> {
+    return { items: this.entries, total: this.entries.length };
+  }
+
+  async getEntryById(id: number): Promise<JournalEntry | null> {
+    return this.entries.find((e) => e.id === id) || null;
+  }
+
+  async getTrialBalance(): Promise<any[]> {
+    return [];
+  }
+
+  async getProfitLoss(): Promise<any> {
+    return { revenue: [], expenses: [], totalRevenue: 0, totalExpenses: 0, netIncome: 0 };
+  }
+
+  async getBalanceSheet(): Promise<any> {
+    return {
+      assets: [],
+      liabilities: [],
+      equity: [],
+      totalAssets: 0,
+      totalLiabilities: 0,
+      totalEquity: 0,
+    };
+  }
+}
+
+export class FakeCustomerLedgerRepository implements ICustomerLedgerRepository {
+  entries: CustomerLedgerEntry[] = [];
+  private idCounter = 1;
+
+  async create(entry: Omit<CustomerLedgerEntry, 'id' | 'createdAt'>): Promise<CustomerLedgerEntry> {
+    return this.createSync(entry);
+  }
+
+  createSync(entry: Omit<CustomerLedgerEntry, 'id' | 'createdAt'>): CustomerLedgerEntry {
+    const newEntry = {
+      ...entry,
+      id: this.idCounter++,
+      createdAt: new Date().toISOString(),
+    } as CustomerLedgerEntry;
+    this.entries.push(newEntry);
+    return newEntry;
+  }
+
+  findByPaymentIdSync(paymentId: number): CustomerLedgerEntry | null {
+    return this.entries.find((entry) => entry.paymentId === paymentId) || null;
+  }
+
+  getLastBalanceSync(customerId: number): number {
+    const customerEntries = this.entries.filter((e) => e.customerId === customerId);
+    if (customerEntries.length === 0) return 0;
+    return customerEntries[customerEntries.length - 1].balanceAfter;
+  }
+
+  async findAll(_params: {
+    customerId: number;
+    dateFrom?: string;
+    dateTo?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<{ items: CustomerLedgerEntry[]; total: number }> {
+    return { items: this.entries, total: this.entries.length };
+  }
+
+  async getBalance(customerId: number): Promise<number> {
+    const customerEntries = this.entries.filter((e) => e.customerId === customerId);
+    if (customerEntries.length === 0) return 0;
+    return customerEntries[customerEntries.length - 1].balanceAfter;
   }
 }
 

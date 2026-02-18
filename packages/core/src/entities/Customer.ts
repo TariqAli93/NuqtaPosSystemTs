@@ -7,10 +7,11 @@ export const CustomerSchema = z.object({
   address: z.string().nullable().optional(),
   city: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
-  totalPurchases: z.number().default(0),
-  totalDebt: z.number().default(0),
+  totalPurchases: z.number().int().default(0),
+  totalDebt: z.number().int().default(0),
   isActive: z.boolean().default(true),
   createdAt: z.string().datetime().optional(),
+  updatedAt: z.string().datetime().optional(),
   createdBy: z.number().optional(),
 });
 

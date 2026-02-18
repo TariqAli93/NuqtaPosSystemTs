@@ -61,6 +61,7 @@
   'errors.insufficientStock': 'المخزون غير كافٍ',
   'errors.outOfStock': 'المنتج غير متوفر في المخزون',
   'errors.stockBelowZero': 'لا يمكن أن يكون المخزون أقل من الصفر',
+  'errors.initializeFailed': 'فشل تهيئة النظام',
 
   'nav.pos': 'نقطة البيع',
   'nav.products': 'المنتجات',
@@ -73,6 +74,10 @@
   'nav.categories': 'الفئات',
   'nav.profile': 'الملف الشخصي',
   'nav.about': 'حول البرنامج',
+  'nav.inventory': 'المخزون',
+  'nav.purchases': 'المشتريات',
+  'nav.suppliers': 'الموردين',
+  'nav.accounting': 'المحاسبة',
 
   'layout.status': 'الحالة',
   'layout.connectedDb': 'متصل بقاعدة البيانات المحلية',
@@ -116,7 +121,6 @@
   'setup.back': 'السابق',
   'setup.finish': 'إنهاء الإعداد',
   'setup.adminHint': 'سيتم إنشاء الحساب بصلاحيات المدير الكامل',
-  'errors.initializeFailed': 'فشل تهيئة النظام',
 
   'validation.required': 'هذا الحقل مطلوب',
   'validation.invalid': 'قيمة غير صالحة',
@@ -368,8 +372,6 @@
   'about.platform': 'المنصة',
   'about.environment': 'بيئة التشغيل',
   'about.subtitle': 'نقطة - نظام نقاط بيع شامل لإدارة أعمالك بكفاءة',
-
-  // About page — new keys
   'about.copyDiagnostics': 'نسخ التشخيصات',
   'about.whatsNew': 'ما الجديد',
   'about.licenseTitle': 'معلومات الترخيص',
@@ -423,6 +425,7 @@
   'enum.saleStatus.completed': 'مكتمل',
   'enum.saleStatus.cancelled': 'ملغي',
   'enum.paymentType.cash': 'نقدي',
+  'enum.paymentType.credit': 'آجل',
   'enum.paymentType.installment': 'تقسيط',
   'enum.paymentType.mixed': 'مختلط',
   'enum.role.admin': 'مدير النظام',

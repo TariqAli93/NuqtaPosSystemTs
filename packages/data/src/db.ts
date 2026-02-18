@@ -17,7 +17,9 @@ type SyncResult<T> = T extends PromiseLike<unknown> ? never : T;
 
 // Helper to initialize DB
 export function createDb(sqlitePath: string): DbConnection {
-  const sqlite = new Database(sqlitePath);
+  const sqlite = new Database(sqlitePath, {
+    verbose: process.env.SQLITE_VERBOSE ? console.log : undefined,
+  });
 
   // Pragmas: stable defaults for desktop POS
   sqlite.pragma('journal_mode = WAL');

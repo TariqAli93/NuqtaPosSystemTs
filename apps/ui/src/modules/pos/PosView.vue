@@ -178,17 +178,13 @@
     <v-card rounded="lg" class="pa-6">
       <v-card-title class="text-h6 pa-0">{{ t('pos.applyDiscount') }}</v-card-title>
       <v-card-text class="pa-0 mt-4">
-        <v-text-field
-          v-model.number="discountInput"
-          variant="outlined"
-          density="comfortable"
-          type="number"
+        <MoneyInput
+          v-model="discountInput"
           :label="t('pos.discountAmount')"
-          prefix="$"
-          min="0"
-          :max="subtotal"
+          grid-layout
           autofocus
           @keyup.enter="applyDiscount"
+          :max="subtotal"
         />
       </v-card-text>
       <v-card-actions class="pa-0 mt-6 justify-end ga-2">
@@ -364,6 +360,8 @@ import StockAlert from '@/components/StockAlert.vue';
 import type { Product, SaleItem, SaleInput, Category } from '@/types/domain';
 import { categoriesClient, posClient } from '@/ipc';
 import { useGlobalBarcodeScanner } from '@/composables/useGlobalBarcodeScanner';
+import MoneyInput from '@/components/shared/MoneyInput.vue';
+import { generateIdempotencyKey } from '@/utils/idempotency';
 
 const productsStore = useProductsStore();
 const salesStore = useSalesStore();
@@ -461,16 +459,6 @@ async function handleBarcodeScan(barcode: string) {
     return;
   }
 
-  // Check if adding would exceed stock
-  const existingItem = cartItems.value.find((item) => item.productId === product.id);
-  const currentQtyInCart = existingItem ? existingItem.quantity : 0;
-  const newQtyInCart = currentQtyInCart + 1;
-
-  if (newQtyInCart > product.stock) {
-    showScanWarning(t('pos.insufficientStock'));
-    return;
-  }
-
   // Add to cart
   const success = await addToCart(product);
   if (success) {
@@ -554,32 +542,9 @@ function heldSaleName(sale: HeldSale, index: number): string {
   return sale.name || `عملية ${index + 1}`;
 }
 
-/**
- * Centralized stock adjustment function - single source of truth for stock updates.
- * @param productId - The product ID to adjust
- * @param change - The amount to change (negative to decrease, positive to increase)
- * @returns true if adjustment succeeded, false if it would result in negative stock
- */
-function adjustProductStock(productId: number, change: number): boolean {
-  const product = productsStore.items.find((p) => p.id === productId);
-  if (!product) {
-    console.error(`Product ${productId} not found in store`);
-    return false;
-  }
-
-  const newStock = product.stock + change;
-
-  // Prevent negative stock
-  if (newStock < 0) {
-    stockAlertMessage.value = t('errors.outOfStock');
-    showStockAlert.value = true;
-    return false;
-  }
-
-  // Update the store (this is reactive and will update the UI)
-  product.stock = newStock;
-  return true;
-}
+// Stock is managed by the backend via inventory movements.
+// Cart operations simply track what the user wants to buy.
+// Product stock numbers are refreshed from the DB after each sale.
 
 const resolveSearchInput = () => {
   searchInput.value =
@@ -698,13 +663,6 @@ async function addToCart(product: Product): Promise<boolean> {
 
   const productId = product.id ?? 0;
 
-  // CRITICAL: Decrease stock in Product Store FIRST before adding to cart
-  if (!adjustProductStock(productId, -1)) {
-    // Stock adjustment failed - show warning via scan feedback
-    showScanWarning(t('errors.outOfStock'));
-    return false;
-  }
-
   const existingIndex = cartItems.value.findIndex((item) => item.productId === productId);
 
   if (existingIndex >= 0) {
@@ -717,36 +675,25 @@ async function addToCart(product: Product): Promise<boolean> {
       unitPrice: product.sellingPrice,
       discount: 0,
       subtotal: product.sellingPrice,
+      unitName: product.unit || 'pcs',
+      unitFactor: 1,
     });
   }
 
   return true;
 }
 
-// Increase quantity - decreases Product Store stock
 function increaseQuantity(index: number) {
   const item = cartItems.value[index];
-
-  // Attempt to decrease stock by 1
-  if (!adjustProductStock(item.productId, -1)) {
-    // Stock not available - alert already shown
-    return;
-  }
-
-  // Stock adjustment succeeded, update cart quantity
   item.quantity += 1;
 }
 
-// Decrease quantity - increases Product Store stock back
 function decreaseQuantity(index: number) {
   const item = cartItems.value[index];
 
   if (item.quantity > 1) {
-    // Return 1 unit back to stock
-    adjustProductStock(item.productId, 1);
     item.quantity -= 1;
   } else {
-    // Last item - remove from cart
     removeFromCart(index);
   }
 }
@@ -758,9 +705,6 @@ function removeFromCart(index: number) {
     return;
   }
 
-  const item = cartItems.value[index];
-  // Return ALL quantity back to Product Store
-  adjustProductStock(item.productId, item.quantity);
   cartItems.value.splice(index, 1);
 }
 
@@ -771,9 +715,6 @@ function cancelRemove() {
 
 function confirmRemove() {
   if (pendingRemoveIndex.value !== null) {
-    const item = cartItems.value[pendingRemoveIndex.value];
-    // Return ALL quantity back to Product Store
-    adjustProductStock(item.productId, item.quantity);
     cartItems.value.splice(pendingRemoveIndex.value, 1);
   }
   showRemoveConfirm.value = false;
@@ -792,11 +733,6 @@ function confirmClear() {
 }
 
 function resetSaleData() {
-  // CRITICAL: Restore ALL stock to Product Store before clearing cart
-  cartItems.value.forEach((item) => {
-    adjustProductStock(item.productId, item.quantity);
-  });
-
   cartItems.value = [];
   discount.value = 0;
   tax.value = 0;
@@ -873,8 +809,7 @@ function confirmHold() {
   heldSales.value.push(heldSale);
   saveHeldSales();
 
-  // Note: Stock remains decreased for held sales (they're still "in progress")
-  // We simply clear the cart without restoring stock
+  // Clear cart (stock is managed by backend)
   cartItems.value = [];
   discount.value = 0;
   tax.value = 0;
@@ -908,13 +843,6 @@ function resumeHeldSale(index: number) {
 
 function deleteHeldSale(index: number) {
   if (confirm(t('pos.confirmDeleteHeldSale'))) {
-    const sale = heldSales.value[index];
-
-    // CRITICAL: Restore stock to Product Store when deleting a held sale
-    sale.items.forEach((item) => {
-      adjustProductStock(item.productId, item.quantity);
-    });
-
     heldSales.value.splice(index, 1);
     saveHeldSales();
   }
@@ -1011,6 +939,7 @@ async function handlePaymentConfirm(overlayPayload: PaymentOverlayPayload) {
       items: itemsWithSubtotals,
       paymentMethod: overlayPayload.paymentMethod,
       referenceNumber: overlayPayload.referenceNumber,
+      idempotencyKey: generateIdempotencyKey('sale'),
     };
 
     const result = await salesStore.createSale(payload);
@@ -1028,20 +957,17 @@ async function handlePaymentConfirm(overlayPayload: PaymentOverlayPayload) {
       showPaymentMessage(t('pos.saleCompleted'), 'success');
       setTimeout(() => focusSearchInput(), 100);
 
+      // Refresh product stock from backend
+      void productsStore.fetchProducts();
+
       if (saleData?.id) {
         triggerAfterPay(saleData.id);
       }
     } else if (!result.ok && 'error' in result) {
-      cartItems.value.forEach((item) => {
-        adjustProductStock(item.productId, item.quantity);
-      });
       console.error(result.error);
       showPaymentMessage(mapErrorToArabic(result.error, 'errors.unexpected'), 'error');
     }
   } catch (error) {
-    cartItems.value.forEach((item) => {
-      adjustProductStock(item.productId, item.quantity);
-    });
     console.error(error);
     showPaymentMessage(t('errors.unexpected'), 'error');
   } finally {

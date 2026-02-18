@@ -24,17 +24,8 @@
               :label="t('products.barcode')"
               data-barcode-field
             />
-            <v-text-field
-              v-model.number="form.costPrice"
-              :label="t('products.costPrice')"
-              type="number"
-            />
-            <v-text-field
-              v-model.number="form.sellingPrice"
-              :label="t('products.sellingPrice')"
-              type="number"
-              required
-            />
+            <MoneyInput v-model="form.costPrice" :label="t('products.costPrice')" />
+            <MoneyInput v-model="form.sellingPrice" :label="t('products.sellingPrice')" required />
             <v-text-field v-model.number="form.stock" :label="t('products.stock')" type="number" />
             <v-text-field
               v-model.number="form.minStock"
@@ -87,6 +78,7 @@ import { mapErrorToArabic, t } from '../../i18n/t';
 import { useProductsStore } from '../../stores/productsStore';
 import type { ProductInput } from '../../types/domain';
 import { useGlobalBarcodeScanner } from '../../composables/useGlobalBarcodeScanner';
+import MoneyInput from '@/components/shared/MoneyInput.vue';
 
 const store = useProductsStore();
 const route = useRoute();
@@ -119,6 +111,7 @@ const form = reactive<ProductInput>({
   supplier: null,
   status: 'available',
   isActive: true,
+  isExpire: false,
 });
 
 const showScanFeedback = ref(false);

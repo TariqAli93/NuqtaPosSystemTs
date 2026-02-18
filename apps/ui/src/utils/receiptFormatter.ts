@@ -85,7 +85,6 @@ export function formatReceipt(data: ReceiptData): string {
   // Payment Type
   const paymentTypeMap: Record<string, string> = {
     cash: 'نقدي',
-    installment: 'تقسيط',
     mixed: 'مختلط',
   };
   lines.push(`طريقة الدفع: ${paymentTypeMap[sale.paymentType] || sale.paymentType}`);

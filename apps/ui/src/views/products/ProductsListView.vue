@@ -44,6 +44,9 @@
             <template #item.name="{ item }">
               <span class="font-weight-medium">{{ item.name }}</span>
             </template>
+            <template #item.barcode="{ item }">
+              <span class="text-caption font-family-monospace">{{ item.barcode || '—' }}</span>
+            </template>
             <template #item.sku="{ item }">
               <span class="text-medium-emphasis">{{ item.sku || t('common.none') }}</span>
             </template>
@@ -93,6 +96,7 @@ const localizedError = computed(() =>
 
 const tableHeaders = computed(() => [
   { title: t('products.name'), key: 'name' },
+  { title: t('products.barcode'), key: 'barcode' },
   { title: t('products.sku'), key: 'sku' },
   { title: t('products.sellingPrice'), key: 'sellingPrice' },
   { title: t('products.stock'), key: 'stock' },

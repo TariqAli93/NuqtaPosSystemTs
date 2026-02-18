@@ -16,17 +16,25 @@ export interface PresetCategory {
   description: string;
 }
 
+export interface PresetProductUnit {
+  unitName: string;
+  factorToBase: number;
+  barcode?: string;
+  sellingPrice?: number;
+}
+
 export interface PresetProduct {
   name: string;
   sku: string;
   categoryRef: string; // matches a category name from the same preset
   costPrice: number;
   sellingPrice: number;
-  stock: number;
+  stock: number; // fallback stock if no purchases seed it
   minStock: number;
   unit: string;
   supplier: string;
   status: 'available' | 'out_of_stock' | 'discontinued';
+  units?: PresetProductUnit[]; // extra packaging units
 }
 
 export interface PresetCustomer {
@@ -37,21 +45,51 @@ export interface PresetCustomer {
   notes: string;
 }
 
+export interface PresetSupplier {
+  name: string;
+  phone: string;
+  address: string;
+  city: string;
+  notes: string;
+}
+
+export interface PresetPurchaseItem {
+  productRef: string; // SKU
+  quantity: number;
+  unitCost: number;
+  unit?: string; // Optional: specify a unit like 'carton'
+}
+
+export interface PresetPurchase {
+  supplierRef: string; // matches supplier name
+  invoiceNumber: string;
+  items: PresetPurchaseItem[];
+  paidAmount: number;
+  notes: string;
+}
+
+export interface PresetSaleItem {
+  productRef: string; // SKU
+  quantity: number;
+  unit?: string; // Optional: specify a unit
+}
+
 export interface PresetSale {
   customerRef: number; // index into customers array
   discount: number;
-  paymentType: 'cash' | 'installment' | 'mixed';
+  paymentType: 'cash' | 'credit' | 'mixed';
   paidAmount: number;
   notes: string;
-  items: { productRef: string; quantity: number }[]; // productRef = SKU
+  items: PresetSaleItem[];
   interestRate?: number;
-  installmentCount?: number;
 }
 
 export interface Preset {
   label: string;
   categories: PresetCategory[];
   products: PresetProduct[];
+  suppliers: PresetSupplier[];
+  purchases: PresetPurchase[];
   customers: PresetCustomer[];
   sales: PresetSale[];
 }
@@ -59,7 +97,7 @@ export interface Preset {
 // ============================================================
 // SUPERMARKET / GROCERY
 // ============================================================
-const supermarket: Preset = {
+export const supermarket: Preset = {
   label: 'سوبرماركت / بقالة',
   categories: [
     { name: 'مواد غذائية', description: 'مواد غذائية أساسية ومستلزمات يومية' },
@@ -77,11 +115,12 @@ const supermarket: Preset = {
       categoryRef: 'مواد غذائية',
       costPrice: 15000,
       sellingPrice: 22000,
-      stock: 40,
+      stock: 0,
       minStock: 10,
       unit: 'كيس',
       supplier: 'شركة الرافدين للمواد الغذائية',
       status: 'available',
+      units: [{ unitName: 'كرتونة', factorToBase: 4, sellingPrice: 85000 }],
     },
     {
       name: 'سكر أبيض 1 كغم',
@@ -138,11 +177,15 @@ const supermarket: Preset = {
       categoryRef: 'مشروبات',
       costPrice: 250,
       sellingPrice: 500,
-      stock: 200,
+      stock: 0,
       minStock: 50,
       unit: 'قنينة',
       supplier: 'ينابيع بغداد',
       status: 'available',
+      units: [
+        { unitName: 'صندوق', factorToBase: 12, sellingPrice: 5500 },
+        { unitName: 'رزمة', factorToBase: 24, sellingPrice: 10000 },
+      ],
     },
     {
       name: 'عصير برتقال 1 لتر',
@@ -293,6 +336,54 @@ const supermarket: Preset = {
       status: 'available',
     },
   ],
+  suppliers: [
+    {
+      name: 'شركة الرافدين للمواد الغذائية',
+      phone: '+964780100200',
+      address: 'المنطقة الصناعية، بغداد',
+      city: 'بغداد',
+      notes: 'مورد رئيسي للأرز والسكر والزيوت',
+    },
+    {
+      name: 'ينابيع بغداد',
+      phone: '+964780200300',
+      address: 'الطارمية، بغداد',
+      city: 'بغداد',
+      notes: 'مورد المياه المعدنية',
+    },
+    {
+      name: 'شركة المنظفات الحديثة',
+      phone: '+964780300400',
+      address: 'المنطقة الصناعية، بصرة',
+      city: 'البصرة',
+      notes: 'منظفات ومواد تنظيف',
+    },
+  ],
+  purchases: [
+    {
+      supplierRef: 'شركة الرافدين للمواد الغذائية',
+      invoiceNumber: 'PUR-SM-001',
+      paidAmount: 800000,
+      notes: 'توريد شهري - مواد غذائية',
+      items: [
+        { productRef: 'SM-RICE-5KG', quantity: 40, unitCost: 15000 },
+        { productRef: 'SM-SUGAR-1KG', quantity: 80, unitCost: 1000 },
+        { productRef: 'SM-OIL-1.5L', quantity: 30, unitCost: 4500 },
+        { productRef: 'SM-TEA-250G', quantity: 60, unitCost: 2500 },
+      ],
+    },
+    {
+      supplierRef: 'ينابيع بغداد',
+      invoiceNumber: 'PUR-SM-002',
+      paidAmount: 50000,
+      notes: 'توريد مياه أسبوعي',
+      items: [
+        { productRef: 'SM-WATER-1.5L', quantity: 200, unitCost: 250 },
+        { productRef: 'SM-JUICE-1L', quantity: 45, unitCost: 2000 },
+        { productRef: 'SM-COLA-2L', quantity: 90, unitCost: 1000 },
+      ],
+    },
+  ],
   customers: [
     {
       name: 'علي حسن محمود',
@@ -366,15 +457,14 @@ const supermarket: Preset = {
         { productRef: 'SM-TEA-250G', quantity: 4 },
       ],
     },
-    // Sale 2: Mixed payment with installments
+    // Sale 2: Mixed payment
     {
       customerRef: 2,
       discount: 0,
       paymentType: 'mixed',
       paidAmount: 40000,
-      notes: 'دفع جزء نقدي والباقي بالتقسيط',
+      notes: 'دفع جزء نقدي والباقي آجل',
       interestRate: 5,
-      installmentCount: 4,
       items: [
         { productRef: 'SM-RICE-5KG', quantity: 2 },
         { productRef: 'SM-MILK-1L', quantity: 5 },
@@ -389,7 +479,6 @@ const supermarket: Preset = {
       paymentType: 'mixed',
       paidAmount: 0,
       interestRate: 0,
-      installmentCount: 1,
       notes: 'للمطعم - دفع آجل',
       items: [
         { productRef: 'SM-WATER-1.5L', quantity: 24 },
@@ -449,7 +538,6 @@ const supermarket: Preset = {
       paidAmount: 30000,
       notes: 'دفع جزئي',
       interestRate: 0,
-      installmentCount: 1,
       items: [
         { productRef: 'SM-RICE-5KG', quantity: 2 },
         { productRef: 'SM-OIL-1.5L', quantity: 3 },
@@ -477,7 +565,6 @@ const supermarket: Preset = {
       paymentType: 'mixed',
       paidAmount: 0,
       interestRate: 0,
-      installmentCount: 1,
       notes: 'سيدفع نهاية الأسبوع',
       items: [
         { productRef: 'SM-JUICE-1L', quantity: 6 },
@@ -661,6 +748,34 @@ const phones: Preset = {
       status: 'available',
     },
   ],
+  suppliers: [
+    {
+      name: 'وكالة سامسونج - بغداد',
+      phone: '+964781100200',
+      address: 'الكرادة، بغداد',
+      city: 'بغداد',
+      notes: 'وكيل سامسونج الرسمي',
+    },
+    {
+      name: 'مستودع الإكسسوارات',
+      phone: '+964781200300',
+      address: 'الشورجة، بغداد',
+      city: 'بغداد',
+      notes: 'إكسسوارات هواتف بالجملة',
+    },
+  ],
+  purchases: [
+    {
+      supplierRef: 'وكالة سامسونج - بغداد',
+      invoiceNumber: 'PUR-PH-001',
+      paidAmount: 1500000,
+      notes: 'توريد هواتف وقطع غيار',
+      items: [
+        { productRef: 'PH-SAM-A15', quantity: 8, unitCost: 180000 },
+        { productRef: 'PH-LCD-A15', quantity: 6, unitCost: 35000 },
+      ],
+    },
+  ],
   customers: [
     {
       name: 'عمر خالد',
@@ -694,604 +809,196 @@ const phones: Preset = {
   sales: [
     {
       customerRef: 0,
-      discount: 0,
+      discount: 10000,
       paymentType: 'cash',
-      paidAmount: 250000,
-      notes: 'شراء هاتف شاومي',
+      paidAmount: 260000,
+      notes: 'غلاف وشاحن',
       items: [
-        { productRef: 'PH-XIA-RN13', quantity: 1 },
-        { productRef: 'PH-CASE-SAM', quantity: 1 },
-        { productRef: 'PH-SCRN-PROT', quantity: 1 },
+        { productRef: 'PH-CASE-SAM', quantity: 10 },
+        { productRef: 'PH-CHRG-65W', quantity: 5 },
       ],
-    },
-    {
-      customerRef: 1,
-      discount: 0,
-      paymentType: 'mixed',
-      paidAmount: 500000,
-      notes: 'آيفون بالتقسيط',
-      interestRate: 0,
-      installmentCount: 3,
-      items: [{ productRef: 'PH-IPH-15-128', quantity: 1 }],
-    },
-    {
-      customerRef: 2,
-      discount: 5000,
-      paymentType: 'cash',
-      paidAmount: 250000,
-      notes: 'بالجملة للمحل',
-      items: [
-        { productRef: 'PH-CHRG-65W', quantity: 10 },
-        { productRef: 'PH-CABLE-USBC', quantity: 20 },
-        { productRef: 'PH-SCRN-PROT', quantity: 30 },
-      ],
-    },
-    {
-      customerRef: 3,
-      discount: 0,
-      paymentType: 'cash',
-      paidAmount: 55000,
-      notes: 'قطع غيار للصيانة',
-      items: [{ productRef: 'PH-LCD-A15', quantity: 1 }],
     },
   ],
 };
 
 // ============================================================
-// CLOTHING SHOP
+// CLOTHING STORE
 // ============================================================
 const clothing: Preset = {
-  label: 'محل ملابس',
+  label: 'محل ألبسة',
   categories: [
-    { name: 'قمصان وبلوزات', description: 'قمصان رجالية ونسائية بأنماط مختلفة' },
-    { name: 'بناطلين وجينز', description: 'بناطلين قماش وجينز' },
-    { name: 'أحذية', description: 'أحذية رياضية وكلاسيكية' },
-    { name: 'إكسسوارات ملابس', description: 'أحزمة، ربطات عنق، محافظ' },
+    { name: 'رجالي', description: 'ملابس رجالية' },
+    { name: 'نسائي', description: 'ملابس نسائية' },
+    { name: 'أطفال', description: 'ملابس أطفال' },
+    { name: 'أحذية', description: 'أحذية رجالية ونسائية' },
   ],
   products: [
-    // قمصان
+    // رجالي
     {
-      name: 'قميص رجالي كلاسيك أبيض',
-      sku: 'CL-SHIRT-WHT',
-      categoryRef: 'قمصان وبلوزات',
+      name: 'قميص رجالي كلاسيك',
+      sku: 'CL-SHIRT-MEN',
+      categoryRef: 'رجالي',
+      costPrice: 15000,
+      sellingPrice: 25000,
+      stock: 50,
+      minStock: 10,
+      unit: 'قطعة',
+      supplier: 'مشغل النور للخياطة',
+      status: 'available',
+    },
+    {
+      name: 'بنطلون جينز رجالي',
+      sku: 'CL-JEANS-MEN',
+      categoryRef: 'رجالي',
+      costPrice: 20000,
+      sellingPrice: 35000,
+      stock: 40,
+      minStock: 10,
+      unit: 'قطعة',
+      supplier: 'مستورد ملابس تركية',
+      status: 'available',
+    },
+    // نسائي
+    {
+      name: 'فستان صيفي',
+      sku: 'CL-DRESS-WMN',
+      categoryRef: 'نسائي',
+      costPrice: 25000,
+      sellingPrice: 45000,
+      stock: 30,
+      minStock: 5,
+      unit: 'قطعة',
+      supplier: 'مستورد ملابس تركية',
+      status: 'available',
+    },
+    {
+      name: 'شال قطني',
+      sku: 'CL-SCARF',
+      categoryRef: 'نسائي',
+      costPrice: 5000,
+      sellingPrice: 10000,
+      stock: 60,
+      minStock: 15,
+      unit: 'قطعة',
+      supplier: 'مشغل النور للخياطة',
+      status: 'available',
+    },
+    // أطفال
+    {
+      name: 'طقم ولادي قطن',
+      sku: 'CL-KIDS-BOY',
+      categoryRef: 'أطفال',
       costPrice: 12000,
       sellingPrice: 20000,
       stock: 25,
       minStock: 8,
-      unit: 'قطعة',
-      supplier: 'مصنع الملابس الحديث',
+      unit: 'طقم',
+      supplier: 'مستورد ملابس تركية',
       status: 'available',
-    },
-    {
-      name: 'تيشيرت قطن أسود L',
-      sku: 'CL-TSHIRT-BLK-L',
-      categoryRef: 'قمصان وبلوزات',
-      costPrice: 7000,
-      sellingPrice: 12000,
-      stock: 40,
-      minStock: 10,
-      unit: 'قطعة',
-      supplier: 'مصنع الملابس الحديث',
-      status: 'available',
-    },
-    {
-      name: 'بلوزة نسائية صيفية',
-      sku: 'CL-BLOUSE-SUM',
-      categoryRef: 'قمصان وبلوزات',
-      costPrice: 10000,
-      sellingPrice: 18000,
-      stock: 15,
-      minStock: 5,
-      unit: 'قطعة',
-      supplier: 'دار الأزياء النسائية',
-      status: 'available',
-    },
-    // بناطلين
-    {
-      name: 'جينز رجالي Slim Fit',
-      sku: 'CL-JEANS-SLIM',
-      categoryRef: 'بناطلين وجينز',
-      costPrice: 15000,
-      sellingPrice: 25000,
-      stock: 30,
-      minStock: 10,
-      unit: 'قطعة',
-      supplier: 'وكالة الجينز المستورد',
-      status: 'available',
-    },
-    {
-      name: 'بنطلون قماش رسمي',
-      sku: 'CL-PANT-FORMAL',
-      categoryRef: 'بناطلين وجينز',
-      costPrice: 18000,
-      sellingPrice: 30000,
-      stock: 20,
-      minStock: 5,
-      unit: 'قطعة',
-      supplier: 'مصنع الملابس الحديث',
-      status: 'available',
-    },
-    {
-      name: 'بنطلون رياضي',
-      sku: 'CL-PANT-SPORT',
-      categoryRef: 'بناطلين وجينز',
-      costPrice: 8000,
-      sellingPrice: 15000,
-      stock: 0,
-      minStock: 8,
-      unit: 'قطعة',
-      supplier: 'مصنع الملابس الحديث',
-      status: 'out_of_stock',
     },
     // أحذية
     {
-      name: 'حذاء رياضي Nike مقاس 42',
-      sku: 'CL-SHOE-NIKE-42',
+      name: 'حذاء رياضي رجالي',
+      sku: 'CL-SHOE-SPT',
       categoryRef: 'أحذية',
-      costPrice: 45000,
-      sellingPrice: 75000,
-      stock: 10,
-      minStock: 3,
-      unit: 'زوج',
-      supplier: 'وكالة الأحذية الرياضية',
-      status: 'available',
-    },
-    {
-      name: 'حذاء كلاسيك جلد أسود',
-      sku: 'CL-SHOE-CLASS',
-      categoryRef: 'أحذية',
-      costPrice: 35000,
-      sellingPrice: 55000,
-      stock: 8,
-      minStock: 3,
-      unit: 'زوج',
-      supplier: 'مصنع الأحذية الجلدية',
-      status: 'available',
-    },
-    {
-      name: 'صندل صيفي',
-      sku: 'CL-SANDAL',
-      categoryRef: 'أحذية',
-      costPrice: 8000,
-      sellingPrice: 15000,
-      stock: 35,
-      minStock: 10,
-      unit: 'زوج',
-      supplier: 'وكالة الأحذية الرياضية',
-      status: 'available',
-    },
-    // إكسسوارات
-    {
-      name: 'حزام جلد طبيعي',
-      sku: 'CL-BELT-LEATH',
-      categoryRef: 'إكسسوارات ملابس',
-      costPrice: 5000,
-      sellingPrice: 10000,
-      stock: 40,
-      minStock: 10,
-      unit: 'قطعة',
-      supplier: 'مصنع الجلود',
-      status: 'available',
-    },
-    {
-      name: 'ربطة عنق حرير',
-      sku: 'CL-TIE-SILK',
-      categoryRef: 'إكسسوارات ملابس',
-      costPrice: 7000,
-      sellingPrice: 15000,
+      costPrice: 30000,
+      sellingPrice: 50000,
       stock: 20,
       minStock: 5,
-      unit: 'قطعة',
-      supplier: 'دار الأزياء الرجالية',
+      unit: 'زوج',
+      supplier: 'الشركة العامة للصناعات الجلدية',
       status: 'available',
     },
+  ],
+  suppliers: [
     {
-      name: 'محفظة جلد رجالية',
-      sku: 'CL-WALLET',
-      categoryRef: 'إكسسوارات ملابس',
-      costPrice: 8000,
-      sellingPrice: 18000,
-      stock: 25,
-      minStock: 5,
-      unit: 'قطعة',
-      supplier: 'مصنع الجلود',
-      status: 'available',
+      name: 'مشغل النور للخياطة',
+      phone: '+964782100200',
+      address: 'الكاظمية، بغداد',
+      city: 'بغداد',
+      notes: 'ملابس محلية الصنع',
+    },
+    {
+      name: 'مستورد ملابس تركية',
+      phone: '+964782200300',
+      address: 'شارع فلسطين، بغداد',
+      city: 'بغداد',
+      notes: 'استيراد من تركيا',
+    },
+  ],
+  purchases: [
+    {
+      supplierRef: 'مشغل النور للخياطة',
+      invoiceNumber: 'PUR-CL-001',
+      paidAmount: 500000,
+      notes: 'تجهيز صيفي',
+      items: [
+        { productRef: 'CL-SHIRT-MEN', quantity: 20, unitCost: 15000 },
+        { productRef: 'CL-SCARF', quantity: 30, unitCost: 5000 },
+      ],
     },
   ],
   customers: [
     {
-      name: 'كرار حسام',
+      name: 'ياسر محمد',
       phone: '+964772100200',
-      address: 'الكرادة، بغداد',
-      city: 'Baghdad',
-      notes: 'يشتري بدلات رسمية',
-    },
-    {
-      name: 'مريم عادل',
-      phone: '+964772200300',
       address: 'زيونة، بغداد',
       city: 'Baghdad',
-      notes: 'زبونة دائمة',
-    },
-    {
-      name: 'ياسر محمود',
-      phone: '+964772300400',
-      address: 'المنصور، بغداد',
-      city: 'Baghdad',
-      notes: 'صاحب محل ملابس صغير',
-    },
-    {
-      name: 'رقية أحمد',
-      phone: '+964772400500',
-      address: 'الشعلة، بغداد',
-      city: 'Baghdad',
-      notes: '',
+      notes: 'زبون دائم',
     },
   ],
   sales: [
     {
       customerRef: 0,
-      discount: 0,
+      discount: 5000,
       paymentType: 'cash',
-      paidAmount: 55000,
-      notes: 'قميص + بنطلون رسمي',
-      items: [
-        { productRef: 'CL-SHIRT-WHT', quantity: 1 },
-        { productRef: 'CL-PANT-FORMAL', quantity: 1 },
-        { productRef: 'CL-TIE-SILK', quantity: 1 },
-      ],
-    },
-    {
-      customerRef: 1,
-      discount: 0,
-      paymentType: 'cash',
-      paidAmount: 105000,
+      paidAmount: 60000,
       notes: '',
       items: [
-        { productRef: 'CL-BLOUSE-SUM', quantity: 2 },
-        { productRef: 'CL-JEANS-SLIM', quantity: 1 },
-        { productRef: 'CL-SHOE-NIKE-42', quantity: 1 },
-      ],
-    },
-    {
-      customerRef: 2,
-      discount: 15000,
-      paymentType: 'mixed',
-      paidAmount: 200000,
-      notes: 'جملة للمحل',
-      interestRate: 0,
-      installmentCount: 2,
-      items: [
-        { productRef: 'CL-TSHIRT-BLK-L', quantity: 10 },
-        { productRef: 'CL-JEANS-SLIM', quantity: 5 },
-        { productRef: 'CL-BELT-LEATH', quantity: 10 },
-        { productRef: 'CL-WALLET', quantity: 5 },
-      ],
-    },
-    {
-      customerRef: 3,
-      discount: 0,
-      paymentType: 'cash',
-      paidAmount: 92000,
-      notes: '',
-      items: [
-        { productRef: 'CL-SHOE-CLASS', quantity: 1 },
-        { productRef: 'CL-SANDAL', quantity: 1 },
-        { productRef: 'CL-TSHIRT-BLK-L', quantity: 1 },
-        { productRef: 'CL-BELT-LEATH', quantity: 1 },
+        { productRef: 'CL-SHIRT-MEN', quantity: 1 },
+        { productRef: 'CL-JEANS-MEN', quantity: 1 },
       ],
     },
   ],
 };
 
 // ============================================================
-// PHARMACY (stub — categories + products only)
-// ============================================================
-const pharmacy: Preset = {
-  label: 'صيدلية',
-  categories: [
-    { name: 'أدوية عامة', description: 'مسكنات، مضادات حيوية، أدوية شائعة' },
-    { name: 'فيتامينات ومكملات', description: 'فيتامينات ومكملات غذائية' },
-    { name: 'مستلزمات طبية', description: 'ضمادات، كمامات، معقمات' },
-    { name: 'مستحضرات تجميل', description: 'كريمات، واقي شمس، مستحضرات بشرة' },
-  ],
-  products: [
-    {
-      name: 'باراسيتامول 500 مغ (20 حبة)',
-      sku: 'RX-PARA-500',
-      categoryRef: 'أدوية عامة',
-      costPrice: 1000,
-      sellingPrice: 2000,
-      stock: 200,
-      minStock: 50,
-      unit: 'علبة',
-      supplier: 'شركة سامراء للأدوية',
-      status: 'available',
-    },
-    {
-      name: 'أموكسيسيلين 500 مغ (21 كبسولة)',
-      sku: 'RX-AMOX-500',
-      categoryRef: 'أدوية عامة',
-      costPrice: 3000,
-      sellingPrice: 5000,
-      stock: 80,
-      minStock: 20,
-      unit: 'علبة',
-      supplier: 'شركة سامراء للأدوية',
-      status: 'available',
-    },
-    {
-      name: 'فيتامين C 1000 مغ (30 حبة)',
-      sku: 'RX-VITC-1000',
-      categoryRef: 'فيتامينات ومكملات',
-      costPrice: 5000,
-      sellingPrice: 8000,
-      stock: 60,
-      minStock: 15,
-      unit: 'علبة',
-      supplier: 'شركة الأدوية المستوردة',
-      status: 'available',
-    },
-    {
-      name: 'كمامات طبية (50 قطعة)',
-      sku: 'RX-MASK-50',
-      categoryRef: 'مستلزمات طبية',
-      costPrice: 3000,
-      sellingPrice: 5000,
-      stock: 100,
-      minStock: 25,
-      unit: 'علبة',
-      supplier: 'مستودع المستلزمات الطبية',
-      status: 'available',
-    },
-    {
-      name: 'كريم واقي شمس SPF50',
-      sku: 'RX-SUNSCR-50',
-      categoryRef: 'مستحضرات تجميل',
-      costPrice: 8000,
-      sellingPrice: 15000,
-      stock: 30,
-      minStock: 10,
-      unit: 'قطعة',
-      supplier: 'شركة مستحضرات التجميل',
-      status: 'available',
-    },
-    {
-      name: 'ضمادات لاصقة (100 قطعة)',
-      sku: 'RX-BANDAID-100',
-      categoryRef: 'مستلزمات طبية',
-      costPrice: 2000,
-      sellingPrice: 3500,
-      stock: 0,
-      minStock: 15,
-      unit: 'علبة',
-      supplier: 'مستودع المستلزمات الطبية',
-      status: 'out_of_stock',
-    },
-  ],
-  customers: [],
-  sales: [],
-};
-
-// ============================================================
-// ELECTRONICS / ACCESSORIES (stub)
-// ============================================================
-const electronics: Preset = {
-  label: 'إلكترونيات وإكسسوارات',
-  categories: [
-    { name: 'لابتوبات', description: 'أجهزة حاسوب محمولة' },
-    { name: 'طابعات وملحقاتها', description: 'طابعات، أحبار، ورق' },
-    { name: 'ملحقات كمبيوتر', description: 'ماوس، كيبورد، سماعات' },
-    { name: 'شبكات وانترنت', description: 'راوترات، كيبلات شبكة' },
-  ],
-  products: [
-    {
-      name: 'لابتوب Lenovo IdeaPad 15',
-      sku: 'EL-LAP-LEN15',
-      categoryRef: 'لابتوبات',
-      costPrice: 450000,
-      sellingPrice: 550000,
-      stock: 5,
-      minStock: 2,
-      unit: 'قطعة',
-      supplier: 'وكالة لينوفو العراق',
-      status: 'available',
-    },
-    {
-      name: 'طابعة HP LaserJet',
-      sku: 'EL-PRT-HP-LJ',
-      categoryRef: 'طابعات وملحقاتها',
-      costPrice: 150000,
-      sellingPrice: 200000,
-      stock: 4,
-      minStock: 2,
-      unit: 'قطعة',
-      supplier: 'وكالة HP بغداد',
-      status: 'available',
-    },
-    {
-      name: 'ماوس لاسلكي Logitech',
-      sku: 'EL-MOUSE-LOG',
-      categoryRef: 'ملحقات كمبيوتر',
-      costPrice: 8000,
-      sellingPrice: 15000,
-      stock: 40,
-      minStock: 10,
-      unit: 'قطعة',
-      supplier: 'مستودع الإلكترونيات',
-      status: 'available',
-    },
-    {
-      name: 'كيبورد ميكانيكي',
-      sku: 'EL-KB-MECH',
-      categoryRef: 'ملحقات كمبيوتر',
-      costPrice: 25000,
-      sellingPrice: 45000,
-      stock: 15,
-      minStock: 5,
-      unit: 'قطعة',
-      supplier: 'مستودع الإلكترونيات',
-      status: 'available',
-    },
-    {
-      name: 'راوتر TP-Link',
-      sku: 'EL-RTR-TPL',
-      categoryRef: 'شبكات وانترنت',
-      costPrice: 20000,
-      sellingPrice: 35000,
-      stock: 20,
-      minStock: 5,
-      unit: 'قطعة',
-      supplier: 'شركة الشبكات',
-      status: 'available',
-    },
-    {
-      name: 'حبر طابعة HP أسود',
-      sku: 'EL-INK-HP-BK',
-      categoryRef: 'طابعات وملحقاتها',
-      costPrice: 15000,
-      sellingPrice: 25000,
-      stock: 0,
-      minStock: 5,
-      unit: 'قطعة',
-      supplier: 'وكالة HP بغداد',
-      status: 'out_of_stock',
-    },
-  ],
-  customers: [],
-  sales: [],
-};
-
-// ============================================================
-// RESTAURANT / CAFE (stub)
-// ============================================================
-const restaurant: Preset = {
-  label: 'مطعم / كافيه',
-  categories: [
-    { name: 'وجبات رئيسية', description: 'برغر، شاورما، كباب' },
-    { name: 'مقبلات وسلطات', description: 'حمص، متبل، سلطات متنوعة' },
-    { name: 'مشروبات ساخنة', description: 'شاي، قهوة، نسكافيه' },
-    { name: 'مشروبات باردة وعصائر', description: 'عصائر طبيعية، سموذي' },
-  ],
-  products: [
-    {
-      name: 'وجبة برغر كلاسيك',
-      sku: 'RS-BURGER-CLS',
-      categoryRef: 'وجبات رئيسية',
-      costPrice: 3000,
-      sellingPrice: 7000,
-      stock: 999,
-      minStock: 0,
-      unit: 'وجبة',
-      supplier: 'مورد اللحوم',
-      status: 'available',
-    },
-    {
-      name: 'شاورما دجاج',
-      sku: 'RS-SHAWARMA',
-      categoryRef: 'وجبات رئيسية',
-      costPrice: 2500,
-      sellingPrice: 5000,
-      stock: 999,
-      minStock: 0,
-      unit: 'وجبة',
-      supplier: 'مورد الدواجن',
-      status: 'available',
-    },
-    {
-      name: 'كباب عراقي (10 سيخ)',
-      sku: 'RS-KABAB-10',
-      categoryRef: 'وجبات رئيسية',
-      costPrice: 8000,
-      sellingPrice: 15000,
-      stock: 999,
-      minStock: 0,
-      unit: 'وجبة',
-      supplier: 'مورد اللحوم',
-      status: 'available',
-    },
-    {
-      name: 'صحن حمص',
-      sku: 'RS-HUMMUS',
-      categoryRef: 'مقبلات وسلطات',
-      costPrice: 1000,
-      sellingPrice: 3000,
-      stock: 999,
-      minStock: 0,
-      unit: 'صحن',
-      supplier: 'المطبخ',
-      status: 'available',
-    },
-    {
-      name: 'سلطة خضراء',
-      sku: 'RS-SALAD-GRN',
-      categoryRef: 'مقبلات وسلطات',
-      costPrice: 1000,
-      sellingPrice: 2500,
-      stock: 999,
-      minStock: 0,
-      unit: 'صحن',
-      supplier: 'المطبخ',
-      status: 'available',
-    },
-    {
-      name: 'استكان شاي',
-      sku: 'RS-TEA-CUP',
-      categoryRef: 'مشروبات ساخنة',
-      costPrice: 250,
-      sellingPrice: 1000,
-      stock: 999,
-      minStock: 0,
-      unit: 'استكان',
-      supplier: 'المطبخ',
-      status: 'available',
-    },
-    {
-      name: 'قهوة تركية',
-      sku: 'RS-COFFEE-TRK',
-      categoryRef: 'مشروبات ساخنة',
-      costPrice: 500,
-      sellingPrice: 2000,
-      stock: 999,
-      minStock: 0,
-      unit: 'فنجان',
-      supplier: 'المطبخ',
-      status: 'available',
-    },
-    {
-      name: 'عصير برتقال طبيعي',
-      sku: 'RS-JUICE-ORG',
-      categoryRef: 'مشروبات باردة وعصائر',
-      costPrice: 1500,
-      sellingPrice: 3500,
-      stock: 999,
-      minStock: 0,
-      unit: 'كأس',
-      supplier: 'المطبخ',
-      status: 'available',
-    },
-  ],
-  customers: [],
-  sales: [],
-};
-
-// ============================================================
-// Presets Map
+// EXPORT MAP
 // ============================================================
 export const PRESETS: Record<PresetKey, Preset> = {
   supermarket,
   phones,
   clothing,
-  pharmacy,
-  electronics,
-  restaurant,
+  pharmacy: {
+    label: 'صيدلية (قريباً)',
+    categories: [],
+    products: [],
+    suppliers: [],
+    purchases: [],
+    customers: [],
+    sales: [],
+  },
+  electronics: {
+    label: 'إلكترونيات (قريباً)',
+    categories: [],
+    products: [],
+    suppliers: [],
+    purchases: [],
+    customers: [],
+    sales: [],
+  },
+  restaurant: {
+    label: 'مطعم (قريباً)',
+    categories: [],
+    products: [],
+    suppliers: [],
+    purchases: [],
+    customers: [],
+    sales: [],
+  },
 };
 
-export const PRESET_MENU: { key: PresetKey; label: string }[] = [
-  { key: 'supermarket', label: '1) سوبرماركت / بقالة  (Supermarket / Grocery)' },
-  { key: 'phones', label: '2) محل هواتف  (Phone Shop)' },
-  { key: 'clothing', label: '3) محل ملابس  (Clothing Shop)' },
-  { key: 'pharmacy', label: '4) صيدلية  (Pharmacy)' },
-  { key: 'electronics', label: '5) إلكترونيات  (Electronics / Accessories)' },
-  { key: 'restaurant', label: '6) مطعم / كافيه  (Restaurant / Cafe)' },
-];
+export const PRESET_MENU = Object.entries(PRESETS).map(([key, val]) => ({
+  value: key as PresetKey,
+  label: val.label,
+}));

@@ -10,11 +10,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // Default DB path (same as Electron main process)
 const defaultDbPath = path.join(
   process.env.APPDATA || path.join(os.homedir(), '.config'),
-  'Nuqta Plus',
+  'CodelNuqtaPlus',
+  'Databases',
   'nuqta_plus.db'
 );
 
-const dbPath = process.argv[2] || process.env.NUQTA_DB_PATH || defaultDbPath;
+const dbPath = defaultDbPath;
 
 const dbDir = path.dirname(dbPath);
 if (!fs.existsSync(dbDir)) {
@@ -32,10 +33,13 @@ console.log('[DB] Migrations folder:', migrationsFolder);
 const conn = createDb(dbPath);
 
 try {
+  conn.sqlite.pragma('foreign_keys = ON');
+  conn.sqlite.pragma('journal_mode = WAL');
+  conn.sqlite.pragma('busy_timeout = 5000');
   migrate(conn.db, { migrationsFolder });
   console.log('[DB] Migrations applied successfully.');
 } catch (error: any) {
-  console.error('[DB] Migration failed:', error?.message || String(error));
+  console.error('[DB] Migration failed:', error);
   process.exit(1);
 } finally {
   conn.sqlite.close();

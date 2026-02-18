@@ -1,27 +1,34 @@
 import { IProductRepository } from '../interfaces/IProductRepository.js';
-import { Product } from '../entities/Product.js';
+import { Product, ProductInput, ProductSchema } from '../entities/Product.js';
 import { ValidationError } from '../errors/DomainErrors.js';
 
 export class CreateProductUseCase {
   constructor(private productRepo: IProductRepository) {}
 
-  async execute(productData: Product): Promise<Product> {
-    if (!productData.name || productData.name.trim().length === 0) {
+  async execute(productData: ProductInput): Promise<Product> {
+    let product: Product;
+    try {
+      product = ProductSchema.parse(productData);
+    } catch (error: any) {
+      throw new ValidationError(error?.issues?.[0]?.message || 'Invalid product data');
+    }
+
+    if (!product.name || product.name.trim().length === 0) {
       throw new ValidationError('Product name is required');
     }
 
-    if (productData.costPrice < 0) {
+    if (product.costPrice < 0) {
       throw new ValidationError('Cost price must be non-negative');
     }
 
-    if (productData.sellingPrice < 0) {
+    if (product.sellingPrice < 0) {
       throw new ValidationError('Selling price must be non-negative');
     }
 
-    if (productData.stock < 0) {
+    if (product.stock < 0) {
       throw new ValidationError('Stock must be non-negative');
     }
 
-    return await this.productRepo.create(productData);
+    return await this.productRepo.create(product);
   }
 }

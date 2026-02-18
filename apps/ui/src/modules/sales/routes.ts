@@ -13,7 +13,7 @@ export const salesRoutes: RouteRecordRaw[] = [
     path: 'sales/new',
     name: 'SaleCreate',
     component: SaleFormView,
-    meta: { requiresCreateSales: true },
+    meta: { requiresCreateSales: true, enableBarcode: 'pos' },
   },
   {
     path: 'sales/:id',

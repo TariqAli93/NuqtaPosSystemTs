@@ -7,6 +7,9 @@ import {
   FakeCustomerRepository,
   FakeSettingsRepository,
   FakePaymentRepository,
+  FakeInventoryRepository,
+  FakeAccountingRepository,
+  FakeCustomerLedgerRepository,
   FakeAuditRepository,
 } from './fakes';
 import { AuditEvent } from '../entities/AuditEvent';
@@ -26,6 +29,9 @@ describe('Transaction phase behavior', () => {
   let customerRepo: FakeCustomerRepository;
   let settingsRepo: FakeSettingsRepository;
   let paymentRepo: FakePaymentRepository;
+  let inventoryRepo: FakeInventoryRepository;
+  let accountingRepo: FakeAccountingRepository;
+  let customerLedgerRepo: FakeCustomerLedgerRepository;
   let auditRepo: CountingAuditRepository;
 
   beforeEach(() => {
@@ -34,6 +40,9 @@ describe('Transaction phase behavior', () => {
     customerRepo = new FakeCustomerRepository();
     settingsRepo = new FakeSettingsRepository();
     paymentRepo = new FakePaymentRepository();
+    inventoryRepo = new FakeInventoryRepository();
+    accountingRepo = new FakeAccountingRepository();
+    customerLedgerRepo = new FakeCustomerLedgerRepository();
     auditRepo = new CountingAuditRepository();
   });
 
@@ -43,10 +52,11 @@ describe('Transaction phase behavior', () => {
       costPrice: 10,
       sellingPrice: 20,
       stock: 100,
-      currency: 'USD',
+      currency: 'IQD',
       minStock: 0,
       unit: 'piece',
       isActive: true,
+      isExpire: false,
       status: 'available',
     });
 
@@ -56,6 +66,9 @@ describe('Transaction phase behavior', () => {
       customerRepo,
       settingsRepo,
       paymentRepo,
+      inventoryRepo,
+      accountingRepo,
+      customerLedgerRepo,
       auditRepo
     );
 
@@ -95,7 +108,13 @@ describe('Transaction phase behavior', () => {
       items: [],
     });
 
-    const useCase = new AddPaymentUseCase(saleRepo, paymentRepo, customerRepo);
+    const useCase = new AddPaymentUseCase(
+      saleRepo,
+      paymentRepo,
+      customerRepo,
+      customerLedgerRepo,
+      accountingRepo
+    );
 
     const commitResult = useCase.executeCommitPhase(
       {

@@ -1,6 +1,7 @@
 import type { RouteRecordRaw } from 'vue-router';
 import CustomersListView from '../../views/customers/CustomersListView.vue';
 import CustomerFormView from '../../views/customers/CustomerFormView.vue';
+import CustomerProfileView from '../../views/customers/CustomerProfileView.vue';
 
 export const customersRoutes: RouteRecordRaw[] = [
   {
@@ -13,6 +14,11 @@ export const customersRoutes: RouteRecordRaw[] = [
     name: 'CustomerCreate',
     component: CustomerFormView,
     meta: { requiresManageCustomers: true },
+  },
+  {
+    path: 'customers/:id',
+    name: 'CustomerProfile',
+    component: CustomerProfileView,
   },
   {
     path: 'customers/:id/edit',
