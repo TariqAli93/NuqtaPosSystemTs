@@ -100,12 +100,6 @@ const ALLOWED_CHANNELS = new Set([
   'update:checkForUpdates',
   'update:installUpdate',
 
-  // Conflicts (Phase 9)
-  'conflicts:getList',
-  'conflicts:getDetail',
-  'conflicts:resolve',
-  'conflicts:getStats',
-
   // Printers
   'printers:getAll',
   'printers:print',

@@ -8,7 +8,6 @@ export * from './entities/Sale.js';
 export * from './entities/Settings.js';
 export * from './entities/User.js';
 export * from './entities/AuditEvent.js';
-export * from './entities/Conflict.js';
 export * from './entities/Supplier.js';
 export * from './entities/Purchase.js';
 export * from './entities/InventoryMovement.js';
@@ -34,10 +33,7 @@ export * from './interfaces/ISaleRepository.js';
 export * from './interfaces/ISettingsRepository.js';
 export * from './interfaces/IUserRepository.js';
 export * from './interfaces/IAuditRepository.js';
-export * from './interfaces/IConflictRepository.js';
 export * from './interfaces/IBarcodeRepository.js';
-
-export * from './use-cases/conflicts/index.js';
 
 export * from './use-cases/AddPaymentUseCase.js';
 export * from './use-cases/CheckInitialSetupUseCase.js';
