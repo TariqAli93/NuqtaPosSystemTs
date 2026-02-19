@@ -17,10 +17,14 @@ import { InventoryMovement } from '../entities/InventoryMovement';
 import { Account, JournalEntry } from '../entities/Accounting';
 import { CustomerLedgerEntry } from '../entities/Ledger';
 
+import { ProductUnit } from '../entities/ProductUnit';
+
 export class FakeProductRepository implements IProductRepository {
   private products: Product[] = [];
   private idCounter = 1;
   batchStockUpdates: Array<{ batchId: number; quantityChange: number }> = [];
+  private units: ProductUnit[] = [];
+  private unitIdCounter = 1;
 
   create(product: Product): Product {
     const newProduct = { ...product, id: this.idCounter++ };
@@ -60,6 +64,39 @@ export class FakeProductRepository implements IProductRepository {
 
   countLowStock(threshold: number): number {
     return this.products.filter((p) => p.stock <= threshold).length;
+  }
+
+  findUnitsByProductId(productId: number): ProductUnit[] {
+    return this.units.filter((u) => u.productId === productId);
+  }
+
+  createUnit(unit: Omit<ProductUnit, 'id' | 'createdAt'>): ProductUnit {
+    const newUnit = {
+      ...unit,
+      id: this.unitIdCounter++,
+      createdAt: new Date().toISOString(),
+    } as ProductUnit;
+    this.units.push(newUnit);
+    return newUnit;
+  }
+
+  updateUnit(id: number, data: Partial<ProductUnit>): ProductUnit {
+    const index = this.units.findIndex((u) => u.id === id);
+    if (index === -1) throw new Error('Unit not found');
+    this.units[index] = { ...this.units[index], ...data };
+    return this.units[index];
+  }
+
+  deleteUnit(id: number): void {
+    this.units = this.units.filter((u) => u.id !== id);
+  }
+
+  setDefaultUnit(productId: number, unitId: number): void {
+    this.units.forEach((u) => {
+      if (u.productId === productId) {
+        u.isDefault = u.id === unitId;
+      }
+    });
   }
 }
 
@@ -222,7 +259,7 @@ export class FakePaymentRepository implements IPaymentRepository {
     const newPayment = {
       ...payment,
       id: this.idCounter++,
-      createdAt: payment.createdAt || new Date().toISOString(),
+      createdAt: payment.paymentDate || new Date().toISOString(),
     } as Payment;
     this.payments.push(newPayment);
     return newPayment;
@@ -309,6 +346,19 @@ export class FakeAccountingRepository implements IAccountingRepository {
 
   createJournalEntrySync(entry: JournalEntry): JournalEntry {
     return this.createJournalEntry(entry);
+  }
+
+  createAccountSync(account: Omit<Account, 'id' | 'createdAt'>): Account {
+    const existing = this.findAccountByCode(account.code);
+    if (existing) return existing;
+
+    const created: Account = {
+      ...account,
+      id: this.accounts.length + 1,
+      createdAt: new Date().toISOString(),
+    };
+    this.accounts.push(created);
+    return created;
   }
 
   findAccountByCode(code: string): Account | null {

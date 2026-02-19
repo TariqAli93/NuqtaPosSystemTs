@@ -19,6 +19,7 @@ export const customersRoutes: RouteRecordRaw[] = [
     path: 'customers/:id',
     name: 'CustomerProfile',
     component: CustomerProfileView,
+    meta: { requiresLedgers: true },
   },
   {
     path: 'customers/:id/edit',

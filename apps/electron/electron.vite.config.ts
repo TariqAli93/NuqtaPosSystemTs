@@ -32,7 +32,7 @@ export default defineConfig({
     plugins: [
       vue(),
       vueDevTools({
-        // launchEditor: path.resolve(__dirname, '../tools/antigravity-editor.cmd'),
+        launchEditor: path.resolve(__dirname, '../tools/antigravity-editor.cmd'),
       }),
       tailwindcss(),
       vuetify({

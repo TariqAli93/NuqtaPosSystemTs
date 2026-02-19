@@ -148,7 +148,8 @@ const initializeDatabase = async (input: InitializeDatabaseInput): Promise<void>
     paymentRepo,
     customerRepo,
     customerLedgerRepo,
-    accountingRepo
+    accountingRepo,
+    settingsRepo
   );
   const createUserUseCase = new CreateUserUseCase(userRepo);
   const createSupplierUseCase = new CreateSupplierUseCase(supplierRepo);
@@ -157,7 +158,8 @@ const initializeDatabase = async (input: InitializeDatabaseInput): Promise<void>
     supplierRepo,
     paymentRepo,
     supplierLedgerRepo,
-    accountingRepo
+    accountingRepo,
+    settingsRepo
   );
 
   const now = new Date().toISOString();

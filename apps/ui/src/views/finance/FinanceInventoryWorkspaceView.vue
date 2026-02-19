@@ -12,14 +12,13 @@
       </v-col>
     </v-row>
 
-    <v-tabs v-model="section" color="primary" show-arrows>
+    <v-tabs v-model="section" bg-color="surface" class="w-full mb-4">
       <v-tab value="inventory">المخزون</v-tab>
       <v-tab value="reconciliation">مطابقة المخزون</v-tab>
       <v-tab value="accounting">المحاسبة</v-tab>
       <v-tab value="ar">دفتر العملاء (AR)</v-tab>
       <v-tab value="ap">دفتر الموردين (AP)</v-tab>
     </v-tabs>
-    <v-divider class="mb-3" />
 
     <v-window v-model="section">
       <v-window-item value="inventory">
@@ -125,7 +124,9 @@
             <v-card variant="tonal" color="error">
               <v-card-text class="text-center">
                 <div class="text-caption">منتجات بها فرق</div>
-                <div class="text-h6">{{ inventoryStore.reconciliation?.driftItems.length || 0 }}</div>
+                <div class="text-h6">
+                  {{ inventoryStore.reconciliation?.driftItems.length || 0 }}
+                </div>
               </v-card-text>
             </v-card>
           </v-col>
@@ -170,22 +171,17 @@
       </v-window-item>
 
       <v-window-item value="accounting">
-        <v-tabs v-model="accountingTab" color="primary" density="comfortable">
+        <v-tabs v-model="accountingTab" bg-color="surface" class="w-full mb-4">
           <v-tab value="accounts">دليل الحسابات</v-tab>
           <v-tab value="journal">القيود اليومية</v-tab>
           <v-tab value="trial">ميزان المراجعة</v-tab>
           <v-tab value="pnl">الأرباح والخسائر</v-tab>
           <v-tab value="balance">الميزانية</v-tab>
         </v-tabs>
-        <v-divider class="mb-2" />
 
-        <v-alert
-          v-if="showAccountingEmptyBanner"
-          type="warning"
-          variant="tonal"
-          class="mb-2"
-        >
-          لا توجد قيود محاسبية بعد. إذا كانت عمليات البيع/الشراء لا تُنتج قيوداً، سيبقى هذا القسم فارغاً.
+        <v-alert v-if="showAccountingEmptyBanner" type="warning" variant="tonal" class="mb-2">
+          لا توجد قيود محاسبية بعد. إذا كانت عمليات البيع/الشراء لا تُنتج قيوداً، سيبقى هذا القسم
+          فارغاً.
         </v-alert>
 
         <v-window v-model="accountingTab">
@@ -200,9 +196,7 @@
             >
               <template #item.balance="{ item }">{{ formatMoney(item.balance || 0) }}</template>
               <template #no-data>
-                <div class="text-center py-8 text-medium-emphasis">
-                  لا يوجد دليل حسابات بعد.
-                </div>
+                <div class="text-center py-8 text-medium-emphasis">لا يوجد دليل حسابات بعد.</div>
               </template>
             </v-data-table>
           </v-window-item>
@@ -216,11 +210,11 @@
               :items-per-page="20"
             >
               <template #item.entryDate="{ item }">{{ formatDate(item.entryDate) }}</template>
-              <template #item.totalAmount="{ item }">{{ formatMoney(item.totalAmount || 0) }}</template>
+              <template #item.totalAmount="{ item }">{{
+                formatMoney(item.totalAmount || 0)
+              }}</template>
               <template #no-data>
-                <div class="text-center py-8 text-medium-emphasis">
-                  لا توجد قيود محاسبية بعد.
-                </div>
+                <div class="text-center py-8 text-medium-emphasis">لا توجد قيود محاسبية بعد.</div>
               </template>
             </v-data-table>
           </v-window-item>
@@ -233,11 +227,17 @@
               density="compact"
               :items-per-page="20"
             >
-              <template #item.debitTotal="{ item }">{{ formatMoney(item.debitTotal || 0) }}</template>
-              <template #item.creditTotal="{ item }">{{ formatMoney(item.creditTotal || 0) }}</template>
+              <template #item.debitTotal="{ item }">{{
+                formatMoney(item.debitTotal || 0)
+              }}</template>
+              <template #item.creditTotal="{ item }">{{
+                formatMoney(item.creditTotal || 0)
+              }}</template>
               <template #item.balance="{ item }">{{ formatMoney(item.balance || 0) }}</template>
               <template #no-data>
-                <div class="text-center py-8 text-medium-emphasis">لا توجد بيانات ميزان مراجعة بعد.</div>
+                <div class="text-center py-8 text-medium-emphasis">
+                  لا توجد بيانات ميزان مراجعة بعد.
+                </div>
               </template>
             </v-data-table>
           </v-window-item>
@@ -330,7 +330,9 @@
                 :items-per-page="15"
                 @click:row="onSelectCustomer"
               >
-                <template #item.totalDebt="{ item }">{{ formatMoney(item.totalDebt || 0) }}</template>
+                <template #item.totalDebt="{ item }">{{
+                  formatMoney(item.totalDebt || 0)
+                }}</template>
                 <template #no-data>
                   <div class="text-center py-8 text-medium-emphasis">لا يوجد عملاء</div>
                 </template>
@@ -417,10 +419,6 @@
         </v-row>
       </v-window-item>
     </v-window>
-
-    <div class="mt-4">
-      <DiagnosticsPanel />
-    </div>
   </v-container>
 </template>
 
@@ -430,7 +428,6 @@ import { useRoute, useRouter } from 'vue-router';
 import { useAccountingStore } from '@/stores/accountingStore';
 import { useInventoryStore } from '@/stores/inventoryStore';
 import { useLedgerStore } from '@/stores/ledgerStore';
-import DiagnosticsPanel from '@/components/workspace/DiagnosticsPanel.vue';
 import LedgerTable from '@/components/shared/LedgerTable.vue';
 import type { LedgerEntry } from '@/components/shared/LedgerTable.vue';
 

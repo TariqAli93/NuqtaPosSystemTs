@@ -218,7 +218,7 @@
               <div class="flex flex-row justify-items-stretch">
                 <div class="gap-3 w-1/2 grid grid-cols-2 pa-4">
                   <v-btn
-                    v-for="method in paymentMethodOptions"
+                    v-for="method in availablePaymentMethodOptions"
                     size="large"
                     :color="selectedPaymentMethod === method.value ? 'primary' : 'surface'"
                     :variant="selectedPaymentMethod === method.value ? 'flat' : 'elevated'"
@@ -286,6 +286,7 @@ interface Props {
   busy?: boolean;
   allowPartial?: boolean;
   hasCustomer?: boolean;
+  simpleMode?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -298,6 +299,7 @@ const props = withDefaults(defineProps<Props>(), {
   busy: false,
   allowPartial: false,
   hasCustomer: false,
+  simpleMode: false,
 });
 
 const emit = defineEmits<{
@@ -333,6 +335,12 @@ const paymentMethodOptions: { label: string; value: PaymentMethod }[] = [
   { label: 'آجل', value: 'credit' },
   { label: 'حوالة', value: 'bank_transfer' },
 ];
+
+const availablePaymentMethodOptions = computed(() =>
+  props.simpleMode
+    ? paymentMethodOptions.filter((option) => option.value !== 'credit')
+    : paymentMethodOptions
+);
 
 const selectedMethodLabel = computed(() => {
   if (selectedPaymentMethod.value === 'card') return 'بطاقة';
@@ -737,6 +745,16 @@ watch(
       window.removeEventListener('keydown', handleGlobalKeydown, true);
     }
   }
+);
+
+watch(
+  () => props.simpleMode,
+  (isSimpleMode) => {
+    if (isSimpleMode && selectedPaymentMethod.value === 'credit') {
+      selectedPaymentMethod.value = 'cash';
+    }
+  },
+  { immediate: true }
 );
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleGlobalKeydown, true);

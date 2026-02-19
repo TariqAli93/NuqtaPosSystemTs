@@ -8,22 +8,24 @@ export const suppliersRoutes: RouteRecordRaw[] = [
     path: 'suppliers',
     name: 'Suppliers',
     component: SuppliersListView,
+    meta: { requiresPurchasing: true },
   },
   {
     path: 'suppliers/new',
     name: 'SupplierCreate',
     component: SupplierFormView,
-    meta: { requiresManageSuppliers: true },
+    meta: { requiresManageSuppliers: true, requiresPurchasing: true },
   },
   {
     path: 'suppliers/:id',
     name: 'SupplierDetails',
     component: SupplierDetailsView,
+    meta: { requiresPurchasing: true, requiresLedgers: true },
   },
   {
     path: 'suppliers/:id/edit',
     name: 'SupplierEdit',
     component: SupplierFormView,
-    meta: { requiresManageSuppliers: true },
+    meta: { requiresManageSuppliers: true, requiresPurchasing: true },
   },
 ];

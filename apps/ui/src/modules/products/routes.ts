@@ -6,6 +6,7 @@ export const productsRoutes: RouteRecordRaw[] = [
     path: 'products',
     name: 'ProductWorkspace',
     component: ProductWorkspaceView,
+    meta: { requiresAccounting: true },
   },
   {
     path: 'products/new',
@@ -14,7 +15,7 @@ export const productsRoutes: RouteRecordRaw[] = [
       name: 'ProductWorkspace',
       query: { ...to.query, action: 'create' },
     }),
-    meta: { requiresManageProducts: true, enableBarcode: 'product' },
+    meta: { requiresManageProducts: true, enableBarcode: 'product', requiresAccounting: true },
   },
   {
     path: 'products/:id',
@@ -23,6 +24,7 @@ export const productsRoutes: RouteRecordRaw[] = [
       name: 'ProductWorkspace',
       query: { ...to.query, productId: String(to.params.id) },
     }),
+    meta: { requiresAccounting: true },
   },
   {
     path: 'products/:id/edit',
@@ -31,7 +33,7 @@ export const productsRoutes: RouteRecordRaw[] = [
       name: 'ProductWorkspace',
       query: { ...to.query, productId: String(to.params.id), action: 'edit' },
     }),
-    meta: { requiresManageProducts: true, enableBarcode: 'product' },
+    meta: { requiresManageProducts: true, enableBarcode: 'product', requiresAccounting: true },
   },
   {
     path: 'products/:id/barcode',
@@ -40,6 +42,6 @@ export const productsRoutes: RouteRecordRaw[] = [
       name: 'ProductWorkspace',
       query: { ...to.query, productId: String(to.params.id), tab: 'units', action: 'barcode' },
     }),
-    meta: { requiresManageProducts: true },
+    meta: { requiresManageProducts: true, requiresAccounting: true },
   },
 ];

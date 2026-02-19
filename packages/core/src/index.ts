@@ -101,6 +101,7 @@ export * from './use-cases/accounting/GetEntryByIdUseCase.js';
 export * from './use-cases/accounting/GetTrialBalanceUseCase.js';
 export * from './use-cases/accounting/GetProfitLossUseCase.js';
 export * from './use-cases/accounting/GetBalanceSheetUseCase.js';
+export * from './use-cases/accounting/InitializeAccountingUseCase.js';
 
 export * from './interfaces/ISupplierLedgerRepository.js';
 export * from './use-cases/supplier-ledger/GetSupplierLedgerUseCase.js';

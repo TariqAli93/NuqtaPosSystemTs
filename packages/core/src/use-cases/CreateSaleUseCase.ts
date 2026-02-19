@@ -163,8 +163,47 @@ export class CreateSaleUseCase {
         throw new Error(`Product ${product.name} has no ID`);
       }
 
-      const unitName = item.unitName || 'piece';
-      const unitFactor = item.unitFactor || 1;
+      // ── Resolve unit (server-authoritative) ─────────────────────
+      const configuredUnits = this.productRepo.findUnitsByProductId(product.id);
+      let unitName: string;
+      let unitFactor: number;
+      let unitPrice: number;
+
+      if (configuredUnits.length > 0 && item.unitName) {
+        // Product has configured units AND item specifies one → validate
+        const matchedUnit = configuredUnits.find((u) => u.unitName === item.unitName && u.isActive);
+        if (!matchedUnit) {
+          throw new ValidationError(
+            `Unit "${item.unitName}" not found or inactive for product "${product.name}"`,
+            { productId: product.id, unitName: item.unitName }
+          );
+        }
+        unitName = matchedUnit.unitName;
+        unitFactor = matchedUnit.factorToBase;
+        // Use stored sellingPrice if available; else fall back to item input
+        unitPrice = matchedUnit.sellingPrice != null ? matchedUnit.sellingPrice : item.unitPrice;
+      } else if (configuredUnits.length > 0 && !item.unitName) {
+        // Product has units but none specified → use default unit
+        const defaultUnit =
+          configuredUnits.find((u) => u.isDefault && u.isActive) ||
+          configuredUnits.find((u) => u.isActive);
+        if (defaultUnit) {
+          unitName = defaultUnit.unitName;
+          unitFactor = defaultUnit.factorToBase;
+          unitPrice = defaultUnit.sellingPrice != null ? defaultUnit.sellingPrice : item.unitPrice;
+        } else {
+          // All units inactive; fall back to product-level
+          unitName = item.unitName || 'piece';
+          unitFactor = item.unitFactor || 1;
+          unitPrice = item.unitPrice;
+        }
+      } else {
+        // No configured units → backward-compatible fallback
+        unitName = item.unitName || 'piece';
+        unitFactor = item.unitFactor || 1;
+        unitPrice = item.unitPrice;
+      }
+
       const quantityBase = item.quantity * unitFactor;
 
       // Stock check against cached stock (products.stock)
@@ -188,9 +227,9 @@ export class CreateSaleUseCase {
         unitFactor,
         quantityBase,
         batchId: item.batchId,
-        unitPrice: item.unitPrice,
+        unitPrice,
         discount: item.discount || 0,
-        subtotal: item.quantity * item.unitPrice - (item.discount || 0) * item.quantity,
+        subtotal: item.quantity * unitPrice - (item.discount || 0) * item.quantity,
         costPrice: product.costPrice,
       });
     }
@@ -299,7 +338,9 @@ export class CreateSaleUseCase {
         exchangeRate: 1,
         paymentMethod: input.paymentMethod || 'cash',
         referenceNumber: input.referenceNumber,
-        idempotencyKey: input.idempotencyKey ? `${input.idempotencyKey}:payment:initial` : undefined,
+        idempotencyKey: input.idempotencyKey
+          ? `${input.idempotencyKey}:payment:initial`
+          : undefined,
         createdBy: userId,
       });
       diagnostics.paymentCreated = { created: true, reason: 'paidAmount>0' };
@@ -308,17 +349,22 @@ export class CreateSaleUseCase {
     }
 
     // ── Step 9: Accounting journal entry ─────────────────────────
-    diagnostics.journalCreated = this.createSaleJournalEntry(
-      createdSale,
-      totalCOGS,
-      paidAmount,
-      remainingAmount,
-      currency,
-      userId
-    );
+    const accountingEnabled = this.isAccountingEnabled();
+    diagnostics.journalCreated = accountingEnabled
+      ? this.createSaleJournalEntry(
+          createdSale,
+          totalCOGS,
+          paidAmount,
+          remainingAmount,
+          currency,
+          userId
+        )
+      : { created: false, reason: 'accounting-disabled' };
 
     // ── Step 10: Customer ledger + debt ──────────────────────────
-    if (input.customerId && remainingAmount > 0) {
+    if (!accountingEnabled) {
+      diagnostics.customerLedgerCreated = { created: false, reason: 'accounting-disabled' };
+    } else if (input.customerId && remainingAmount > 0) {
       const currentDebt = this.customerLedgerRepo.getLastBalanceSync(input.customerId);
       const newBalance = currentDebt + remainingAmount;
 
@@ -464,6 +510,11 @@ export class CreateSaleUseCase {
       lines,
     });
     return { created: true, reason: 'created' };
+  }
+
+  private isAccountingEnabled(): boolean {
+    const value = this.settingsRepo.get('accounting.enabled');
+    return value !== 'false';
   }
 
   async executeSideEffectsPhase(commitResult: CreateSaleCommitResult): Promise<void> {

@@ -8,16 +8,18 @@ export const purchasesRoutes: RouteRecordRaw[] = [
     path: 'purchases',
     name: 'Purchases',
     component: PurchasesListView,
+    meta: { requiresPurchasing: true },
   },
   {
     path: 'purchases/new',
     name: 'PurchaseCreate',
     component: PurchaseFormView,
-    meta: { requiresManagePurchases: true },
+    meta: { requiresManagePurchases: true, requiresPurchasing: true },
   },
   {
     path: 'purchases/:id',
     name: 'PurchaseDetails',
     component: PurchaseDetailsView,
+    meta: { requiresPurchasing: true },
   },
 ];

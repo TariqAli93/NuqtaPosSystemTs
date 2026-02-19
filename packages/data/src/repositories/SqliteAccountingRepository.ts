@@ -60,6 +60,42 @@ export class SqliteAccountingRepository implements IAccountingRepository {
     return { ...entry, id: row.id } as JournalEntry;
   }
 
+  createAccountSync(account: Omit<Account, 'id' | 'createdAt'>): Account {
+    const existing = this.findAccountByCode(account.code);
+    if (existing) {
+      return existing;
+    }
+
+    const now = new Date().toISOString();
+    const inserted = this.db
+      .insert(accounts)
+      .values({
+        code: account.code,
+        name: account.name,
+        nameAr: account.nameAr || null,
+        accountType: account.accountType,
+        parentId: account.parentId || null,
+        isSystem: account.isSystem ?? true,
+        isActive: account.isActive ?? true,
+        balance: account.balance ?? 0,
+        createdAt: now,
+      })
+      .onConflictDoNothing()
+      .returning()
+      .get();
+
+    if (inserted) {
+      return inserted as unknown as Account;
+    }
+
+    const afterConflict = this.findAccountByCode(account.code);
+    if (afterConflict) {
+      return afterConflict;
+    }
+
+    throw new Error(`Failed to create account with code ${account.code}`);
+  }
+
   findAccountByCode(code: string): Account | null {
     const row = this.db.select().from(accounts).where(eq(accounts.code, code)).get();
     return (row as unknown as Account) || null;

@@ -47,6 +47,9 @@ const ALLOWED_CHANNELS = new Set([
 
   // Setup (first-run initialization)
   'setup:initialize',
+  'setup:setAccountingEnabled',
+  'setup:seedChartOfAccounts',
+  'setup:getAccountingSetupStatus',
 
   // Dashboard
   'dashboard:getStats',
@@ -154,12 +157,7 @@ const ALLOWED_CHANNELS = new Set([
   'supplierLedger:recordPayment',
   'supplierLedger:reconcileBalance',
 
-  // Diagnostics
-  'diagnostics:getFinanceInventoryStatus',
-  'diagnostics:createTestTransaction',
-  'diagnostics:createTestSaleCash',
-  'diagnostics:createTestSaleCredit',
-  'diagnostics:createTestPurchase',
+  // Diagnostics — DEV ONLY (not exposed in production preload)
 ]);
 
 const safeInvoke = (channel: string, data?: any) => {

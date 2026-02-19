@@ -166,7 +166,7 @@ app.whenReady().then(() => {
   registerBarcodeHandlers(db);
   registerAccountingHandlers(db);
   registerSupplierLedgerHandlers(db);
-  registerDiagnosticsHandlers(db);
+  if (isDev) registerDiagnosticsHandlers(db);
 
   // Initialize auto-update
   updateService.initialize();

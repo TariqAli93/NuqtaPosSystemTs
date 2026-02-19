@@ -82,17 +82,6 @@ export type ProductBatchInput = Pick<
   | 'notes'
 >;
 
-export interface TableDiagnosticSummary {
-  table: string;
-  rowCount: number;
-  lastCreatedAt: string | null;
-}
-
-export interface FinanceInventoryDiagnostics {
-  tables: TableDiagnosticSummary[];
-  warnings: string[];
-}
-
 export interface ProductWorkspaceSnapshot {
   product: Product | null;
   movements: InventoryMovement[];
@@ -107,4 +96,3 @@ export interface ProductWorkspaceSnapshot {
   printJobs: BarcodePrintJob[];
   printJobsTotal: number;
 }
-

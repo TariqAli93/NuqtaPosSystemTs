@@ -42,25 +42,6 @@
           </v-btn>
         </div>
       </div>
-      <!-- <v-list nav density="comfortable" class="flex">
-        <v-list-item v-for="item in primaryNav" :key="item.to" :to="item.to">
-          <div class="d-flex flex-column gap-4 py-4 align-center justify-center">
-            <v-icon size="20">{{ item.icon }}</v-icon>
-            <v-list-item-title>{{ item.label }}</v-list-item-title>
-          </div>
-        </v-list-item>
-      </v-list> -->
-
-      <!-- <template #append>
-        <v-list nav density="comfortable">
-          <v-list-item v-for="item in footerNav" :key="item.to" :to="item.to">
-            <div class="d-flex flex-column gap-4 py-4 align-center justify-center">
-              <v-icon size="20">{{ item.icon }}</v-icon>
-              <v-list-item-title>{{ item.label }}</v-list-item-title>
-            </div>
-          </v-list-item>
-        </v-list>
-      </template> -->
     </v-navigation-drawer>
 
     <v-app-bar flat density="comfortable" height="56" border="b">
@@ -109,23 +90,32 @@
     <v-main>
       <router-view />
     </v-main>
+
+    <v-snackbar v-model="featureNoticeOpen" color="warning" timeout="2500" location="bottom">
+      {{ featureNoticeText }}
+    </v-snackbar>
   </v-app>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useVuetifyStore } from '@/stores/vuetify';
+import { useFeatureFlagsStore } from '@/stores/featureFlagsStore';
 import { t } from '@/i18n/t';
 import * as uiAccess from '@/auth/uiAccess';
 
 const authStore = useAuthStore();
 const router = useRouter();
+const route = useRoute();
+const featureFlagsStore = useFeatureFlagsStore();
 const { toggleTheme } = useVuetifyStore();
 
 const isOnline = ref(navigator.onLine);
 const onLineText = ref(isOnline.value ? t('pos.online') : t('pos.offline'));
+const featureNoticeOpen = ref(false);
+const featureNoticeText = ref('');
 
 const currentUser = computed(() => authStore.user?.username ?? t('common.none'));
 const currentDate = computed(() => {
@@ -153,13 +143,13 @@ const primaryNav = computed(() => {
 
   return [
     {
-      to: '/pos',
+      to: featureFlagsStore.simpleMode ? '/simple/sales' : '/pos',
       icon: 'mdi-point-of-sale',
       label: t('nav.pos'),
       visible: uiAccess.canCreateSales(role),
     },
     {
-      to: '/products',
+      to: featureFlagsStore.simpleMode ? '/simple/products' : '/products',
       icon: 'mdi-package-variant',
       label: t('nav.products'),
       visible: uiAccess.canManageProducts(role),
@@ -168,7 +158,7 @@ const primaryNav = computed(() => {
       to: '/workspace/finance?section=inventory',
       icon: 'mdi-warehouse',
       label: t('nav.inventory'),
-      visible: uiAccess.canViewInventory(role),
+      visible: uiAccess.canViewInventory(role) && !featureFlagsStore.simpleMode,
     },
     {
       to: '/categories',
@@ -180,13 +170,13 @@ const primaryNav = computed(() => {
       to: '/purchases',
       icon: 'mdi-cart-arrow-down',
       label: t('nav.purchases'),
-      visible: uiAccess.canManagePurchases(role),
+      visible: uiAccess.canManagePurchases(role) && !featureFlagsStore.simpleMode,
     },
     {
       to: '/suppliers',
       icon: 'mdi-truck-delivery',
       label: t('nav.suppliers'),
-      visible: uiAccess.canManageSuppliers(role),
+      visible: uiAccess.canManageSuppliers(role) && !featureFlagsStore.simpleMode,
     },
     {
       to: '/sales',
@@ -246,6 +236,30 @@ watch(
   }
 );
 
+watch(
+  () => route.query.blocked,
+  (blocked) => {
+    if (typeof blocked !== 'string') return;
+
+    if (blocked === 'accounting_disabled') {
+      featureNoticeText.value = 'المحاسبة غير مفعلة. تم تحويلك إلى الوضع البسيط.';
+    } else if (blocked === 'purchasing_disabled') {
+      featureNoticeText.value = 'المشتريات والموردون غير متاحين في الوضع البسيط.';
+    } else if (blocked === 'ledgers_disabled') {
+      featureNoticeText.value = 'دفاتر العملاء/الموردين غير متاحة في الوضع البسيط.';
+    } else {
+      featureNoticeText.value = 'هذه الصفحة غير متاحة في الوضع الحالي.';
+    }
+
+    featureNoticeOpen.value = true;
+    const cleanedQuery = { ...(route.query as Record<string, any>) };
+    delete cleanedQuery.blocked;
+    delete cleanedQuery.redirect;
+    void router.replace({ path: route.path, query: cleanedQuery });
+  },
+  { immediate: true }
+);
+
 onMounted(async () => {
   // Check authentication on mount
   if (!authStore.isAuthenticated) {
@@ -253,6 +267,7 @@ onMounted(async () => {
     return;
   }
 
+  void featureFlagsStore.hydrate();
   window.addEventListener('online', updateOnlineStatus);
   window.addEventListener('offline', updateOnlineStatus);
 });

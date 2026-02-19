@@ -3,6 +3,7 @@ import { IPaymentRepository } from '../interfaces/IPaymentRepository.js';
 import { ICustomerRepository } from '../interfaces/ICustomerRepository.js';
 import { ICustomerLedgerRepository } from '../interfaces/ICustomerLedgerRepository.js';
 import { IAccountingRepository } from '../interfaces/IAccountingRepository.js';
+import { ISettingsRepository } from '../interfaces/ISettingsRepository.js';
 import { NotFoundError, InvalidStateError, ValidationError } from '../errors/DomainErrors.js';
 import { roundByCurrency } from '../utils/helpers.js';
 import { Sale } from '../entities/Sale.js';
@@ -34,7 +35,8 @@ export class AddPaymentUseCase {
     private paymentRepo: IPaymentRepository,
     private customerRepo: ICustomerRepository,
     private customerLedgerRepo: ICustomerLedgerRepository,
-    private accountingRepo: IAccountingRepository
+    private accountingRepo: IAccountingRepository,
+    private settingsRepo?: ISettingsRepository
   ) {}
 
   executeCommitPhase(input: AddPaymentInput, userId: number): AddPaymentCommitResult {
@@ -112,8 +114,9 @@ export class AddPaymentUseCase {
       updatedAt: new Date().toISOString(),
     });
 
+    const accountingEnabled = this.isAccountingEnabled();
     const effectiveCustomerId = sale.customerId || input.customerId;
-    if (effectiveCustomerId) {
+    if (accountingEnabled && effectiveCustomerId) {
       const balanceBefore = this.customerLedgerRepo.getLastBalanceSync(effectiveCustomerId);
       this.customerLedgerRepo.createSync({
         customerId: effectiveCustomerId,
@@ -125,14 +128,16 @@ export class AddPaymentUseCase {
         notes: input.notes || `Payment for sale #${sale.invoiceNumber}`,
         createdBy: userId,
       });
-    } else {
+    } else if (accountingEnabled) {
       // Keep compatibility for older aggregate fields if no ledger customer link exists.
       if (sale.customerId) {
         this.customerRepo.updateDebt(sale.customerId, -actualPaymentAmount);
       }
     }
 
-    this.createPaymentJournalEntry(payment.id!, actualPaymentAmount, currency, userId);
+    if (accountingEnabled) {
+      this.createPaymentJournalEntry(payment.id!, actualPaymentAmount, currency, userId);
+    }
 
     const updatedSale = this.saleRepo.findById(sale.id!);
     if (!updatedSale) {
@@ -188,5 +193,11 @@ export class AddPaymentUseCase {
 
   async execute(input: AddPaymentInput, userId: number): Promise<Sale> {
     return this.executeCommitPhase(input, userId).updatedSale;
+  }
+
+  private isAccountingEnabled(): boolean {
+    if (!this.settingsRepo) return true;
+    const value = this.settingsRepo.get('accounting.enabled');
+    return value !== 'false';
   }
 }

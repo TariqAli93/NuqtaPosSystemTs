@@ -3,6 +3,7 @@ import { Account, JournalEntry } from '../entities/Accounting.js';
 export interface IAccountingRepository {
   createJournalEntry(entry: JournalEntry): JournalEntry;
   createJournalEntrySync(entry: JournalEntry): JournalEntry;
+  createAccountSync(account: Omit<Account, 'id' | 'createdAt'>): Account;
   findAccountByCode(code: string): Account | null;
   getAccounts(): Promise<Account[]>;
   getJournalEntries(params?: {

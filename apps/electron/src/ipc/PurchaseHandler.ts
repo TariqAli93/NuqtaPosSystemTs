@@ -10,6 +10,7 @@ import {
   SqlitePaymentRepository,
   SqliteSupplierLedgerRepository,
   SqliteAccountingRepository,
+  SqliteSettingsRepository,
   withTransaction,
   DatabaseType,
 } from '@nuqtaplus/data';
@@ -23,13 +24,15 @@ export function registerPurchaseHandlers(db: DatabaseType) {
   const paymentRepo = new SqlitePaymentRepository(db.db);
   const supplierLedgerRepo = new SqliteSupplierLedgerRepository(db.db);
   const accountingRepo = new SqliteAccountingRepository(db.db);
+  const settingsRepo = new SqliteSettingsRepository(db.db);
 
   const createUseCase = new CreatePurchaseUseCase(
     purchaseRepo,
     supplierRepo,
     paymentRepo,
     supplierLedgerRepo,
-    accountingRepo
+    accountingRepo,
+    settingsRepo
   );
   const getAllUseCase = new GetPurchasesUseCase(purchaseRepo);
   const getByIdUseCase = new GetPurchaseByIdUseCase(purchaseRepo);

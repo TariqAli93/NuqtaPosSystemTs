@@ -3,9 +3,11 @@ import { LoginUseCase } from '@nuqtaplus/core';
 import { CheckInitialSetupUseCase } from '@nuqtaplus/core';
 import { RegisterFirstUserUseCase } from '@nuqtaplus/core';
 import { InitializeAppUseCase } from '@nuqtaplus/core';
+import { InitializeAccountingUseCase } from '@nuqtaplus/core';
 import { UpdateUserUseCase } from '@nuqtaplus/core';
 import { SqliteUserRepository } from '@nuqtaplus/data';
 import { SqliteSettingsRepository } from '@nuqtaplus/data';
+import { SqliteAccountingRepository } from '@nuqtaplus/data';
 import { DatabaseType } from '@nuqtaplus/data';
 import { userContextService } from '../services/UserContextService.js';
 import { tokenManager } from '../services/TokenManager.js';
@@ -17,11 +19,13 @@ import { assertPayload, buildValidationError } from '../services/IpcPayloadValid
 export function registerAuthHandlers(db: DatabaseType) {
   const userRepo = new SqliteUserRepository(db.db);
   const settingsRepo = new SqliteSettingsRepository(db.db);
+  const accountingRepo = new SqliteAccountingRepository(db.db);
 
   const loginUseCase = new LoginUseCase(userRepo);
   const checkInitialSetupUseCase = new CheckInitialSetupUseCase(userRepo, settingsRepo);
   const registerFirstUserUseCase = new RegisterFirstUserUseCase(userRepo);
   const initializeAppUseCase = new InitializeAppUseCase(userRepo, settingsRepo);
+  const initializeAccountingUseCase = new InitializeAccountingUseCase(settingsRepo, accountingRepo);
   const updateUserUseCase = new UpdateUserUseCase(userRepo);
 
   ipcMain.handle('auth:login', async (_event, payload) => {
@@ -193,6 +197,82 @@ export function registerAuthHandlers(db: DatabaseType) {
       log.info('Initializing app with payload:', input);
       const result = await initializeAppUseCase.execute(input as any);
       return ok(result);
+    } catch (e: unknown) {
+      return mapErrorToResult(e);
+    }
+  });
+
+  ipcMain.handle('setup:setAccountingEnabled', async (_event, payload) => {
+    try {
+      const setupStatus = checkInitialSetupUseCase.execute();
+      if (setupStatus.isInitialized || setupStatus.hasUsers) {
+        throw new Error('Cannot update setup settings: application already initialized');
+      }
+
+      const { data } = assertPayload('setup:setAccountingEnabled', payload, ['data']);
+      const body = data as { enabled?: unknown };
+      if (typeof body.enabled !== 'boolean') {
+        throw buildValidationError(
+          'setup:setAccountingEnabled',
+          payload,
+          'enabled must be a boolean'
+        );
+      }
+
+      settingsRepo.set('accounting.enabled', body.enabled ? 'true' : 'false');
+      if (!body.enabled) {
+        settingsRepo.set('accounting.coaSeeded', 'false');
+      }
+
+      return ok(initializeAccountingUseCase.getStatus());
+    } catch (e: unknown) {
+      return mapErrorToResult(e);
+    }
+  });
+
+  ipcMain.handle('setup:seedChartOfAccounts', async (_event, payload) => {
+    try {
+      const setupStatus = checkInitialSetupUseCase.execute();
+      if (setupStatus.isInitialized || setupStatus.hasUsers) {
+        throw new Error('Cannot seed chart of accounts: application already initialized');
+      }
+
+      const body = assertPayload('setup:seedChartOfAccounts', payload, ['data']);
+      const data = (body.data || {}) as Record<string, unknown>;
+      if (typeof data !== 'object' || Array.isArray(data)) {
+        throw buildValidationError(
+          'setup:seedChartOfAccounts',
+          payload,
+          'data must be an object'
+        );
+      }
+
+      const result = initializeAccountingUseCase.execute({
+        baseCurrency:
+          typeof data.baseCurrency === 'string' ? data.baseCurrency : undefined,
+        cashAccountCode:
+          typeof data.cashAccountCode === 'string' ? data.cashAccountCode : undefined,
+        inventoryAccountCode:
+          typeof data.inventoryAccountCode === 'string' ? data.inventoryAccountCode : undefined,
+        arAccountCode: typeof data.arAccountCode === 'string' ? data.arAccountCode : undefined,
+        apAccountCode: typeof data.apAccountCode === 'string' ? data.apAccountCode : undefined,
+        salesRevenueAccountCode:
+          typeof data.salesRevenueAccountCode === 'string'
+            ? data.salesRevenueAccountCode
+            : undefined,
+        cogsAccountCode:
+          typeof data.cogsAccountCode === 'string' ? data.cogsAccountCode : undefined,
+      });
+
+      return ok(result);
+    } catch (e: unknown) {
+      return mapErrorToResult(e);
+    }
+  });
+
+  ipcMain.handle('setup:getAccountingSetupStatus', async () => {
+    try {
+      return ok(initializeAccountingUseCase.getStatus());
     } catch (e: unknown) {
       return mapErrorToResult(e);
     }

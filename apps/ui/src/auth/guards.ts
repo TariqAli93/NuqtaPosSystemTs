@@ -1,10 +1,12 @@
 import type { Router } from 'vue-router';
 import { useAuthStore } from '../stores/authStore';
+import { useFeatureFlagsStore } from '../stores/featureFlagsStore';
 import * as uiAccess from './uiAccess';
 
 export function applyAuthGuard(router: Router): void {
   router.beforeEach(async (to) => {
     const authStore = useAuthStore();
+    const featureFlagsStore = useFeatureFlagsStore();
 
     // Allow the setup page itself without any checks
     if (to.name === 'InitialSetup') {
@@ -42,10 +44,44 @@ export function applyAuthGuard(router: Router): void {
       }
 
       authStore.startSessionCheck();
+      await featureFlagsStore.hydrate();
+
+      if (featureFlagsStore.simpleMode && to.name === 'POS') {
+        return { name: 'SimpleSales' };
+      }
+      if (!featureFlagsStore.simpleMode && to.name === 'SimpleSales') {
+        return { name: 'POS' };
+      }
+      if (!featureFlagsStore.simpleMode && to.name === 'SimpleProductCreate') {
+        return { name: 'ProductWorkspace' };
+      }
 
       const role = authStore.user?.role;
       if (!role) {
         return { name: 'Forbidden' };
+      }
+
+      if (to.meta.requiresAccounting && !featureFlagsStore.accountingEnabled) {
+        const routeName = String(to.name || '');
+        const fallbackName = routeName.startsWith('Product') ? 'SimpleProductCreate' : 'SimpleSales';
+        return {
+          name: fallbackName,
+          query: { blocked: 'accounting_disabled', redirect: to.fullPath },
+        };
+      }
+
+      if (to.meta.requiresPurchasing && !featureFlagsStore.accountingEnabled) {
+        return {
+          name: 'SimpleSales',
+          query: { blocked: 'purchasing_disabled', redirect: to.fullPath },
+        };
+      }
+
+      if (to.meta.requiresLedgers && !featureFlagsStore.accountingEnabled) {
+        return {
+          name: 'SimpleSales',
+          query: { blocked: 'ledgers_disabled', redirect: to.fullPath },
+        };
       }
 
       if (to.meta.requiresManageProducts && !uiAccess.canManageProducts(role)) {

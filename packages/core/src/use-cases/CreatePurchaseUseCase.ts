@@ -6,6 +6,7 @@ import { ISupplierRepository } from '../interfaces/ISupplierRepository.js';
 import { IPaymentRepository } from '../interfaces/IPaymentRepository.js';
 import { ISupplierLedgerRepository } from '../interfaces/ISupplierLedgerRepository.js';
 import { IAccountingRepository } from '../interfaces/IAccountingRepository.js';
+import { ISettingsRepository } from '../interfaces/ISettingsRepository.js';
 import { ValidationError } from '../errors/DomainErrors.js';
 
 const ACCT_CASH = '1001';
@@ -49,7 +50,8 @@ export class CreatePurchaseUseCase {
     private supplierRepository: ISupplierRepository,
     private paymentRepository: IPaymentRepository,
     private supplierLedgerRepository: ISupplierLedgerRepository,
-    private accountingRepository: IAccountingRepository
+    private accountingRepository: IAccountingRepository,
+    private settingsRepository?: ISettingsRepository
   ) {}
 
   executeCommitPhase(input: CreatePurchaseInput, userId: number): CreatePurchaseCommitResult {
@@ -135,7 +137,7 @@ export class CreatePurchaseUseCase {
       } as any);
     }
 
-    if (remainingAmount > 0) {
+    if (this.isAccountingEnabled() && remainingAmount > 0) {
       const balanceBefore = this.supplierLedgerRepository.getLastBalanceSync(
         createdPurchase.supplierId
       );
@@ -150,7 +152,9 @@ export class CreatePurchaseUseCase {
       });
     }
 
-    this.createPurchaseJournalEntry(createdPurchase, paidAmount, remainingAmount, userId);
+    if (this.isAccountingEnabled()) {
+      this.createPurchaseJournalEntry(createdPurchase, paidAmount, remainingAmount, userId);
+    }
 
     return { createdPurchase };
   }
@@ -233,5 +237,11 @@ export class CreatePurchaseUseCase {
 
   async execute(input: CreatePurchaseInput, userId = 1): Promise<Purchase> {
     return this.executeCommitPhase(input, userId).createdPurchase;
+  }
+
+  private isAccountingEnabled(): boolean {
+    if (!this.settingsRepository) return true;
+    const value = this.settingsRepository.get('accounting.enabled');
+    return value !== 'false';
   }
 }

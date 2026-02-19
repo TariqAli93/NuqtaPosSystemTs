@@ -340,13 +340,15 @@ export function registerDiagnosticsHandlers(db: DatabaseType) {
       const paymentRepo = new SqlitePaymentRepository(db.db);
       const supplierLedgerRepo = new SqliteSupplierLedgerRepository(db.db);
       const accountingRepo = new SqliteAccountingRepository(db.db);
+      const settingsRepo = new SqliteSettingsRepository(db.db);
 
       const purchaseUseCase = new CreatePurchaseUseCase(
         purchaseRepo,
         supplierRepo,
         paymentRepo,
         supplierLedgerRepo,
-        accountingRepo
+        accountingRepo,
+        settingsRepo
       );
 
       const existingSupplier = (await supplierRepo.findAll({ limit: 1, offset: 0 })).items[0] || null;

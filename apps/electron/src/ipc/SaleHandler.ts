@@ -46,7 +46,8 @@ export function registerSaleHandlers(db: DatabaseType) {
     paymentRepo,
     customerRepo,
     customerLedgerRepo,
-    accountingRepo
+    accountingRepo,
+    settingsRepo
   );
 
   /**

@@ -23,6 +23,50 @@
               {{ item.productName }}
             </v-list-item-title>
             <v-list-item-subtitle class="text-caption text-medium-emphasis mt-1">
+              <template v-if="getUnitsForIndex(index).length > 1">
+                <v-menu>
+                  <template #activator="{ props: menuProps }">
+                    <v-chip
+                      v-bind="menuProps"
+                      size="x-small"
+                      variant="outlined"
+                      color="primary"
+                      class="cursor-pointer"
+                      append-icon="mdi-chevron-down"
+                    >
+                      {{ item.unitName }}
+                    </v-chip>
+                  </template>
+                  <v-list density="compact">
+                    <v-list-item
+                      v-for="unit in getUnitsForIndex(index)"
+                      :key="unit.unitName"
+                      :active="unit.unitName === item.unitName"
+                      @click="$emit('unitChange', { index, unit })"
+                    >
+                      <v-list-item-title class="text-body-2">
+                        {{ unit.unitName }}
+                        <span
+                          v-if="unit.sellingPrice != null"
+                          class="text-caption text-medium-emphasis mr-2"
+                        >
+                          ({{ formatPrice(unit.sellingPrice) }})
+                        </span>
+                      </v-list-item-title>
+                      <v-list-item-subtitle v-if="unit.factorToBase > 1" class="text-caption">
+                        × {{ unit.factorToBase }}
+                      </v-list-item-subtitle>
+                    </v-list-item>
+                  </v-list>
+                </v-menu>
+                <span class="mr-1">·</span>
+              </template>
+              <template
+                v-else-if="item.unitName && item.unitName !== 'pcs' && item.unitName !== 'piece'"
+              >
+                <v-chip size="x-small" variant="tonal" class="ml-1">{{ item.unitName }}</v-chip>
+                <span class="mr-1">·</span>
+              </template>
               {{ formatPrice(item.unitPrice) }} {{ t('pos.each') }}
             </v-list-item-subtitle>
 
@@ -112,15 +156,18 @@
 
 <script setup lang="ts">
 import { t } from '@/i18n/t';
-import type { SaleItem } from '@/types/domain';
+import type { SaleItem, ProductUnit } from '@/types/domain';
 import { computed, onBeforeUnmount, ref } from 'vue';
 import { useLayoutStore } from '@/stores/layout';
 
 interface Props {
   items: SaleItem[];
+  unitsMap?: Map<number, ProductUnit[]>;
 }
 
-const props = defineProps<Props>();
+const props = withDefaults(defineProps<Props>(), {
+  unitsMap: () => new Map(),
+});
 
 const layout = useLayoutStore();
 
@@ -138,7 +185,12 @@ const emit = defineEmits<{
   remove: [index: number];
   setQuantity: [{ index: number; quantity: number }];
   resetQuantityInput: [index: number];
+  unitChange: [{ index: number; unit: ProductUnit }];
 }>();
+
+function getUnitsForIndex(index: number): ProductUnit[] {
+  return props.unitsMap?.get(index) ?? [];
+}
 
 const formatPrice = (price: number) => {
   return new Intl.NumberFormat('ar-IQ', {
@@ -223,5 +275,9 @@ onBeforeUnmount(() => {
 
 :deep(.v-navigation-drawer--right) {
   border: 0 !important;
+}
+
+.cursor-pointer {
+  cursor: pointer;
 }
 </style>

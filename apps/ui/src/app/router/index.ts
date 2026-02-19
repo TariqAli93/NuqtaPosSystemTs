@@ -10,6 +10,12 @@ declare module 'vue-router' {
     requiresManageCustomers?: boolean;
     requiresCreateSales?: boolean;
     requiresManageSettings?: boolean;
+    requiresManagePurchases?: boolean;
+    requiresManageSuppliers?: boolean;
+    requiresAdjustStock?: boolean;
+    requiresAccounting?: boolean;
+    requiresPurchasing?: boolean;
+    requiresLedgers?: boolean;
     enableBarcode?: 'pos' | 'product';
   }
 }
