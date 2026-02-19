@@ -98,6 +98,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatMoney } from '@/utils/formatters';
 import type { Product } from '@nuqtaplus/core';
 
 const props = defineProps<{
@@ -133,8 +134,4 @@ const productStockStatusColor = computed(() => {
   if (props.product.stock <= props.product.minStock) return 'warning';
   return 'success';
 });
-
-function formatMoney(value: number): string {
-  return `${(value || 0).toLocaleString('en-US')} د.ع`;
-}
 </script>

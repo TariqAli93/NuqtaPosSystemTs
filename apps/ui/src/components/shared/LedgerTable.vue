@@ -45,6 +45,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatDate } from '@/utils/formatters';
 
 export interface LedgerEntry {
   id?: number;
@@ -104,16 +105,6 @@ function typeLabel(type: string): string {
 
 function typeColor(type: string): string {
   return TYPE_COLORS[type] ?? 'grey';
-}
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
 }
 </script>
 

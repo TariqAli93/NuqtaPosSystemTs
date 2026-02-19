@@ -424,6 +424,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue';
+import { formatDate, formatMoney } from '@/utils/formatters';
 import { useRoute, useRouter } from 'vue-router';
 import { useAccountingStore } from '@/stores/accountingStore';
 import { useInventoryStore } from '@/stores/inventoryStore';
@@ -586,20 +587,6 @@ async function reloadCustomerLedger(): Promise<void> {
 async function reloadSupplierLedger(): Promise<void> {
   if (!ledgerStore.selectedSupplierId) return;
   await ledgerStore.fetchSupplierLedger(ledgerStore.selectedSupplierId, { limit: 100, offset: 0 });
-}
-
-function formatMoney(value: number): string {
-  return `${(value || 0).toLocaleString('en-US')} د.ع`;
-}
-
-function formatDate(value?: string): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
 }
 
 function movementLabel(value: string): string {

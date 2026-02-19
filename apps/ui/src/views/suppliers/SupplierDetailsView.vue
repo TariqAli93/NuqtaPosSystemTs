@@ -135,6 +135,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { formatDate } from '@/utils/formatters';
 import { useRoute, useRouter } from 'vue-router';
 import { suppliersClient, supplierLedgerClient, purchasesClient } from '../../ipc';
 import type { Supplier } from '@nuqtaplus/core';
@@ -214,15 +215,5 @@ async function onRecordPayment() {
   paymentAmount.value = 0;
   paymentNotes.value = '';
   await refreshSupplier();
-}
-
-function formatDate(d?: string): string {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
 }
 </script>

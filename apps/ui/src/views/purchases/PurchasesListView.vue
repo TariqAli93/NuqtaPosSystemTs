@@ -85,6 +85,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { formatDate } from '@/utils/formatters';
 import { useRouter } from 'vue-router';
 import { usePurchasesStore } from '../../stores/purchasesStore';
 import MoneyDisplay from '../../components/shared/MoneyDisplay.vue';
@@ -121,15 +122,5 @@ function onSearch() {
 
 function statusLabel(s: string): string {
   return { completed: 'مكتمل', pending: 'معلق', cancelled: 'ملغي' }[s] ?? s;
-}
-
-function formatDate(d?: string): string {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
 }
 </script>

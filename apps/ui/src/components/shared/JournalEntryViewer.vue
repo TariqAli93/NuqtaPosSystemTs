@@ -73,6 +73,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatDate } from '@/utils/formatters';
 
 export interface JournalLineDisplay {
   id?: number;
@@ -111,16 +112,6 @@ const totalDebit = computed(() =>
 const totalCredit = computed(() =>
   (props.entry.lines ?? []).reduce((sum, l) => sum + (l.credit || 0), 0)
 );
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
-}
 </script>
 
 <style scoped>

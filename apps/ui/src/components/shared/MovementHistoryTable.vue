@@ -57,6 +57,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { formatDate } from '@/utils/formatters';
 
 export interface MovementRow {
   id?: number;
@@ -129,16 +130,6 @@ function moveColor(type: string): string {
 
 function reasonLabel(reason: string): string {
   return REASON_LABELS[reason] ?? reason;
-}
-
-function formatDate(dateStr?: string): string {
-  if (!dateStr) return '—';
-  return new Date(dateStr).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
 }
 </script>
 

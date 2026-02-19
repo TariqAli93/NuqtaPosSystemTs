@@ -13,8 +13,12 @@
       <v-card class="mb-4">
         <v-card-text>
           <v-row dense>
-            <v-col cols="6" sm="3"><strong>رقم الفاتورة:</strong> {{ purchase.invoiceNumber }}</v-col>
-            <v-col cols="6" sm="3"><strong>التاريخ:</strong> {{ formatDate(purchase.createdAt) }}</v-col>
+            <v-col cols="6" sm="3"
+              ><strong>رقم الفاتورة:</strong> {{ purchase.invoiceNumber }}</v-col
+            >
+            <v-col cols="6" sm="3"
+              ><strong>التاريخ:</strong> {{ formatDate(purchase.createdAt) }}</v-col
+            >
             <v-col cols="6" sm="3">
               <strong>الحالة:</strong>
               <v-chip
@@ -109,7 +113,8 @@
         <v-card-text>
           <v-row dense>
             <v-col cols="6" sm="3">
-              <strong>المجموع الفرعي:</strong> <MoneyDisplay :amount="purchase.subtotal" size="md" />
+              <strong>المجموع الفرعي:</strong>
+              <MoneyDisplay :amount="purchase.subtotal" size="md" />
             </v-col>
             <v-col cols="6" sm="3">
               <strong>الخصم:</strong> <MoneyDisplay :amount="purchase.discount" size="md" />
@@ -132,6 +137,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue';
+import { formatDate } from '@/utils/formatters';
 import { useRoute, useRouter } from 'vue-router';
 import { usePurchasesStore } from '../../stores/purchasesStore';
 import MoneyDisplay from '../../components/shared/MoneyDisplay.vue';
@@ -167,14 +173,4 @@ const movementHeaders = [
 onMounted(() => {
   purchasesStore.fetchPurchaseById(Number(route.params.id));
 });
-
-function formatDate(d?: string): string {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
-}
 </script>

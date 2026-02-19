@@ -59,6 +59,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue';
+import { formatDate } from '@/utils/formatters';
 import { useRouter } from 'vue-router';
 import { useAccountingStore } from '../../stores/accountingStore';
 import MoneyDisplay from '../../components/shared/MoneyDisplay.vue';
@@ -85,16 +86,6 @@ const headers = [
 function sourceLabel(s?: string): string {
   if (!s) return 'غير محدد';
   return { sale: 'بيع', purchase: 'شراء', payment: 'دفعة', manual: 'يدوي' }[s] ?? s;
-}
-
-function formatDate(d?: string): string {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
 }
 
 onMounted(() => accountingStore.fetchJournalEntries());

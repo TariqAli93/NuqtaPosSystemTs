@@ -87,6 +87,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
+import { formatDate } from '@/utils/formatters';
 import type { InventoryMovement } from '@nuqtaplus/core';
 
 const props = defineProps<{
@@ -161,16 +162,6 @@ function resetFilters(): void {
   reload();
 }
 
-function formatDate(value?: string): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
-}
-
 function movementLabel(value: string): string {
   if (value === 'in') return 'دخول';
   if (value === 'out') return 'خروج';
@@ -206,4 +197,3 @@ function signedClass(value: string): string {
   return '';
 }
 </script>
-

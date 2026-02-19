@@ -89,6 +89,7 @@
 
 <script setup lang="ts">
 import { reactive } from 'vue';
+import { formatDate, formatMoney } from '@/utils/formatters';
 import type { Product, ProductBatch } from '@nuqtaplus/core';
 import type { ProductBatchInput } from '@/types/workspace';
 
@@ -144,19 +145,6 @@ function saveBatch(): void {
   batchForm.quantityReceived = 1;
   batchForm.costPerUnit = 0;
   batchForm.expiryDate = '';
-}
-
-function formatDate(value: string): string {
-  return new Date(value).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
-}
-
-function formatMoney(value: number): string {
-  return `${value.toLocaleString('en-US')} د.ع`;
 }
 
 function isExpiringSoon(dateValue: string): boolean {

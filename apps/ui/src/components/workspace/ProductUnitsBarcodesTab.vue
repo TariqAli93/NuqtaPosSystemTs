@@ -183,6 +183,7 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue';
+import { formatDate } from '@/utils/formatters';
 import type { BarcodePrintJob, BarcodeTemplate, Product, ProductUnit } from '@nuqtaplus/core';
 import type { ProductUnitInput } from '@/types/workspace';
 
@@ -296,15 +297,5 @@ function statusLabel(value: string): string {
   if (value === 'printing') return 'قيد الطباعة';
   if (value === 'failed') return 'فشل';
   return 'معلق';
-}
-
-function formatDate(value?: string): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
 }
 </script>

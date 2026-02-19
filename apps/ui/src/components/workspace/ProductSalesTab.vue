@@ -28,6 +28,7 @@
 
 <script setup lang="ts">
 import type { ProductSalesHistoryItem } from '@/types/workspace';
+import { formatDate, formatMoney } from '@/utils/formatters';
 
 defineProps<{
   items: ProductSalesHistoryItem[];
@@ -46,20 +47,6 @@ const headers = [
   { title: 'الحالة', key: 'status', width: 90 },
 ];
 
-function formatDate(value?: string | null): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString('ar-IQ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    numberingSystem: 'latn',
-  });
-}
-
-function formatMoney(value: number): string {
-  return `${(value || 0).toLocaleString('en-US')} د.ع`;
-}
-
 function statusLabel(value: string): string {
   if (value === 'completed') return 'مكتمل';
   if (value === 'pending') return 'معلق';
@@ -74,4 +61,3 @@ function statusColor(value: string): string {
   return 'default';
 }
 </script>
-
