@@ -47,7 +47,7 @@
         </tr>
       </tbody>
       <tfoot>
-        <tr class="font-weight-bold">
+        <tr class="font-weight-bold" :class="{ 'bg-error-lighten-5': isImbalanced }">
           <td>المجموع</td>
           <td
             class="text-end"
@@ -68,6 +68,18 @@
     <v-card-text v-if="entry.notes" class="text-caption text-medium-emphasis pt-2">
       {{ entry.notes }}
     </v-card-text>
+
+    <!-- Imbalance warning -->
+    <v-alert
+      v-if="isImbalanced"
+      type="error"
+      variant="tonal"
+      density="compact"
+      class="ma-3"
+      prepend-icon="mdi-alert-circle"
+    >
+      القيد غير متوازن — الفرق: {{ Math.abs(totalDebit - totalCredit).toLocaleString('en-US') }}
+    </v-alert>
   </v-card>
 </template>
 
@@ -112,6 +124,8 @@ const totalDebit = computed(() =>
 const totalCredit = computed(() =>
   (props.entry.lines ?? []).reduce((sum, l) => sum + (l.credit || 0), 0)
 );
+
+const isImbalanced = computed(() => Math.abs(totalDebit.value - totalCredit.value) > 0);
 </script>
 
 <style scoped>

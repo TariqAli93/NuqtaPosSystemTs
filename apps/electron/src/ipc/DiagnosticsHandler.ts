@@ -14,6 +14,7 @@ import {
   SqliteAuditRepository,
   SqliteCustomerLedgerRepository,
   SqliteCustomerRepository,
+  SqliteFifoService,
   SqliteInventoryRepository,
   SqlitePaymentRepository,
   SqliteProductRepository,
@@ -67,12 +68,14 @@ export function registerDiagnosticsHandlers(db: DatabaseType) {
       const warnings: string[] = [];
       const countByTable = new Map(tables.map((item) => [item.table, item.rowCount]));
 
-      const accountsRow = db.sqlite
-        .prepare('SELECT COUNT(*) AS rowCount FROM accounts')
-        .get() as { rowCount?: number } | undefined;
+      const accountsRow = db.sqlite.prepare('SELECT COUNT(*) AS rowCount FROM accounts').get() as
+        | { rowCount?: number }
+        | undefined;
       const accountsCount = accountsRow?.rowCount || 0;
       if (accountsCount === 0) {
-        warnings.push('Chart of accounts is empty; journal entries will be skipped until accounts are seeded.');
+        warnings.push(
+          'Chart of accounts is empty; journal entries will be skipped until accounts are seeded.'
+        );
       } else {
         const requiredAccountCodes = ['1001', '1100', '1200', '4001', '5001', '2001', '2100'];
         const placeholders = requiredAccountCodes.map(() => '?').join(', ');
@@ -89,7 +92,9 @@ export function registerDiagnosticsHandlers(db: DatabaseType) {
 
         const hasAp = presentCodes.has('2001') || presentCodes.has('2100');
         if (!hasAp) {
-          warnings.push('Missing accounts payable code (2001 or 2100); purchase journals may be skipped.');
+          warnings.push(
+            'Missing accounts payable code (2001 or 2100); purchase journals may be skipped.'
+          );
         }
       }
 
@@ -131,6 +136,7 @@ export function registerDiagnosticsHandlers(db: DatabaseType) {
     const accountingRepo = new SqliteAccountingRepository(db.db);
     const customerLedgerRepo = new SqliteCustomerLedgerRepository(db.db);
     const auditRepo = new SqliteAuditRepository(db.db);
+    const fifoService = new SqliteFifoService(db.db);
 
     const useCase = new CreateSaleUseCase(
       saleRepo,
@@ -141,7 +147,8 @@ export function registerDiagnosticsHandlers(db: DatabaseType) {
       inventoryRepo,
       accountingRepo,
       customerLedgerRepo,
-      auditRepo
+      auditRepo,
+      fifoService
     );
 
     const availableProduct =
@@ -235,6 +242,7 @@ export function registerDiagnosticsHandlers(db: DatabaseType) {
       const accountingRepo = new SqliteAccountingRepository(db.db);
       const customerLedgerRepo = new SqliteCustomerLedgerRepository(db.db);
       const auditRepo = new SqliteAuditRepository(db.db);
+      const fifoService = new SqliteFifoService(db.db);
 
       const useCase = new CreateSaleUseCase(
         saleRepo,
@@ -245,14 +253,16 @@ export function registerDiagnosticsHandlers(db: DatabaseType) {
         inventoryRepo,
         accountingRepo,
         customerLedgerRepo,
-        auditRepo
+        auditRepo,
+        fifoService
       );
 
       const availableProduct =
         productRepo
           .findAll({ limit: 50 })
-          .items.find((item) => Boolean(item.id) && (item.stock || 0) > 0 && (item.sellingPrice || 0) > 0) ||
-        null;
+          .items.find(
+            (item) => Boolean(item.id) && (item.stock || 0) > 0 && (item.sellingPrice || 0) > 0
+          ) || null;
 
       if (!availableProduct?.id) {
         return ok({
@@ -341,6 +351,7 @@ export function registerDiagnosticsHandlers(db: DatabaseType) {
       const supplierLedgerRepo = new SqliteSupplierLedgerRepository(db.db);
       const accountingRepo = new SqliteAccountingRepository(db.db);
       const settingsRepo = new SqliteSettingsRepository(db.db);
+      const auditRepo2 = new SqliteAuditRepository(db.db);
 
       const purchaseUseCase = new CreatePurchaseUseCase(
         purchaseRepo,
@@ -348,10 +359,12 @@ export function registerDiagnosticsHandlers(db: DatabaseType) {
         paymentRepo,
         supplierLedgerRepo,
         accountingRepo,
-        settingsRepo
+        settingsRepo,
+        auditRepo2
       );
 
-      const existingSupplier = (await supplierRepo.findAll({ limit: 1, offset: 0 })).items[0] || null;
+      const existingSupplier =
+        (await supplierRepo.findAll({ limit: 1, offset: 0 })).items[0] || null;
       const supplier: Supplier =
         existingSupplier ||
         (await supplierRepo.create({
@@ -415,7 +428,9 @@ export function registerDiagnosticsHandlers(db: DatabaseType) {
         idempotencyKey: `diag-purchase-${Date.now()}`,
       };
 
-      const result = withTransaction(db.sqlite, () => purchaseUseCase.executeCommitPhase(purchaseInput, 1));
+      const result = withTransaction(db.sqlite, () =>
+        purchaseUseCase.executeCommitPhase(purchaseInput, 1)
+      );
 
       return ok({
         ok: true,

@@ -14,6 +14,9 @@ export interface IPurchaseRepository {
     offset?: number;
   }): Promise<{ items: Purchase[]; total: number }>;
   findById(id: number): Promise<Purchase | null>;
+  findByIdSync?(id: number): Purchase | null;
   updateStatus(id: number, status: string): Promise<void>;
+  updateStatusSync?(id: number, status: string): void;
   updatePayment(id: number, paidAmount: number, remainingAmount: number): Promise<void>;
+  updatePaymentSync?(id: number, paidAmount: number, remainingAmount: number): void;
 }

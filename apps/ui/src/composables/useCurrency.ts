@@ -59,7 +59,7 @@ export function useCurrency() {
     amount: number,
     options?: { showSymbol?: boolean; decimals?: number }
   ): string => {
-    const { showSymbol = true, decimals = 2 } = options || {};
+    const { showSymbol = true, decimals = 0 } = options || {};
     const formatted = amount.toLocaleString('en-US', {
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,

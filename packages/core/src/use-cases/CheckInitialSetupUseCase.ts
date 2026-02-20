@@ -5,6 +5,7 @@ export interface SetupStatus {
   isInitialized: boolean;
   hasUsers: boolean;
   hasCompanyInfo: boolean;
+  wizardCompleted: boolean;
 }
 
 export class CheckInitialSetupUseCase {
@@ -17,6 +18,10 @@ export class CheckInitialSetupUseCase {
     // Primary flag — set atomically at the end of InitializeAppUseCase
     const initialized = this.settingsRepo.get('app_initialized');
     const isInitialized = initialized === 'true';
+    const wizardFlag =
+      this.settingsRepo.get('setup.wizardCompleted') ??
+      this.settingsRepo.get('setup.wizard_completed');
+    const wizardCompleted = wizardFlag === null ? isInitialized : wizardFlag === 'true';
 
     // Fallback checks for partial-setup detection
     const userCount = this.userRepo.count();
@@ -38,6 +43,7 @@ export class CheckInitialSetupUseCase {
       isInitialized,
       hasUsers,
       hasCompanyInfo,
+      wizardCompleted,
     };
   }
 }

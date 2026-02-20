@@ -10,6 +10,7 @@ import {
   SqliteInventoryRepository,
   SqliteAccountingRepository,
   SqliteCustomerLedgerRepository,
+  SqliteFifoService,
   withTransaction,
   DatabaseType,
 } from '@nuqtaplus/data';
@@ -28,6 +29,7 @@ export function registerSaleHandlers(db: DatabaseType) {
   const inventoryRepo = new SqliteInventoryRepository(db.db);
   const accountingRepo = new SqliteAccountingRepository(db.db);
   const customerLedgerRepo = new SqliteCustomerLedgerRepository(db.db);
+  const fifoService = new SqliteFifoService(db.db);
 
   const createSaleUseCase = new CreateSaleUseCase(
     saleRepo,
@@ -38,7 +40,8 @@ export function registerSaleHandlers(db: DatabaseType) {
     inventoryRepo,
     accountingRepo,
     customerLedgerRepo,
-    auditRepo
+    auditRepo,
+    fifoService
   );
 
   const addPaymentUseCase = new AddPaymentUseCase(

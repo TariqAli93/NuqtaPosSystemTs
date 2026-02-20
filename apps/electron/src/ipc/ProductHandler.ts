@@ -11,6 +11,7 @@ import {
   SqliteProductWorkspaceRepository,
   SqliteInventoryRepository,
   SqliteAccountingRepository,
+  SqliteAuditRepository,
   withTransaction,
   DatabaseType,
 } from '@nuqtaplus/data';
@@ -24,14 +25,16 @@ export function registerProductHandlers(db: DatabaseType) {
   const productWorkspaceRepo = new SqliteProductWorkspaceRepository(db.db);
   const inventoryRepo = new SqliteInventoryRepository(db.db);
   const accountingRepo = new SqliteAccountingRepository(db.db);
+  const auditRepo = new SqliteAuditRepository(db.db);
   const getProductsUseCase = new GetProductsUseCase(productRepo);
-  const createProductUseCase = new CreateProductUseCase(productRepo);
-  const updateProductUseCase = new UpdateProductUseCase(productRepo);
-  const deleteProductUseCase = new DeleteProductUseCase(productRepo);
+  const createProductUseCase = new CreateProductUseCase(productRepo, auditRepo);
+  const updateProductUseCase = new UpdateProductUseCase(productRepo, auditRepo);
+  const deleteProductUseCase = new DeleteProductUseCase(productRepo, auditRepo);
   const adjustStockUseCase = new AdjustProductStockUseCase(
     productRepo,
     inventoryRepo,
-    accountingRepo
+    accountingRepo,
+    auditRepo
   );
 
   /**
@@ -47,11 +50,7 @@ export function registerProductHandlers(db: DatabaseType) {
     }
 
     // Validate optional SKU
-    if (
-      data.sku !== undefined &&
-      data.sku !== null &&
-      typeof data.sku !== 'string'
-    ) {
+    if (data.sku !== undefined && data.sku !== null && typeof data.sku !== 'string') {
       throw buildValidationError(channel, payload, 'SKU must be a string if provided');
     }
 
@@ -154,7 +153,8 @@ export function registerProductHandlers(db: DatabaseType) {
       requirePermission({ permission: 'products:read' });
 
       const { params } = assertPayload('products:getAll', payload, ['params']);
-      const parsed = params && typeof params === 'object' ? (params as Record<string, unknown>) : {};
+      const parsed =
+        params && typeof params === 'object' ? (params as Record<string, unknown>) : {};
       const result = await getProductsUseCase.execute({
         search: typeof parsed.search === 'string' ? parsed.search : undefined,
         page: typeof parsed.page === 'number' ? parsed.page : Number(parsed.page) || 1,
@@ -202,10 +202,8 @@ export function registerProductHandlers(db: DatabaseType) {
       }
 
       const result = productWorkspaceRepo.findPurchaseHistoryByProduct(productId, {
-        limit:
-          typeof params.limit === 'number' ? params.limit : Number(params.limit) || 50,
-        offset:
-          typeof params.offset === 'number' ? params.offset : Number(params.offset) || 0,
+        limit: typeof params.limit === 'number' ? params.limit : Number(params.limit) || 50,
+        offset: typeof params.offset === 'number' ? params.offset : Number(params.offset) || 0,
       });
 
       return ok(result);
@@ -234,10 +232,8 @@ export function registerProductHandlers(db: DatabaseType) {
       }
 
       const result = productWorkspaceRepo.findSalesHistoryByProduct(productId, {
-        limit:
-          typeof params.limit === 'number' ? params.limit : Number(params.limit) || 50,
-        offset:
-          typeof params.offset === 'number' ? params.offset : Number(params.offset) || 0,
+        limit: typeof params.limit === 'number' ? params.limit : Number(params.limit) || 50,
+        offset: typeof params.offset === 'number' ? params.offset : Number(params.offset) || 0,
       });
 
       return ok(result);

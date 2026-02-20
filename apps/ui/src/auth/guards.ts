@@ -8,11 +8,6 @@ export function applyAuthGuard(router: Router): void {
     const authStore = useAuthStore();
     const featureFlagsStore = useFeatureFlagsStore();
 
-    // Allow the setup page itself without any checks
-    if (to.name === 'InitialSetup') {
-      return true;
-    }
-
     // Lazy-load setup status if not yet fetched
     if (!authStore.setupStatus) {
       try {
@@ -23,8 +18,16 @@ export function applyAuthGuard(router: Router): void {
       }
     }
 
-    // If app is NOT initialized, redirect to setup wizard
-    if (authStore.setupStatus && !authStore.isInitialized) {
+    if (to.name === 'InitialSetup') {
+      if (authStore.setupStatus?.isInitialized && authStore.isSetupWizardCompleted) {
+        const isAuth = await authStore.ensureAuthenticated();
+        return isAuth ? { path: '/' } : { name: 'Login' };
+      }
+      return true;
+    }
+
+    // Block app until initial setup wizard is completed.
+    if (authStore.setupStatus && (!authStore.isInitialized || !authStore.isSetupWizardCompleted)) {
       return { name: 'InitialSetup' };
     }
 
@@ -46,41 +49,36 @@ export function applyAuthGuard(router: Router): void {
       authStore.startSessionCheck();
       await featureFlagsStore.hydrate();
 
-      if (featureFlagsStore.simpleMode && to.name === 'POS') {
-        return { name: 'SimpleSales' };
-      }
-      if (!featureFlagsStore.simpleMode && to.name === 'SimpleSales') {
-        return { name: 'POS' };
-      }
-      if (!featureFlagsStore.simpleMode && to.name === 'SimpleProductCreate') {
-        return { name: 'ProductWorkspace' };
-      }
-
       const role = authStore.user?.role;
       if (!role) {
         return { name: 'Forbidden' };
       }
 
       if (to.meta.requiresAccounting && !featureFlagsStore.accountingEnabled) {
-        const routeName = String(to.name || '');
-        const fallbackName = routeName.startsWith('Product') ? 'SimpleProductCreate' : 'SimpleSales';
         return {
-          name: fallbackName,
+          name: 'Dashboard',
           query: { blocked: 'accounting_disabled', redirect: to.fullPath },
         };
       }
 
-      if (to.meta.requiresPurchasing && !featureFlagsStore.accountingEnabled) {
+      if (to.meta.requiresPurchasing && !featureFlagsStore.purchasesEnabled) {
         return {
-          name: 'SimpleSales',
+          name: 'Dashboard',
           query: { blocked: 'purchasing_disabled', redirect: to.fullPath },
         };
       }
 
-      if (to.meta.requiresLedgers && !featureFlagsStore.accountingEnabled) {
+      if (to.meta.requiresLedgers && !featureFlagsStore.ledgersEnabled) {
         return {
-          name: 'SimpleSales',
+          name: 'Dashboard',
           query: { blocked: 'ledgers_disabled', redirect: to.fullPath },
+        };
+      }
+
+      if (to.meta.requiresPaymentsOnInvoices && !featureFlagsStore.paymentsOnInvoicesEnabled) {
+        return {
+          name: 'Dashboard',
+          query: { blocked: 'invoice_payments_disabled', redirect: to.fullPath },
         };
       }
 

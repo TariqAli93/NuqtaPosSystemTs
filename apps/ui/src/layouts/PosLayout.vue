@@ -143,13 +143,13 @@ const primaryNav = computed(() => {
 
   return [
     {
-      to: featureFlagsStore.simpleMode ? '/simple/sales' : '/pos',
+      to: '/pos',
       icon: 'mdi-point-of-sale',
       label: t('nav.pos'),
       visible: uiAccess.canCreateSales(role),
     },
     {
-      to: featureFlagsStore.simpleMode ? '/simple/products' : '/products',
+      to: '/products',
       icon: 'mdi-package-variant',
       label: t('nav.products'),
       visible: uiAccess.canManageProducts(role),
@@ -170,13 +170,13 @@ const primaryNav = computed(() => {
       to: '/purchases',
       icon: 'mdi-cart-arrow-down',
       label: t('nav.purchases'),
-      visible: uiAccess.canManagePurchases(role) && !featureFlagsStore.simpleMode,
+      visible: uiAccess.canManagePurchases(role) && featureFlagsStore.purchasesEnabled,
     },
     {
       to: '/suppliers',
       icon: 'mdi-truck-delivery',
       label: t('nav.suppliers'),
-      visible: uiAccess.canManageSuppliers(role) && !featureFlagsStore.simpleMode,
+      visible: uiAccess.canManageSuppliers(role) && featureFlagsStore.purchasesEnabled,
     },
     {
       to: '/sales',
@@ -190,14 +190,13 @@ const primaryNav = computed(() => {
       label: t('nav.customers'),
       visible: uiAccess.canManageCustomers(role),
     },
-
     {
-      to: '/users',
-      icon: 'mdi-account-multiple-outline',
-      label: t('nav.users'),
-      visible: uiAccess.canManageUsers(role),
+      to: '/invoice-payments',
+      icon: 'mdi-cash-multiple',
+      label: 'دفعات الفواتير',
+      visible: featureFlagsStore.ledgersEnabled && featureFlagsStore.paymentsOnInvoicesEnabled,
     },
-    { to: '/dashboard', icon: 'mdi-chart-box', label: t('nav.dashboard'), visible: true },
+
   ].filter((item) => item.visible);
 });
 
@@ -247,6 +246,8 @@ watch(
       featureNoticeText.value = 'المشتريات والموردون غير متاحين في الوضع البسيط.';
     } else if (blocked === 'ledgers_disabled') {
       featureNoticeText.value = 'دفاتر العملاء/الموردين غير متاحة في الوضع البسيط.';
+    } else if (blocked === 'invoice_payments_disabled') {
+      featureNoticeText.value = 'دفعات الفواتير غير مفعلة في إعدادات النظام.';
     } else {
       featureNoticeText.value = 'هذه الصفحة غير متاحة في الوضع الحالي.';
     }

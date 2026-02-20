@@ -410,11 +410,14 @@ async function selectProduct(productId: number): Promise<void> {
 }
 
 async function onFiltersChange(filters: ProductWorkspaceFilters): Promise<void> {
-  await workspaceStore.fetchProducts({
+  const result = await workspaceStore.fetchProducts({
     ...workspaceStore.filters,
+
     ...filters,
     offset: 0,
   });
+
+  console.log('fetchProducts result', result);
 }
 
 async function onPaginationChange(pagination: { limit: number; offset: number }): Promise<void> {

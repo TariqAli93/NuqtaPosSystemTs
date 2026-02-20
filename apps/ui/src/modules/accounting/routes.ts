@@ -1,4 +1,6 @@
 import type { RouteRecordRaw } from 'vue-router';
+import PostingView from '../../views/accounting/PostingView.vue';
+import InvoicePaymentsView from '../../views/accounting/InvoicePaymentsView.vue';
 
 export const accountingRoutes: RouteRecordRaw[] = [
   {
@@ -59,5 +61,17 @@ export const accountingRoutes: RouteRecordRaw[] = [
       name: 'FinanceInventoryWorkspace',
       query: { ...to.query, section: 'accounting', accountingTab: 'balance' },
     }),
+  },
+  {
+    path: 'accounting/posting',
+    name: 'Posting',
+    component: PostingView,
+    meta: { requiresAccounting: true },
+  },
+  {
+    path: 'invoice-payments',
+    name: 'InvoicePayments',
+    component: InvoicePaymentsView,
+    meta: { requiresLedgers: true, requiresPaymentsOnInvoices: true },
   },
 ];

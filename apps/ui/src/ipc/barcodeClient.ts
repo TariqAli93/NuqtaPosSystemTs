@@ -14,7 +14,9 @@ export type BarcodeTemplateInput = Pick<
   | 'showBarcode'
   | 'showExpiry'
   | 'isDefault'
->;
+> & {
+  layoutJson?: string | null;
+};
 
 export interface PrintJobInput {
   templateId: number;

@@ -1,7 +1,6 @@
 ﻿import type { RouteRecordRaw } from 'vue-router';
 import PosLayout from '../../layouts/PosLayout.vue';
 import AuthLayout from '../../layouts/AuthLayout.vue';
-import DashboardView from '../../views/dashboard/DashboardView.vue';
 import PosView from '../../views/pos/PosView.vue';
 import ForbiddenView from '../../views/system/ForbiddenView.vue';
 import NotFoundView from '../../views/system/NotFoundView.vue';
@@ -43,11 +42,6 @@ export const routes: RouteRecordRaw[] = [
         meta: { enableBarcode: 'pos' },
       },
       ...simpleModeRoutes,
-      {
-        path: 'dashboard',
-        name: 'Dashboard',
-        component: DashboardView,
-      },
       ...customersRoutes,
       ...productsRoutes,
       ...salesRoutes,

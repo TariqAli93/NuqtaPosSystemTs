@@ -352,8 +352,181 @@
                 <v-spacer />
                 <v-btn
                   color="primary"
-                  @click="submitSetup"
+                  @click="goToStep3"
                   :loading="authStore.loading || accountingLoading || accountingSeeding"
+                  :disabled="!isStep2Valid || setupIncompleteCount > 0"
+                >
+                  {{ t('setup.next') }}
+                  <v-icon end>mdi-arrow-left</v-icon>
+                </v-btn>
+              </v-card-actions>
+            </v-card>
+          </template>
+
+          <!-- Step 3: Module Toggles & Preferences -->
+          <template #item.3>
+            <v-card flat class="step-card">
+              <v-card-title class="text-subtitle-1 font-weight-bold px-0 pb-2">
+                إعدادات الوحدات
+              </v-card-title>
+              <p class="text-body-2 text-medium-emphasis mb-4">
+                اختر الوحدات التي تحتاجها. يمكنك تغييرها لاحقاً من الإعدادات.
+              </p>
+
+              <!-- Module toggles -->
+              <v-card variant="tonal" class="pa-4 mb-4">
+                <div class="d-flex align-center ga-2 mb-3">
+                  <v-icon size="20" color="primary">mdi-puzzle-outline</v-icon>
+                  <span class="text-subtitle-2 font-weight-bold">الوحدات الاختيارية</span>
+                </div>
+
+                <v-switch
+                  v-model="moduleToggles.purchasesEnabled"
+                  color="primary"
+                  density="compact"
+                  hide-details
+                  label="المشتريات والموردين"
+                  class="mb-2"
+                />
+                <v-switch
+                  v-model="moduleToggles.ledgersEnabled"
+                  color="primary"
+                  density="compact"
+                  hide-details
+                  label="دفاتر الحسابات (ذمم العملاء / الموردين)"
+                  class="mb-2"
+                />
+                <v-switch
+                  v-model="moduleToggles.unitsEnabled"
+                  color="primary"
+                  density="compact"
+                  hide-details
+                  label="وحدات القياس المتعددة للمنتجات"
+                  class="mb-2"
+                />
+                <v-switch
+                  v-model="moduleToggles.paymentsOnInvoicesEnabled"
+                  color="primary"
+                  density="compact"
+                  hide-details
+                  label="الدفع على الفواتير (أقساط)"
+                />
+              </v-card>
+
+              <!-- Invoice settings -->
+              <v-card variant="tonal" class="pa-4 mb-4">
+                <div class="d-flex align-center ga-2 mb-3">
+                  <v-icon size="20" color="primary">mdi-receipt-text-outline</v-icon>
+                  <span class="text-subtitle-2 font-weight-bold">إعدادات الفاتورة</span>
+                </div>
+
+                <v-row dense>
+                  <v-col cols="12" md="6">
+                    <v-text-field
+                      v-model="invoiceSettings.prefix"
+                      label="بادئة رقم الفاتورة"
+                      placeholder="INV-"
+                      density="comfortable"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="12" md="6">
+                    <v-select
+                      v-model="invoiceSettings.paperSize"
+                      label="حجم الورق"
+                      :items="[
+                        { title: 'حراري (80mm)', value: 'thermal' },
+                        { title: 'A4', value: 'a4' },
+                        { title: 'A5', value: 'a5' },
+                      ]"
+                      density="comfortable"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="12">
+                    <v-text-field
+                      v-model="invoiceSettings.footerNotes"
+                      label="ملاحظات أسفل الفاتورة"
+                      placeholder="شكراً لتعاملكم معنا"
+                      density="comfortable"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="12">
+                    <v-switch
+                      v-model="invoiceSettings.showQr"
+                      color="primary"
+                      density="compact"
+                      hide-details
+                      label="عرض رمز QR في الفاتورة"
+                    />
+                  </v-col>
+                </v-row>
+              </v-card>
+
+              <!-- Notification settings -->
+              <v-card variant="tonal" class="pa-4 mb-4">
+                <div class="d-flex align-center ga-2 mb-3">
+                  <v-icon size="20" color="primary">mdi-bell-outline</v-icon>
+                  <span class="text-subtitle-2 font-weight-bold">إعدادات التنبيهات</span>
+                </div>
+
+                <v-row dense>
+                  <v-col cols="12" md="4">
+                    <v-text-field
+                      v-model.number="notificationSettings.lowStockThreshold"
+                      label="حد المخزون المنخفض"
+                      type="number"
+                      :min="0"
+                      density="comfortable"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="12" md="4">
+                    <v-text-field
+                      v-model.number="notificationSettings.expiryDays"
+                      label="أيام تنبيه انتهاء الصلاحية"
+                      type="number"
+                      :min="0"
+                      density="comfortable"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="12" md="4">
+                    <v-text-field
+                      v-model.number="notificationSettings.debtReminderCount"
+                      label="عدد تذكيرات الذمم"
+                      type="number"
+                      :min="0"
+                      density="comfortable"
+                      variant="outlined"
+                    />
+                  </v-col>
+                  <v-col cols="12" md="4">
+                    <v-text-field
+                      v-model.number="notificationSettings.debtReminderIntervalDays"
+                      label="فاصل تذكير الذمم (أيام)"
+                      type="number"
+                      :min="0"
+                      density="comfortable"
+                      variant="outlined"
+                    />
+                  </v-col>
+                </v-row>
+              </v-card>
+
+              <v-card-actions class="px-0 pt-4">
+                <v-btn variant="text" @click="currentStep = 2">
+                  <v-icon start>mdi-arrow-right</v-icon>
+                  {{ t('setup.back') }}
+                </v-btn>
+                <v-spacer />
+                <v-btn
+                  color="primary"
+                  @click="submitSetup"
+                  :loading="
+                    authStore.loading || accountingLoading || accountingSeeding || savingWizard
+                  "
                   :disabled="!canSubmitSetup"
                   prepend-icon="mdi-check"
                 >
@@ -374,6 +547,7 @@ import { useRouter } from 'vue-router';
 import { t, mapErrorToArabic } from '../../i18n/t';
 import { useAuthStore } from '../../stores/authStore';
 import { setupClient } from '../../ipc';
+import { settingsClient, type AllModuleSettings } from '../../ipc/settingsClient';
 import type { AccountingSetupStatus } from '../../ipc/setupClient';
 
 const authStore = useAuthStore();
@@ -422,9 +596,39 @@ const admin = reactive({
 
 const currencies = ['IQD', 'USD', 'EUR', 'SAR', 'AED', 'KWD', 'TRY'];
 
+const savingWizard = ref(false);
+
+const moduleToggles = reactive({
+  purchasesEnabled: true,
+  ledgersEnabled: true,
+  unitsEnabled: false,
+  paymentsOnInvoicesEnabled: true,
+});
+
+const invoiceSettings = reactive({
+  templateActiveId: 'default',
+  prefix: 'INV-',
+  paperSize: 'thermal' as 'thermal' | 'a4' | 'a5',
+  logo: '',
+  footerNotes: '',
+  layoutDirection: 'rtl' as 'rtl' | 'ltr',
+  showQr: false,
+  showBarcode: false,
+});
+
+const notificationSettings = reactive({
+  lowStockThreshold: 5,
+  expiryDays: 30,
+  debtReminderCount: 3,
+  debtReminderIntervalDays: 7,
+});
+
+const requiresAdminBootstrap = computed(() => !authStore.isInitialized);
+
 const stepItems = computed(() => [
   { value: 1, title: t('setup.step1') },
   { value: 2, title: t('setup.step2') },
+  { value: 3, title: 'الوحدات والإعدادات' },
 ]);
 
 const setupIncompleteCount = computed(() => {
@@ -436,6 +640,7 @@ const setupIncompleteCount = computed(() => {
 
 const isStep2Valid = computed(
   () =>
+    !requiresAdminBootstrap.value ||
     admin.fullName.trim().length >= 3 &&
     admin.username.trim().length >= 3 &&
     admin.password.length >= 6
@@ -471,6 +676,60 @@ function goToStep2() {
   if (step1FormRef.value && !step1FormRef.value.validate()) return;
   if (!company.name.trim()) return;
   currentStep.value = 2;
+}
+
+function goToStep3() {
+  if (requiresAdminBootstrap.value && step2FormRef.value && !step2FormRef.value.validate()) return;
+  if (!isStep2Valid.value) return;
+  if (setupIncompleteCount.value > 0) {
+    formError.value = t('setup.completeAccountingStep');
+    return;
+  }
+  currentStep.value = 3;
+}
+
+function applyWizardDefaults(data: AllModuleSettings): void {
+  moduleToggles.purchasesEnabled = data.modules.purchasesEnabled;
+  moduleToggles.ledgersEnabled = data.modules.ledgersEnabled;
+  moduleToggles.unitsEnabled = data.modules.unitsEnabled;
+  moduleToggles.paymentsOnInvoicesEnabled = data.modules.paymentsOnInvoicesEnabled;
+
+  notificationSettings.lowStockThreshold = data.notifications.lowStockThreshold;
+  notificationSettings.expiryDays = data.notifications.expiryDays;
+  notificationSettings.debtReminderCount = data.notifications.debtReminderCount;
+  notificationSettings.debtReminderIntervalDays = data.notifications.debtReminderIntervalDays;
+
+  invoiceSettings.templateActiveId = data.invoice.templateActiveId;
+  invoiceSettings.prefix = data.invoice.prefix;
+  invoiceSettings.paperSize = data.invoice.paperSize;
+  invoiceSettings.logo = data.invoice.logo;
+  invoiceSettings.footerNotes = data.invoice.footerNotes;
+  invoiceSettings.layoutDirection = data.invoice.layoutDirection;
+  invoiceSettings.showQr = data.invoice.showQr;
+  invoiceSettings.showBarcode = data.invoice.showBarcode;
+}
+
+async function loadWizardDefaults() {
+  const [modulesResult, companyResult] = await Promise.all([
+    settingsClient.getModules(),
+    settingsClient.getCompany(),
+  ]);
+
+  if (modulesResult.ok) {
+    applyWizardDefaults(modulesResult.data);
+  }
+
+  if (companyResult.ok && companyResult.data) {
+    company.name = companyResult.data.name;
+    company.address = companyResult.data.address || '';
+    company.phone = companyResult.data.phone || '';
+    company.phone2 = companyResult.data.phone2 || '';
+    company.email = companyResult.data.email || '';
+    company.taxId = companyResult.data.taxId || '';
+    company.currency = companyResult.data.currency || company.currency;
+    company.lowStockThreshold = companyResult.data.lowStockThreshold ?? company.lowStockThreshold;
+  }
+
 }
 
 function applyAccountingStatus(status: AccountingSetupStatus): void {
@@ -544,36 +803,78 @@ async function seedChartOfAccounts() {
 
 async function submitSetup() {
   formError.value = null;
-  if (step2FormRef.value && !step2FormRef.value.validate()) return;
+  if (requiresAdminBootstrap.value && step2FormRef.value && !step2FormRef.value.validate()) return;
   if (setupIncompleteCount.value > 0) {
     formError.value = t('setup.completeAccountingStep');
     return;
   }
 
   try {
-    await authStore.initializeApp({
-      admin: {
-        username: admin.username.trim(),
-        password: admin.password,
-        fullName: admin.fullName.trim(),
-        phone: admin.phone || undefined,
+    if (requiresAdminBootstrap.value) {
+      await authStore.initializeApp({
+        admin: {
+          username: admin.username.trim(),
+          password: admin.password,
+          fullName: admin.fullName.trim(),
+          phone: admin.phone || undefined,
+        },
+        companySettings: {
+          name: company.name.trim(),
+          address: company.address || null,
+          phone: company.phone || null,
+          phone2: company.phone2 || null,
+          email: company.email || null,
+          taxId: company.taxId || null,
+          logo: null,
+          currency: company.currency,
+          lowStockThreshold: company.lowStockThreshold,
+        },
+      });
+    }
+
+    savingWizard.value = true;
+    const wizardResult = await settingsClient.completeWizard({
+      modules: {
+        accountingEnabled: accountingEnabled.value === true,
+        purchasesEnabled: moduleToggles.purchasesEnabled,
+        ledgersEnabled: moduleToggles.ledgersEnabled,
+        unitsEnabled: moduleToggles.unitsEnabled,
+        paymentsOnInvoicesEnabled: moduleToggles.paymentsOnInvoicesEnabled,
       },
-      companySettings: {
-        name: company.name.trim(),
-        address: company.address || null,
-        phone: company.phone || null,
-        phone2: company.phone2 || null,
-        email: company.email || null,
-        taxId: company.taxId || null,
-        logo: null,
-        currency: company.currency,
-        lowStockThreshold: company.lowStockThreshold,
+      notifications: {
+        lowStockThreshold: notificationSettings.lowStockThreshold,
+        expiryDays: notificationSettings.expiryDays,
+        debtReminderCount: notificationSettings.debtReminderCount,
+        debtReminderIntervalDays: notificationSettings.debtReminderIntervalDays,
+      },
+      invoice: {
+        templateActiveId: invoiceSettings.templateActiveId,
+        prefix: invoiceSettings.prefix,
+        paperSize: invoiceSettings.paperSize,
+        logo: invoiceSettings.logo,
+        footerNotes: invoiceSettings.footerNotes,
+        layoutDirection: invoiceSettings.layoutDirection,
+        showQr: invoiceSettings.showQr,
+        showBarcode: invoiceSettings.showBarcode,
       },
     });
+    savingWizard.value = false;
 
-    // Success — redirect to login
+    if (!wizardResult.ok) {
+      formError.value = mapErrorToArabic(wizardResult.error.message, 'errors.saveFailed');
+      return;
+    }
+
+    authStore.setupStatus = {
+      isInitialized: true,
+      hasUsers: true,
+      hasCompanyInfo: true,
+      wizardCompleted: true,
+    };
+
     await router.replace({ name: 'Login' });
   } catch (err: any) {
+    savingWizard.value = false;
     formError.value = mapErrorToArabic(err, 'errors.initializeFailed');
     console.error('[Setup] Initialization failed:', err);
   }
@@ -588,9 +889,18 @@ watch(
   }
 );
 
-onMounted(() => {
+onMounted(async () => {
+  if (!authStore.setupStatus) {
+    try {
+      await authStore.checkInitialSetup();
+    } catch {
+      // Keep setup screen visible; load failures are surfaced via component state.
+    }
+  }
+
+  await loadWizardDefaults();
   baseCurrency.value = company.currency;
-  void loadAccountingStatus();
+  await loadAccountingStatus();
 });
 </script>
 

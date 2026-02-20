@@ -134,8 +134,8 @@ function statusBadgeClass(status: string): string {
 
 function formatAmount(value: number): string {
   return new Intl.NumberFormat('ar-IQ', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   }).format(value);
 }
 

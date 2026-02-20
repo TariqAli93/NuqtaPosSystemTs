@@ -130,7 +130,8 @@ function formatCurrency(amount: number, currency: string): string {
   };
 
   const symbol = currencySymbols[currency] || currency;
-  return `${amount.toFixed(2)} ${symbol}`;
+  const decimals = currency === 'IQD' ? 0 : 2;
+  return `${Math.round(amount).toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })} ${symbol}`;
 }
 
 function formatTotal(

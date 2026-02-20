@@ -1,9 +1,18 @@
 import { IProductRepository } from '../interfaces/IProductRepository.js';
+import { IAuditRepository } from '../interfaces/IAuditRepository.js';
+import { AuditService } from '../services/AuditService.js';
 import { Product, ProductInput, ProductSchema } from '../entities/Product.js';
 import { ValidationError } from '../errors/DomainErrors.js';
 
 export class CreateProductUseCase {
-  constructor(private productRepo: IProductRepository) {}
+  private auditService: AuditService;
+
+  constructor(
+    private productRepo: IProductRepository,
+    private auditRepo?: IAuditRepository
+  ) {
+    this.auditService = new AuditService(auditRepo as IAuditRepository);
+  }
 
   async execute(productData: ProductInput): Promise<Product> {
     let product: Product;
@@ -29,6 +38,22 @@ export class CreateProductUseCase {
       throw new ValidationError('Stock must be non-negative');
     }
 
-    return await this.productRepo.create(product);
+    const created = await this.productRepo.create(product);
+    // Fire-and-forget audit
+    this.auditService
+      .logCreate(
+        0,
+        'product',
+        created.id!,
+        {
+          name: created.name,
+          costPrice: created.costPrice,
+          sellingPrice: created.sellingPrice,
+          stock: created.stock,
+        },
+        `Product "${created.name}" created`
+      )
+      .catch(() => {});
+    return created;
   }
 }

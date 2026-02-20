@@ -16,6 +16,7 @@ declare module 'vue-router' {
     requiresAccounting?: boolean;
     requiresPurchasing?: boolean;
     requiresLedgers?: boolean;
+    requiresPaymentsOnInvoices?: boolean;
     enableBarcode?: 'pos' | 'product';
   }
 }

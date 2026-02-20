@@ -309,7 +309,7 @@ function formatPrice(price: number): string {
     style: 'currency',
     currency: 'IQD',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
     numberingSystem: 'latn',
   }).format(price);
 }

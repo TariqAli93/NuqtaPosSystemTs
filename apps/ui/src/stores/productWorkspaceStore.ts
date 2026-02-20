@@ -71,6 +71,11 @@ export const useProductWorkspaceStore = defineStore('productWorkspace', () => {
     search: '',
     limit: 50,
     offset: 0,
+    expiringSoonOnly: false,
+    lowStockOnly: false,
+    categoryId: undefined,
+    supplierId: undefined,
+    status: undefined,
   });
 
   const loading = reactive<LoadingState>(initialLoading());
@@ -96,14 +101,9 @@ export const useProductWorkspaceStore = defineStore('productWorkspace', () => {
     const page = Math.floor(offset / limit) + 1;
 
     const result = await productsClient.getAll({
-      search: filters.value.search,
+      ...filters.value,
+      expiringSoonOnly: filters.value.expiringSoonOnly || false,
       page,
-      limit,
-      categoryId: filters.value.categoryId,
-      supplierId: filters.value.supplierId,
-      status: filters.value.status,
-      lowStockOnly: filters.value.lowStockOnly,
-      expiringSoonOnly: filters.value.expiringSoonOnly,
     });
 
     if (result.ok) {
@@ -433,4 +433,3 @@ export const useProductWorkspaceStore = defineStore('productWorkspace', () => {
     loadProductWorkspace,
   };
 });
-

@@ -1,256 +1,145 @@
 ﻿<template>
   <v-container>
     <div class="win-page">
-      <v-app-bar>
+      <v-app-bar class="ds-page-header d-flex align-center justify-space-between mb-6">
         <v-app-bar-title>
           <div class="win-title mb-0">{{ t('settings.title') }}</div>
           <div class="text-sm">{{ t('settings.subtitle') }}</div>
         </v-app-bar-title>
-
-        <template #append>
-          <v-btn color="primary" @click="loadCompanySettings" prepend-icon="mdi-refresh">
-            {{ t('common.refresh') }}
-          </v-btn>
-        </template>
       </v-app-bar>
 
-      <!-- Company Information Section -->
-      <v-card class="win-card win-card--padded mb-4" flat>
-        <v-alert v-if="localizedError" type="error" variant="tonal" class="mb-4">
-          {{ localizedError }}
-        </v-alert>
+      <v-card class="win-card" flat>
+        <v-tabs v-model="activeTab" color="primary">
+          <v-tab value="system">إعدادات النظام</v-tab>
+          <v-tab value="pos">نقطة البيع</v-tab>
+          <v-tab value="accounting">المحاسبة</v-tab>
+          <v-tab value="barcode">الباركود</v-tab>
+          <v-tab v-if="canManageUsers" value="users">المستخدمين</v-tab>
+        </v-tabs>
 
-        <v-card class="pa-4">
-          <v-card-title class="flex items-center justify-between mb-4">
-            <span>{{ t('settings.companyInfo') }}</span>
-          </v-card-title>
+        <v-divider />
 
-          <v-form @submit.prevent="saveCompanySettings">
-            <v-row>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="companyForm.name"
-                  :label="t('settings.companyName') + ' *'"
-                  variant="outlined"
-                  density="comfortable"
-                  required
-                />
-              </v-col>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="companyForm.email"
-                  :label="t('settings.companyEmail')"
-                  variant="outlined"
-                  density="comfortable"
-                  type="email"
-                />
-              </v-col>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="companyForm.phone"
-                  :label="t('settings.companyPhone')"
-                  variant="outlined"
-                  density="comfortable"
-                />
-              </v-col>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="companyForm.phone2"
-                  :label="t('settings.companyPhone2')"
-                  variant="outlined"
-                  density="comfortable"
-                />
-              </v-col>
-              <v-col cols="12">
-                <v-textarea
-                  v-model="companyForm.address"
-                  :label="t('settings.companyAddress')"
-                  variant="outlined"
-                  density="comfortable"
-                  rows="2"
-                />
-              </v-col>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model="companyForm.taxId"
-                  :label="t('settings.companyTaxId')"
-                  variant="outlined"
-                  density="comfortable"
-                />
-              </v-col>
-              <v-col cols="12" md="6">
-                <v-select
-                  v-model="companyForm.currency"
-                  :items="currencyOptions"
-                  :label="t('settings.companyCurrency') + ' *'"
-                  variant="outlined"
-                  density="comfortable"
-                  required
-                />
-              </v-col>
-              <v-col cols="12" md="6">
-                <v-text-field
-                  v-model.number="companyForm.lowStockThreshold"
-                  :label="t('settings.lowStockThreshold')"
-                  variant="outlined"
-                  density="comfortable"
-                  type="number"
-                  min="0"
-                  :hint="t('settings.lowStockThresholdHint')"
-                  persistent-hint
-                />
-              </v-col>
+        <v-window v-model="activeTab">
+          <v-window-item value="system">
+            <v-card-text>
+              <SystemSettingsTab />
+            </v-card-text>
+          </v-window-item>
 
-              <!-- select printer / the printer saved only in pinia store and localstorage no need to save it in db -->
-              <v-col cols="12" md="6">
-                <v-select
-                  v-model="selectedPrinter"
-                  :items="printers"
-                  item-title="name"
-                  item-value="name"
-                  :label="t('settings.receiptPrinter')"
-                  variant="outlined"
-                  density="comfortable"
-                  clearable
-                  @update:model-value="saveSelectedPrinter"
-                >
-                  <template #item="{ props, item }">
-                    <v-list-item v-bind="props">
-                      <template #append>
-                        <v-chip v-if="item.raw.isDefault" size="x-small" color="primary">
-                          {{ t('settings.default') }}
-                        </v-chip>
-                      </template>
-                    </v-list-item>
-                  </template>
-                </v-select>
-              </v-col>
-            </v-row>
+          <v-window-item value="pos">
+            <v-card-text>
+              <PosSettingsTab />
+            </v-card-text>
+          </v-window-item>
 
-            <v-btn
-              type="submit"
-              color="primary"
-              variant="flat"
-              class="win-btn mt-4"
-              :loading="savingCompany"
-            >
-              {{ t('common.save') }}
-            </v-btn>
-          </v-form>
-        </v-card>
+          <v-window-item value="accounting">
+            <v-card-text>
+              <AccountingSettingsTab />
+            </v-card-text>
+          </v-window-item>
+
+          <v-window-item value="barcode">
+            <v-card-text>
+              <BarcodeSettingsTab />
+            </v-card-text>
+          </v-window-item>
+
+          <v-window-item v-if="canManageUsers" value="users">
+            <v-card-text>
+              <UsersTab />
+            </v-card-text>
+          </v-window-item>
+        </v-window>
       </v-card>
     </div>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { mapErrorToArabic, t } from '../../i18n/t';
-import { useSettingsStore } from '../../stores/settingsStore';
-import { settingsClient } from '@/ipc/settingsClient';
-import type { SettingsCurrencyResponse, CompanySettings } from '../../types/domain';
-import type { Ref } from 'vue';
+import { computed, ref, watch } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { t } from '../../i18n/t';
+import { useAuthStore } from '../../stores/authStore';
+import * as uiAccess from '../../auth/uiAccess';
+import SystemSettingsTab from '@/components/settings/SystemSettingsTab.vue';
+import PosSettingsTab from '@/components/settings/PosSettingsTab.vue';
+import AccountingSettingsTab from '@/components/settings/AccountingSettingsTab.vue';
+import BarcodeSettingsTab from '@/components/settings/BarcodeSettingsTab.vue';
+import UsersTab from '@/components/settings/UsersTab.vue';
 
-const store = useSettingsStore();
+type SettingsTab = 'system' | 'pos' | 'accounting' | 'barcode' | 'users';
 
-const localizedError = computed(() =>
-  store.error ? mapErrorToArabic(store.error, 'errors.unexpected') : null
-);
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
+const activeTab = ref<SettingsTab>('system');
 
-const currency = ref<SettingsCurrencyResponse | null>(null);
-const savingCompany = ref(false);
+const canManageUsers = computed(() => {
+  const role = authStore.user?.role;
+  if (!role) return false;
+  if (uiAccess.canManageUsers(role)) return true;
 
-const companyForm = reactive<CompanySettings>({
-  name: '',
-  address: null,
-  phone: null,
-  phone2: null,
-  email: null,
-  taxId: null,
-  logo: null,
-  currency: 'USD',
-  lowStockThreshold: 5,
+  return authStore.permissions.some((permission) =>
+    ['users:read', 'users:create', 'users:update', 'users:delete'].includes(permission)
+  );
 });
 
-const currencyOptions: Ref<{ title: string; value: string }[]> = ref([
-  { title: 'USD - US Dollar', value: 'USD' },
-  { title: 'IQD - Iraqi Dinar', value: 'IQD' },
-  { title: 'EUR - Euro', value: 'EUR' },
-  { title: 'GBP - British Pound', value: 'GBP' },
-  { title: 'SAR - Saudi Riyal', value: 'SAR' },
-  { title: 'AED - UAE Dirham', value: 'AED' },
-  { title: 'EGP - Egyptian Pound', value: 'EGP' },
-  { title: 'JOD - Jordanian Dinar', value: 'JOD' },
-  { title: 'KWD - Kuwaiti Dinar', value: 'KWD' },
-]);
+const validTabs: SettingsTab[] = ['system', 'pos', 'accounting', 'barcode', 'users'];
 
-const printers: Ref<{ title: string; isDefault: boolean; value: string }[]> = ref([]);
-const selectedPrinter =
-  ref<string | null>(null) || JSON.parse(localStorage.getItem('selectedPrinter') || 'null');
+function normalizeQueryTab(value: unknown): SettingsTab {
+  if (typeof value === 'string' && validTabs.includes(value as SettingsTab)) {
+    return value as SettingsTab;
+  }
+  return 'system';
+}
 
-async function loadCurrency() {
-  const result = await store.fetchCurrencySettings();
-  if (result.ok) {
-    currency.value = result.data;
+function resolveAllowedTab(tab: SettingsTab): SettingsTab {
+  if (tab === 'users' && !canManageUsers.value) return 'system';
+  return tab;
+}
+
+async function syncTabFromRoute(): Promise<void> {
+  const queryValue = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
+  const requestedTab = normalizeQueryTab(queryValue);
+  const allowedTab = resolveAllowedTab(requestedTab);
+
+  if (activeTab.value !== allowedTab) {
+    activeTab.value = allowedTab;
+  }
+
+  if (queryValue !== allowedTab) {
+    await router.replace({
+      query: {
+        ...route.query,
+        tab: allowedTab,
+      },
+    });
   }
 }
 
-async function loadCompanySettings() {
-  try {
-    const result = await settingsClient.getCompany();
-    if (result.ok && result.data) {
-      Object.assign(companyForm, result.data);
-    }
-  } catch (err) {
-    console.error('Failed to load company settings:', err);
-  }
-}
+watch(
+  [() => route.query.tab, canManageUsers],
+  () => {
+    void syncTabFromRoute();
+  },
+  { immediate: true }
+);
 
-async function saveCompanySettings() {
-  if (!companyForm.name) {
-    alert(t('settings.companyNameRequired'));
+watch(activeTab, (tab) => {
+  const allowedTab = resolveAllowedTab(tab);
+  if (tab !== allowedTab) {
+    activeTab.value = allowedTab;
     return;
   }
 
-  savingCompany.value = true;
-  try {
-    console.log('Saving company settings:', companyForm);
-    const result = await settingsClient.setCompany(companyForm);
-    if (result.ok) {
-      alert(t('settings.companySaved'));
-    } else {
-      alert(result.error?.message || t('errors.unexpected'));
-    }
-  } catch (err) {
-    console.error('Failed to save company settings:', err);
-    alert(t('errors.unexpected'));
-  } finally {
-    savingCompany.value = false;
+  const queryValue = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab;
+  if (queryValue !== allowedTab) {
+    void router.replace({
+      query: {
+        ...route.query,
+        tab: allowedTab,
+      },
+    });
   }
-}
-
-async function loadPrinters() {
-  try {
-    const result: any = await store.fetchPrinters();
-    if (!result.ok) {
-      console.error('Failed to load printers:', result.error);
-    }
-
-    printers.value = result?.data?.printers || [];
-  } catch (err) {
-    console.error('Failed to load printers:', err);
-  }
-}
-
-function saveSelectedPrinter() {
-  if (selectedPrinter.value) {
-    localStorage.setItem('selectedPrinter', JSON.stringify(selectedPrinter.value));
-  }
-}
-
-onMounted(() => {
-  loadCompanySettings();
-  loadCurrency();
-  loadPrinters();
 });
 </script>

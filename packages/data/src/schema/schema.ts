@@ -343,6 +343,32 @@ export const accounts = sqliteTable('accounts', {
 });
 
 // ═══════════════════════════════════════════════════════════════
+// POSTING BATCHES (Batch posting of journal entries)
+// ═══════════════════════════════════════════════════════════════
+
+export const postingBatches = sqliteTable(
+  'posting_batches',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    periodType: text('period_type').notNull().default('day'),
+    periodStart: text('period_start').notNull(),
+    periodEnd: text('period_end').notNull(),
+    entriesCount: integer('entries_count').notNull().default(0),
+    totalAmount: integer('total_amount').notNull().default(0),
+    status: text('status').notNull().default('posted'),
+    postedAt: text('posted_at')
+      .notNull()
+      .default(sql`(datetime('now','localtime'))`),
+    postedBy: integer('posted_by'),
+    notes: text('notes'),
+    createdAt: text('created_at').default(sql`(datetime('now','localtime'))`),
+  },
+  (table) => [
+    index('idx_posting_batches_period').on(table.periodType, table.periodStart, table.periodEnd),
+  ]
+);
+
+// ═══════════════════════════════════════════════════════════════
 // JOURNAL ENTRIES (Header)
 // ═══════════════════════════════════════════════════════════════
 
@@ -360,6 +386,7 @@ export const journalEntries = sqliteTable(
     isPosted: integer('is_posted', { mode: 'boolean' }).default(true),
     isReversed: integer('is_reversed', { mode: 'boolean' }).default(false),
     reversalOfId: integer('reversal_of_id'),
+    postingBatchId: integer('posting_batch_id'),
     totalAmount: integer('total_amount').notNull(),
     currency: text('currency').notNull().default('IQD'),
     notes: text('notes'),

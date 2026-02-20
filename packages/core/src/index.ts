@@ -22,6 +22,8 @@ export * from './errors/DomainErrors.js';
 export * from './services/PermissionService.js';
 export * from './services/AuditService.js';
 export * from './services/JwtService.js';
+export * from './services/FifoDepletionService.js';
+export * from './services/SettingsAccessor.js';
 
 export * from './interfaces/ICategoryRepository.js';
 export * from './interfaces/ICustomerRepository.js';
@@ -103,3 +105,15 @@ export * from './interfaces/ISupplierLedgerRepository.js';
 export * from './use-cases/supplier-ledger/GetSupplierLedgerUseCase.js';
 export * from './use-cases/supplier-ledger/RecordSupplierPaymentUseCase.js';
 export * from './use-cases/supplier-ledger/ReconcileSupplierBalanceUseCase.js';
+
+// ── Module Settings + Setup Wizard ──
+export * from './entities/ModuleSettings.js';
+export * from './entities/PostingBatch.js';
+export * from './interfaces/IPostingRepository.js';
+export * from './use-cases/GetModuleSettingsUseCase.js';
+export * from './use-cases/CompleteSetupWizardUseCase.js';
+export * from './use-cases/AddPurchasePaymentUseCase.js';
+
+// ── Posting ──
+export * from './use-cases/posting/PostPeriodUseCase.js';
+export * from './use-cases/posting/ReverseEntryUseCase.js';

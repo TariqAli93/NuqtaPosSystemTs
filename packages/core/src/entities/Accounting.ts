@@ -33,6 +33,7 @@ export const JournalEntrySchema = z.object({
   isPosted: z.boolean().default(true),
   isReversed: z.boolean().default(false),
   reversalOfId: z.number().optional(),
+  postingBatchId: z.number().nullable().optional(),
   totalAmount: z.number().int().min(0),
   currency: z.string().default('IQD'),
   notes: z.string().nullable().optional(),

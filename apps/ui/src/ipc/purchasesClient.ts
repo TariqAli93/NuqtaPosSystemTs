@@ -24,6 +24,19 @@ export interface PurchaseCreateInput {
   idempotencyKey?: string;
 }
 
+export interface PurchasePaymentInput {
+  purchaseId: number;
+  supplierId?: number;
+  amount: number;
+  paymentMethod: 'cash' | 'card' | 'bank_transfer' | 'credit' | string;
+  referenceNumber?: string;
+  paymentDate?: string;
+  notes?: string;
+  currency?: string;
+  exchangeRate?: number;
+  idempotencyKey?: string;
+}
+
 export const purchasesClient = {
   getAll: (params?: {
     search?: string;
@@ -41,5 +54,10 @@ export const purchasesClient = {
     invoke<Purchase>(
       'purchases:create',
       buildDataPayload('purchases:create', data as unknown as Record<string, unknown>)
+    ),
+  addPayment: (data: PurchasePaymentInput): Promise<ApiResult<Purchase>> =>
+    invoke<Purchase>(
+      'purchases:addPayment',
+      buildDataPayload('purchases:addPayment', data as unknown as Record<string, unknown>)
     ),
 };

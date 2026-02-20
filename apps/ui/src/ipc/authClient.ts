@@ -20,6 +20,7 @@ export interface AuthSetupStatus {
   isInitialized: boolean;
   hasUsers: boolean;
   hasCompanyInfo: boolean;
+  wizardCompleted: boolean;
 }
 
 export interface InitializeAppRequest {

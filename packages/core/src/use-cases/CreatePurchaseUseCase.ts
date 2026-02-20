@@ -7,6 +7,8 @@ import { IPaymentRepository } from '../interfaces/IPaymentRepository.js';
 import { ISupplierLedgerRepository } from '../interfaces/ISupplierLedgerRepository.js';
 import { IAccountingRepository } from '../interfaces/IAccountingRepository.js';
 import { ISettingsRepository } from '../interfaces/ISettingsRepository.js';
+import { IAuditRepository } from '../interfaces/IAuditRepository.js';
+import { AuditService } from '../services/AuditService.js';
 import { ValidationError } from '../errors/DomainErrors.js';
 
 const ACCT_CASH = '1001';
@@ -45,14 +47,19 @@ export interface CreatePurchaseCommitResult {
 }
 
 export class CreatePurchaseUseCase {
+  private auditService: AuditService;
+
   constructor(
     private purchaseRepository: IPurchaseRepository,
     private supplierRepository: ISupplierRepository,
     private paymentRepository: IPaymentRepository,
     private supplierLedgerRepository: ISupplierLedgerRepository,
     private accountingRepository: IAccountingRepository,
-    private settingsRepository?: ISettingsRepository
-  ) {}
+    private settingsRepository?: ISettingsRepository,
+    auditRepo?: IAuditRepository
+  ) {
+    this.auditService = new AuditService(auditRepo as IAuditRepository);
+  }
 
   executeCommitPhase(input: CreatePurchaseInput, userId: number): CreatePurchaseCommitResult {
     if (!input.items || input.items.length === 0) {
@@ -137,7 +144,7 @@ export class CreatePurchaseUseCase {
       } as any);
     }
 
-    if (this.isAccountingEnabled() && remainingAmount > 0) {
+    if (this.isLedgersEnabled() && remainingAmount > 0) {
       const balanceBefore = this.supplierLedgerRepository.getLastBalanceSync(
         createdPurchase.supplierId
       );
@@ -226,7 +233,7 @@ export class CreatePurchaseUseCase {
       description: `Purchase #${purchase.invoiceNumber}`,
       sourceType: 'purchase',
       sourceId: purchase.id,
-      isPosted: true,
+      isPosted: false,
       isReversed: false,
       totalAmount: purchase.total,
       currency: purchase.currency || 'IQD',
@@ -236,12 +243,38 @@ export class CreatePurchaseUseCase {
   }
 
   async execute(input: CreatePurchaseInput, userId = 1): Promise<Purchase> {
-    return this.executeCommitPhase(input, userId).createdPurchase;
+    const result = this.executeCommitPhase(input, userId);
+    // Fire-and-forget audit
+    this.auditService
+      .logCreate(
+        userId,
+        'purchase',
+        result.createdPurchase.id!,
+        {
+          invoiceNumber: result.createdPurchase.invoiceNumber,
+          total: result.createdPurchase.total,
+          supplierId: result.createdPurchase.supplierId,
+          itemCount: result.createdPurchase.items?.length,
+        },
+        `Purchase #${result.createdPurchase.invoiceNumber} created`
+      )
+      .catch(() => {});
+    return result.createdPurchase;
   }
 
   private isAccountingEnabled(): boolean {
     if (!this.settingsRepository) return true;
-    const value = this.settingsRepository.get('accounting.enabled');
+    const value =
+      this.settingsRepository.get('accounting.enabled') ??
+      this.settingsRepository.get('modules.accounting.enabled');
+    return value !== 'false';
+  }
+
+  private isLedgersEnabled(): boolean {
+    if (!this.settingsRepository) return true;
+    const value =
+      this.settingsRepository.get('ledgers.enabled') ??
+      this.settingsRepository.get('modules.ledgers.enabled');
     return value !== 'false';
   }
 }

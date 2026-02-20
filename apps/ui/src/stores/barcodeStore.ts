@@ -55,6 +55,15 @@ export const useBarcodeStore = defineStore('barcode', () => {
     return result;
   }
 
+  async function deleteTemplate(id: number) {
+    loading.value = true;
+    error.value = null;
+    const result = await barcodeClient.deleteTemplate(id);
+    if (!result.ok) error.value = result.error.message;
+    loading.value = false;
+    return result.ok;
+  }
+
   return {
     templates,
     printJobs,
@@ -63,6 +72,7 @@ export const useBarcodeStore = defineStore('barcode', () => {
     error,
     fetchTemplates,
     createTemplate,
+    deleteTemplate,
     fetchPrintJobs,
     createPrintJob,
   };

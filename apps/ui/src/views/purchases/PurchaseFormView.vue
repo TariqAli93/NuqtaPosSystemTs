@@ -75,6 +75,7 @@
                     variant="plain"
                     density="compact"
                     hide-details
+                    @update:model-value="onProductSelected(line)"
                   />
                 </td>
                 <td>
@@ -119,10 +120,20 @@
                     variant="plain"
                     density="compact"
                     hide-details
+                    :rules="
+                      line.requiresExpiry ? [(v: string) => !!v || 'تاريخ الانتهاء مطلوب'] : []
+                    "
+                    :class="{ 'border-error': line.requiresExpiry && !line.expiryDate }"
                   />
+                  <div
+                    v-if="line.requiresExpiry && !line.expiryDate"
+                    class="text-error text-caption"
+                  >
+                    مطلوب
+                  </div>
                 </td>
                 <td>
-                  <MoneyDisplay :amount="line.quantity * line.unitCost" size="sm" />
+                  <MoneyDisplay :amount="Math.round(line.quantity * line.unitCost)" size="sm" />
                 </td>
                 <td>
                   <v-btn
@@ -136,6 +147,22 @@
               </tr>
             </tbody>
           </v-table>
+
+          <!-- Validation warning for missing expiry dates -->
+          <v-alert
+            v-if="missingExpiryLines.length > 0"
+            type="warning"
+            variant="tonal"
+            density="compact"
+            class="mt-3"
+          >
+            منتجات تتطلب تاريخ انتهاء:
+            {{
+              missingExpiryLines
+                .map((l) => productsMap.get(l.productId!)?.name ?? 'غير معروف')
+                .join('، ')
+            }}
+          </v-alert>
         </v-card-text>
       </v-card>
 
@@ -192,7 +219,8 @@ const router = useRouter();
 const purchasesStore = usePurchasesStore();
 const suppliersStore = useSuppliersStore();
 const formRef = ref();
-const products = ref<{ id: number; name: string }[]>([]);
+const products = ref<{ id: number; name: string; isExpire?: boolean }[]>([]);
+const productsMap = ref<Map<number, { id: number; name: string; isExpire?: boolean }>>(new Map());
 
 const form = reactive({
   supplierId: null as number | null,
@@ -210,18 +238,42 @@ const form = reactive({
       unitCost: 0,
       batchNumber: '',
       expiryDate: '',
+      requiresExpiry: false,
     },
   ],
 });
 
-const subtotal = computed(() => form.items.reduce((s, l) => s + l.quantity * l.unitCost, 0));
-const grandTotal = computed(() => subtotal.value - form.discount + form.tax);
+const subtotal = computed(() =>
+  form.items.reduce((s, l) => s + Math.round(l.quantity * l.unitCost), 0)
+);
+const grandTotal = computed(() => Math.round(subtotal.value - form.discount + form.tax));
+
+// Lines that require expiry date but don't have one
+const missingExpiryLines = computed(() =>
+  form.items.filter((l) => l.requiresExpiry && !l.expiryDate)
+);
 
 onMounted(async () => {
   suppliersStore.fetchSuppliers();
   const res = await productsClient.getAll();
-  if (res.ok) products.value = res.data.items.map((p: any) => ({ id: p.id, name: p.name }));
+  if (res.ok) {
+    products.value = res.data.items.map((p: any) => ({
+      id: p.id,
+      name: p.name,
+      isExpire: p.isExpire,
+    }));
+    productsMap.value = new Map(products.value.map((p) => [p.id, p]));
+  }
 });
+
+function onProductSelected(line: (typeof form.items)[0]) {
+  if (line.productId) {
+    const product = productsMap.value.get(line.productId);
+    line.requiresExpiry = !!product?.isExpire;
+  } else {
+    line.requiresExpiry = false;
+  }
+}
 
 function addLine() {
   form.items.push({
@@ -232,12 +284,18 @@ function addLine() {
     unitCost: 0,
     batchNumber: '',
     expiryDate: '',
+    requiresExpiry: false,
   });
 }
 
 async function onSubmit() {
   const { valid } = await formRef.value.validate();
   if (!valid) return;
+
+  // Block submit if any expiry-tracked product is missing expiryDate
+  if (missingExpiryLines.value.length > 0) {
+    return;
+  }
 
   const result = await purchasesStore.createPurchase({
     supplierId: form.supplierId!,

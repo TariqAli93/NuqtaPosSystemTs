@@ -38,12 +38,28 @@ class FakePurchaseRepository implements IPurchaseRepository {
     return this.items.find((item) => item.id === id) || null;
   }
 
+  findByIdSync(id: number): Purchase | null {
+    return this.items.find((item) => item.id === id) || null;
+  }
+
   async updateStatus(id: number, status: string): Promise<void> {
     const item = this.items.find((p) => p.id === id);
     if (item) item.status = status as any;
   }
 
+  updateStatusSync(id: number, status: string): void {
+    const item = this.items.find((p) => p.id === id);
+    if (item) item.status = status as any;
+  }
+
   async updatePayment(id: number, paidAmount: number, remainingAmount: number): Promise<void> {
+    const item = this.items.find((p) => p.id === id);
+    if (!item) return;
+    item.paidAmount = paidAmount;
+    item.remainingAmount = remainingAmount;
+  }
+
+  updatePaymentSync(id: number, paidAmount: number, remainingAmount: number): void {
     const item = this.items.find((p) => p.id === id);
     if (!item) return;
     item.paidAmount = paidAmount;

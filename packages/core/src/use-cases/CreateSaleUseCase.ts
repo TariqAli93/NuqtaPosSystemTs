@@ -10,6 +10,7 @@ import { IAuditRepository } from '../interfaces/IAuditRepository.js';
 import { Sale } from '../entities/Sale.js';
 import type { PaymentMethod } from '../entities/Payment.js';
 import type { JournalLine } from '../entities/Accounting.js';
+import type { IFifoDepletionService, BatchDepletion } from '../services/FifoDepletionService.js';
 import {
   ValidationError,
   NotFoundError,
@@ -66,6 +67,7 @@ export interface CreateSaleCommitResult {
 
 type CreateSaleDiagnostics = {
   inventoryMovementsCreated: number;
+  fifoUsed: boolean;
   paymentCreated: { created: boolean; reason: string };
   journalCreated: { created: boolean; reason: string; missingAccountCodes?: string[] };
   customerLedgerCreated: { created: boolean; reason: string };
@@ -83,7 +85,8 @@ export class CreateSaleUseCase {
     private inventoryRepo: IInventoryRepository,
     private accountingRepo: IAccountingRepository,
     private customerLedgerRepo: ICustomerLedgerRepository,
-    auditRepo?: IAuditRepository
+    auditRepo?: IAuditRepository,
+    private fifoService?: IFifoDepletionService
   ) {
     this.auditService = new AuditService(auditRepo as IAuditRepository);
   }
@@ -91,6 +94,7 @@ export class CreateSaleUseCase {
   executeCommitPhase(input: CreateSaleInput, userId: number): CreateSaleCommitResult {
     const diagnostics: CreateSaleDiagnostics = {
       inventoryMovementsCreated: 0,
+      fifoUsed: !!this.fifoService,
       paymentCreated: { created: false, reason: 'not-executed' },
       journalCreated: { created: false, reason: 'not-executed' },
       customerLedgerCreated: { created: false, reason: 'not-executed' },
@@ -147,9 +151,8 @@ export class CreateSaleUseCase {
       discount: number;
       subtotal: number;
       costPrice: number;
+      fallbackCostTotal: number;
     }[] = [];
-
-    let totalCOGS = 0;
 
     for (const item of input.items) {
       const product = this.productRepo.findById(item.productId);
@@ -206,18 +209,30 @@ export class CreateSaleUseCase {
 
       const quantityBase = item.quantity * unitFactor;
 
-      // Stock check against cached stock (products.stock)
-      if ((product.stock || 0) < quantityBase) {
-        throw new InsufficientStockError(`Insufficient stock for ${product.name}`, {
-          productId: product.id,
-          productName: product.name,
-          available: product.stock || 0,
-          requested: quantityBase,
-        });
+      // Stock check — use FIFO service if available, else fall back to cached stock
+      if (this.fifoService) {
+        const batchStock = this.fifoService.getAvailableStock(product.id);
+        if (batchStock < quantityBase) {
+          throw new InsufficientStockError(`Insufficient batch stock for ${product.name}`, {
+            productId: product.id,
+            productName: product.name,
+            available: batchStock,
+            requested: quantityBase,
+          });
+        }
+      } else {
+        if ((product.stock || 0) < quantityBase) {
+          throw new InsufficientStockError(`Insufficient stock for ${product.name}`, {
+            productId: product.id,
+            productName: product.name,
+            available: product.stock || 0,
+            requested: quantityBase,
+          });
+        }
       }
 
-      const itemCostTotal = quantityBase * product.costPrice;
-      totalCOGS += itemCostTotal;
+      // COGS will be calculated from FIFO batch costs if available
+      const fallbackCostTotal = quantityBase * product.costPrice;
 
       saleItems.push({
         productId: product.id,
@@ -231,6 +246,7 @@ export class CreateSaleUseCase {
         discount: item.discount || 0,
         subtotal: item.quantity * unitPrice - (item.discount || 0) * item.quantity,
         costPrice: product.costPrice,
+        fallbackCostTotal,
       });
     }
 
@@ -294,37 +310,74 @@ export class CreateSaleUseCase {
 
     const createdSale = this.saleRepo.create(saleData);
 
-    // ── Step 6 & 7: Inventory movements + stock update ──────────
+    // ── Step 6 & 7: FIFO batch depletion + inventory movements ──
+    let totalCOGS = 0;
+
     for (const item of saleItems) {
       const currentProduct = this.productRepo.findById(item.productId)!;
       const stockBefore = currentProduct.stock || 0;
-      const stockAfter = stockBefore - item.quantityBase;
 
-      // Create inventory movement (immutable ledger entry)
-      this.inventoryRepo.createMovementSync({
-        productId: item.productId,
-        batchId: item.batchId,
-        movementType: 'out',
-        reason: 'sale',
-        quantityBase: item.quantityBase,
-        unitName: item.unitName,
-        unitFactor: item.unitFactor,
-        stockBefore,
-        stockAfter,
-        costPerUnit: item.costPrice,
-        totalCost: item.quantityBase * item.costPrice,
-        sourceType: 'sale',
-        sourceId: createdSale.id,
-        notes: `Sale #${createdSale.invoiceNumber}`,
-        createdBy: userId,
-      });
-      diagnostics.inventoryMovementsCreated += 1;
+      if (this.fifoService) {
+        // ── FIFO path: deplete from oldest batches, calculate real COGS ──
+        const fifoResult = this.fifoService.deplete(item.productId, item.quantityBase);
+        totalCOGS += fifoResult.totalCost;
 
-      // Update products.stock cache
-      this.productRepo.updateStock(item.productId, -item.quantityBase);
+        // Create one inventory movement per batch depletion for full traceability
+        let runningStock = stockBefore;
+        for (const depletion of fifoResult.depletions) {
+          const newStock = runningStock - depletion.quantity;
+          this.inventoryRepo.createMovementSync({
+            productId: item.productId,
+            batchId: depletion.batchId,
+            movementType: 'out',
+            reason: 'sale',
+            quantityBase: depletion.quantity,
+            unitName: item.unitName,
+            unitFactor: item.unitFactor,
+            stockBefore: runningStock,
+            stockAfter: newStock,
+            costPerUnit: depletion.costPerUnit,
+            totalCost: depletion.totalCost,
+            sourceType: 'sale',
+            sourceId: createdSale.id,
+            notes: `Sale #${createdSale.invoiceNumber} (batch ${depletion.batchId})`,
+            createdBy: userId,
+          });
+          diagnostics.inventoryMovementsCreated += 1;
+          runningStock = newStock;
+        }
 
-      if (item.batchId) {
-        this.productRepo.updateBatchStock(item.batchId, -item.quantityBase);
+        // Update products.stock cache (one atomic update per product)
+        this.productRepo.updateStock(item.productId, -item.quantityBase);
+      } else {
+        // ── Legacy path: no FIFO, flat stock deduction ──
+        const stockAfter = stockBefore - item.quantityBase;
+        totalCOGS += item.fallbackCostTotal;
+
+        this.inventoryRepo.createMovementSync({
+          productId: item.productId,
+          batchId: item.batchId,
+          movementType: 'out',
+          reason: 'sale',
+          quantityBase: item.quantityBase,
+          unitName: item.unitName,
+          unitFactor: item.unitFactor,
+          stockBefore,
+          stockAfter,
+          costPerUnit: item.costPrice,
+          totalCost: item.fallbackCostTotal,
+          sourceType: 'sale',
+          sourceId: createdSale.id,
+          notes: `Sale #${createdSale.invoiceNumber}`,
+          createdBy: userId,
+        });
+        diagnostics.inventoryMovementsCreated += 1;
+
+        this.productRepo.updateStock(item.productId, -item.quantityBase);
+
+        if (item.batchId) {
+          this.productRepo.updateBatchStock(item.batchId, -item.quantityBase);
+        }
       }
     }
 
@@ -350,6 +403,7 @@ export class CreateSaleUseCase {
 
     // ── Step 9: Accounting journal entry ─────────────────────────
     const accountingEnabled = this.isAccountingEnabled();
+    const ledgersEnabled = this.isLedgersEnabled();
     diagnostics.journalCreated = accountingEnabled
       ? this.createSaleJournalEntry(
           createdSale,
@@ -362,8 +416,8 @@ export class CreateSaleUseCase {
       : { created: false, reason: 'accounting-disabled' };
 
     // ── Step 10: Customer ledger + debt ──────────────────────────
-    if (!accountingEnabled) {
-      diagnostics.customerLedgerCreated = { created: false, reason: 'accounting-disabled' };
+    if (!ledgersEnabled) {
+      diagnostics.customerLedgerCreated = { created: false, reason: 'ledgers-disabled' };
     } else if (input.customerId && remainingAmount > 0) {
       const currentDebt = this.customerLedgerRepo.getLastBalanceSync(input.customerId);
       const newBalance = currentDebt + remainingAmount;
@@ -502,7 +556,7 @@ export class CreateSaleUseCase {
       description: `Sale #${sale.invoiceNumber}`,
       sourceType: 'sale',
       sourceId: sale.id,
-      isPosted: true,
+      isPosted: false,
       isReversed: false,
       totalAmount: sale.total,
       currency,
@@ -513,7 +567,15 @@ export class CreateSaleUseCase {
   }
 
   private isAccountingEnabled(): boolean {
-    const value = this.settingsRepo.get('accounting.enabled');
+    const value =
+      this.settingsRepo.get('accounting.enabled') ??
+      this.settingsRepo.get('modules.accounting.enabled');
+    return value !== 'false';
+  }
+
+  private isLedgersEnabled(): boolean {
+    const value =
+      this.settingsRepo.get('ledgers.enabled') ?? this.settingsRepo.get('modules.ledgers.enabled');
     return value !== 'false';
   }
 

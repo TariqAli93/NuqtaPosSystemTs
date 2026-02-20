@@ -51,9 +51,6 @@ const ALLOWED_CHANNELS = new Set([
   'setup:seedChartOfAccounts',
   'setup:getAccountingSetupStatus',
 
-  // Dashboard
-  'dashboard:getStats',
-
   // Customers
   'customers:getAll',
   'customers:getById',
@@ -118,6 +115,7 @@ const ALLOWED_CHANNELS = new Set([
   'purchases:getAll',
   'purchases:getById',
   'purchases:create',
+  'purchases:addPayment',
 
   // Inventory
   'inventory:getMovements',
@@ -150,6 +148,17 @@ const ALLOWED_CHANNELS = new Set([
   'supplierLedger:getLedger',
   'supplierLedger:recordPayment',
   'supplierLedger:reconcileBalance',
+
+  // Setup Wizard — Module Settings
+  'settings:getModules',
+  'settings:completeWizard',
+  'settings:setModuleToggle',
+
+  // Posting Batches
+  'posting:postPeriod',
+  'posting:getBatches',
+  'posting:reverseEntry',
+  'posting:reverseBatch',
 
   // Diagnostics — DEV ONLY (not exposed in production preload)
 ]);

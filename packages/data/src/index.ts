@@ -15,6 +15,8 @@ export * from './repositories/SqliteCustomerLedgerRepository.js';
 export * from './repositories/SqliteAccountingRepository.js';
 export * from './repositories/SqliteSupplierLedgerRepository.js';
 export * from './repositories/SqliteProductWorkspaceRepository.js';
+export * from './repositories/SqlitePostingRepository.js';
+export * from './services/SqliteFifoService.js';
 export * as schema from './schema/schema.js';
 export * from './seed.js';
 export { DbConnection as DatabaseType } from './db.js';

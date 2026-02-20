@@ -105,6 +105,23 @@ export function registerCustomerHandlers(db: DatabaseType) {
     }
   });
 
+  ipcMain.handle('customers:getById', async (_event, payload) => {
+    try {
+      requirePermission({ permission: 'customers:read' });
+
+      const { id } = assertPayload('customers:getById', payload, ['id']);
+      const customerId = Number(id);
+      if (!Number.isFinite(customerId)) {
+        throw buildValidationError('customers:getById', payload, 'id must be a number');
+      }
+
+      const customer = customerRepo.findById(customerId);
+      return ok(customer);
+    } catch (error: unknown) {
+      return mapErrorToIpcResponse(error);
+    }
+  });
+
   ipcMain.handle('customers:create', async (_event, params) => {
     try {
       requirePermission({ permission: 'customers:create' });

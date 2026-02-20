@@ -9,6 +9,20 @@
         <v-alert v-if="localizedError" type="error" variant="tonal" class="mb-4">
           {{ localizedError }}
         </v-alert>
+
+        <!-- Stock warnings for items with insufficient stock -->
+        <v-alert
+          v-for="warn in stockWarnings"
+          :key="warn.productId"
+          type="warning"
+          variant="tonal"
+          class="mb-2"
+          density="compact"
+        >
+          {{ warn.productName }}: المخزون المتاح {{ warn.available }} — الكمية المطلوبة
+          {{ warn.requested }}
+        </v-alert>
+
         <v-form class="win-form" @submit.prevent="submit">
           <div class="d-flex flex-wrap ga-2">
             <v-text-field v-model="form.invoiceNumber" :label="t('sales.invoice')" required />
@@ -54,6 +68,7 @@
                 type="number"
                 density="compact"
                 hide-details
+                @update:model-value="checkStockForItem(item)"
               />
             </template>
             <template #item.unitPrice="{ item }">
@@ -63,7 +78,7 @@
               <MoneyInput v-model="item.discount" density="compact" hide-details />
             </template>
             <template #item.subtotal="{ item }">
-              {{ formatAmount(itemSubtotal(item)) }}
+              {{ formatMoney(itemSubtotal(item)) }}
             </template>
             <template #item.actions="{ item }">
               <v-btn
@@ -79,8 +94,8 @@
 
           <v-divider class="my-4" />
           <div class="d-flex justify-end ga-4">
-            <div>{{ t('sales.subtotal') }}: {{ formatAmount(subtotal) }}</div>
-            <div>{{ t('sales.total') }}: {{ formatAmount(total) }}</div>
+            <div>{{ t('sales.subtotal') }}: {{ formatMoney(displaySubtotal) }}</div>
+            <div>{{ t('sales.total') }}: {{ formatMoney(displayTotal) }}</div>
           </div>
 
           <v-textarea v-model="form.notes" :label="t('common.notes')" rows="3" class="mt-4" />
@@ -92,6 +107,7 @@
               variant="flat"
               class="win-btn"
               :loading="store.loading"
+              :disabled="hasStockWarnings"
             >
               {{ t('sales.create') }}
             </v-btn>
@@ -111,17 +127,61 @@ import { useSalesStore } from '../../stores/salesStore';
 import { useProductsStore } from '../../stores/productsStore';
 import { useGlobalBarcodeScanner } from '../../composables/useGlobalBarcodeScanner';
 import { useCurrency } from '../../composables/useCurrency';
+import { productsClient } from '../../ipc';
 import MoneyInput from '@/components/shared/MoneyInput.vue';
 import type { SaleInput, SaleItem, Product } from '../../types/domain';
 
 const store = useSalesStore();
 const productsStore = useProductsStore();
 const router = useRouter();
-const { currency } = useCurrency();
+const { currency, formatMoney } = useCurrency();
 
 const localizedError = computed(() =>
   store.error ? mapErrorToArabic(store.error, 'errors.saveFailed') : null
 );
+
+// ──── Stock availability cache (fetched from server) ────
+const stockCache = ref<Map<number, number>>(new Map());
+const stockWarnings = computed(() => {
+  const warnings: {
+    productId: number;
+    productName: string;
+    available: number;
+    requested: number;
+  }[] = [];
+  for (const item of items.value) {
+    if (!item.productId) continue;
+    const available = stockCache.value.get(item.productId) ?? Infinity;
+    if (item.quantity > available) {
+      warnings.push({
+        productId: item.productId,
+        productName: item.productName ?? '',
+        available,
+        requested: item.quantity,
+      });
+    }
+  }
+  return warnings;
+});
+const hasStockWarnings = computed(() => stockWarnings.value.length > 0);
+
+async function fetchStockForProduct(productId: number): Promise<void> {
+  if (stockCache.value.has(productId)) return;
+  const batchesResult = await productsClient.getBatches(productId);
+  if (batchesResult.ok) {
+    const totalOnHand = batchesResult.data.reduce(
+      (sum: number, b: any) => sum + (b.quantityOnHand ?? 0),
+      0
+    );
+    stockCache.value.set(productId, totalOnHand);
+  }
+}
+
+function checkStockForItem(item: SaleItem): void {
+  if (item.productId) {
+    void fetchStockForProduct(item.productId);
+  }
+}
 
 // Barcode Scanner Integration
 const { start, stop } = useGlobalBarcodeScanner({
@@ -146,7 +206,6 @@ function addItemToCart(product: Product) {
   const existingItem = items.value.find((i) => i.productId === product.id);
   if (existingItem) {
     existingItem.quantity += 1;
-    existingItem.subtotal = itemSubtotal(existingItem);
   } else {
     items.value.push({
       productId: product.id!,
@@ -154,11 +213,13 @@ function addItemToCart(product: Product) {
       quantity: 1,
       unitPrice: product.sellingPrice,
       discount: 0,
-      subtotal: product.sellingPrice,
+      subtotal: 0,
       unitName: product.unit || 'pcs',
       unitFactor: 1,
     });
   }
+  // Pre-fetch stock info
+  void fetchStockForProduct(product.id!);
 }
 
 const itemHeaders = computed(() => [
@@ -199,20 +260,14 @@ const items = ref<SaleItem[]>([
   },
 ]);
 
+// Display-only subtotal/total — server computes final COGS and totals
 const itemSubtotal = (item: SaleItem) =>
-  Math.max(0, item.quantity * item.unitPrice - (item.discount || 0));
+  Math.round(Math.max(0, item.quantity * item.unitPrice - (item.discount || 0)));
 
-const subtotal = computed(() =>
+const displaySubtotal = computed(() =>
   items.value.reduce((sum: number, item: SaleItem) => sum + itemSubtotal(item), 0)
 );
-const total = computed(() => subtotal.value - form.discount + form.tax);
-
-function formatAmount(value: number): string {
-  return new Intl.NumberFormat('ar-IQ', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-}
+const displayTotal = computed(() => Math.round(displaySubtotal.value - form.discount + form.tax));
 
 function addItem() {
   items.value.push({
@@ -232,25 +287,34 @@ function removeItem(index: number) {
 }
 
 async function submit() {
+  // Send minimal payload — server handles FIFO depletion, COGS, totals, batch allocation
   const payload: SaleInput = {
     invoiceNumber: form.invoiceNumber,
     customerId: form.customerId,
-    subtotal: subtotal.value,
+    // Server computes authoritative subtotal/total — send 0 so backend overrides
+    subtotal: 0,
     discount: form.discount,
     tax: form.tax,
-    total: total.value,
+    total: 0,
     currency: form.currency,
     exchangeRate: 1,
     interestRate: 0,
     interestAmount: 0,
     paymentType: form.paymentType,
     paidAmount: form.paidAmount,
-    remainingAmount: total.value - form.paidAmount,
+    remainingAmount: 0,
     status: 'pending',
     notes: form.notes,
+    // Items: NO batchId — server assigns via FIFO; NO client subtotal
     items: items.value.map((item: SaleItem) => ({
-      ...item,
-      subtotal: itemSubtotal(item),
+      productId: item.productId,
+      productName: item.productName,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      discount: item.discount || 0,
+      subtotal: 0, // server computes
+      unitName: item.unitName,
+      unitFactor: item.unitFactor,
     })),
   };
 

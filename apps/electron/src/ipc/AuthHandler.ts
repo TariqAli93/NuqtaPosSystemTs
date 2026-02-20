@@ -205,8 +205,8 @@ export function registerAuthHandlers(db: DatabaseType) {
   ipcMain.handle('setup:setAccountingEnabled', async (_event, payload) => {
     try {
       const setupStatus = checkInitialSetupUseCase.execute();
-      if (setupStatus.isInitialized || setupStatus.hasUsers) {
-        throw new Error('Cannot update setup settings: application already initialized');
+      if (setupStatus.wizardCompleted) {
+        throw new Error('Cannot update setup settings: setup wizard already completed');
       }
 
       const { data } = assertPayload('setup:setAccountingEnabled', payload, ['data']);
@@ -220,6 +220,7 @@ export function registerAuthHandlers(db: DatabaseType) {
       }
 
       settingsRepo.set('accounting.enabled', body.enabled ? 'true' : 'false');
+      settingsRepo.set('modules.accounting.enabled', body.enabled ? 'true' : 'false');
       if (!body.enabled) {
         settingsRepo.set('accounting.coaSeeded', 'false');
       }
@@ -233,8 +234,8 @@ export function registerAuthHandlers(db: DatabaseType) {
   ipcMain.handle('setup:seedChartOfAccounts', async (_event, payload) => {
     try {
       const setupStatus = checkInitialSetupUseCase.execute();
-      if (setupStatus.isInitialized || setupStatus.hasUsers) {
-        throw new Error('Cannot seed chart of accounts: application already initialized');
+      if (setupStatus.wizardCompleted) {
+        throw new Error('Cannot seed chart of accounts: setup wizard already completed');
       }
 
       const body = assertPayload('setup:seedChartOfAccounts', payload, ['data']);

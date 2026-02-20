@@ -12,11 +12,35 @@
     <v-card>
       <v-card-text>
         <v-row dense class="mb-4">
-          <v-col cols="12" sm="4">
+          <v-col cols="12" sm="3">
             <v-select
               v-model="sourceFilter"
               :items="sources"
               label="المصدر"
+              variant="outlined"
+              density="compact"
+              hide-details
+              clearable
+              @update:model-value="onFilter"
+            />
+          </v-col>
+          <v-col cols="12" sm="3">
+            <v-text-field
+              v-model="dateFrom"
+              label="من تاريخ"
+              type="date"
+              variant="outlined"
+              density="compact"
+              hide-details
+              clearable
+              @update:model-value="onFilter"
+            />
+          </v-col>
+          <v-col cols="12" sm="3">
+            <v-text-field
+              v-model="dateTo"
+              label="إلى تاريخ"
+              type="date"
               variant="outlined"
               density="compact"
               hide-details
@@ -67,6 +91,8 @@ import MoneyDisplay from '../../components/shared/MoneyDisplay.vue';
 const router = useRouter();
 const accountingStore = useAccountingStore();
 const sourceFilter = ref<string | null>(null);
+const dateFrom = ref<string | null>(null);
+const dateTo = ref<string | null>(null);
 
 const sources = [
   { title: 'مبيعات', value: 'sale' },
@@ -91,6 +117,10 @@ function sourceLabel(s?: string): string {
 onMounted(() => accountingStore.fetchJournalEntries());
 
 function onFilter() {
-  accountingStore.fetchJournalEntries({ sourceType: sourceFilter.value || undefined });
+  accountingStore.fetchJournalEntries({
+    sourceType: sourceFilter.value || undefined,
+    dateFrom: dateFrom.value || undefined,
+    dateTo: dateTo.value || undefined,
+  });
 }
 </script>

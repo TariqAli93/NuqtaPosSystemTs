@@ -13,7 +13,7 @@
   "scripts": {
     "rebuild:sqlite": "electron-rebuild -f -w better-sqlite3 --module-dir ../../packages/data",
     "dev": "pnpm run rebuild:sqlite && electron-vite dev --watch",
-    "build": "pnpm run rebuild:sqlite && electron-vite build && electron-builder --config electron-builder.yml --publish never",
+    "build": "pnpm run rebuild:sqlite && electron-vite build",
     "dist": "pnpm run rebuild:sqlite && electron-builder --config electron-builder.yml"
   },
   "dependencies": {

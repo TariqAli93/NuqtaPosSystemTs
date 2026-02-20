@@ -14,6 +14,8 @@ export { accountingClient } from './accountingClient';
 export { customerLedgerClient } from './customerLedgerClient';
 export { supplierLedgerClient } from './supplierLedgerClient';
 export { barcodeClient } from './barcodeClient';
+export { postingClient } from './postingClient';
+export { auditClient } from './auditClient';
 export { setupClient } from './setupClient';
 export { registerUnauthorizedHandler } from './errorInterceptor';
 export type { ApiResult, ApiError, PagedResult } from './contracts';

@@ -22,7 +22,7 @@ const props = withDefaults(
 );
 
 const formatted = computed(() => {
-  const val = props.amount ?? 0;
+  const val = Math.round(props.amount ?? 0);
   const num = val.toLocaleString('en-US');
   return props.currency === 'IQD' ? `${num} د.ع` : `${num} ${props.currency}`;
 });

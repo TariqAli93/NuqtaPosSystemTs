@@ -33,22 +33,26 @@ export class SqliteProductRepository implements IProductRepository {
       conditions.push(lte(products.stock, products.minStock));
     }
     if (params?.expiringSoonOnly) {
-      const cutoff = new Date();
-      cutoff.setDate(cutoff.getDate() + 30);
-      const cutoffDate = cutoff.toISOString().slice(0, 10);
-      conditions.push(sql`EXISTS (
-        SELECT 1
-        FROM product_batches pb
-        WHERE pb.product_id = ${products.id}
-          AND pb.quantity_on_hand > 0
-          AND pb.expiry_date IS NOT NULL
-          AND pb.expiry_date <= ${cutoffDate}
-      )`);
+      conditions.push(sql`
+        EXISTS (
+          SELECT 1
+          FROM product_batches pb
+          WHERE pb.product_id = ${products.id}
+            AND pb.quantity_on_hand > 0
+            AND pb.expiry_date IS NOT NULL
+            AND date(pb.expiry_date) <= date('now','localtime','+30 days')
+            AND date(pb.expiry_date) >= date('now','localtime') -- اختياري: يستبعد المنتهي
+        )
+      `);
     }
 
     const whereClause = conditions.length ? and(...conditions) : undefined;
 
-    const query = this.db.select().from(products).where(whereClause).orderBy(desc(products.updatedAt));
+    const query = this.db
+      .select()
+      .from(products)
+      .where(whereClause)
+      .orderBy(desc(products.updatedAt));
 
     if (params?.limit) query.limit(params.limit);
     if (params?.offset) query.offset(params.offset);
@@ -200,11 +204,7 @@ export class SqliteProductRepository implements IProductRepository {
       .where(eq(productUnits.productId, productId))
       .run();
 
-    this.db
-      .update(productUnits)
-      .set({ isDefault: true })
-      .where(eq(productUnits.id, unitId))
-      .run();
+    this.db.update(productUnits).set({ isDefault: true }).where(eq(productUnits.id, unitId)).run();
   }
 
   findBatchesByProductId(productId: number): ProductBatch[] {

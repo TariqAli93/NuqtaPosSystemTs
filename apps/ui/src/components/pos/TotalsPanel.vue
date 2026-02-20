@@ -70,7 +70,7 @@ const formatPrice = (price: number) => {
     style: 'currency',
     currency: 'IQD',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 4,
+    maximumFractionDigits: 0,
     numberingSystem: 'latn',
   }).format(price);
 };

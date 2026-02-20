@@ -52,13 +52,6 @@
           />
           <v-list-item
             exact
-            to="/users"
-            prepend-icon="mdi-account-multiple-outline"
-            :title="t('nav.users')"
-            class="mb-1"
-          />
-          <v-list-item
-            exact
             to="/settings"
             prepend-icon="mdi-cog-outline"
             :title="t('nav.settings')"

@@ -1,6 +1,8 @@
 import { IProductRepository } from '../interfaces/IProductRepository.js';
 import { IInventoryRepository } from '../interfaces/IInventoryRepository.js';
 import { IAccountingRepository } from '../interfaces/IAccountingRepository.js';
+import { IAuditRepository } from '../interfaces/IAuditRepository.js';
+import { AuditService } from '../services/AuditService.js';
 import { InventoryMovement } from '../entities/InventoryMovement.js';
 import { NotFoundError, ValidationError, InsufficientStockError } from '../errors/DomainErrors.js';
 
@@ -20,11 +22,16 @@ export interface AdjustStockInput {
 }
 
 export class AdjustProductStockUseCase {
+  private auditService: AuditService;
+
   constructor(
     private productRepo: IProductRepository,
     private inventoryRepo: IInventoryRepository,
-    private accountingRepo?: IAccountingRepository
-  ) {}
+    private accountingRepo?: IAccountingRepository,
+    auditRepo?: IAuditRepository
+  ) {
+    this.auditService = new AuditService(auditRepo as IAuditRepository);
+  }
 
   executeCommitPhase(input: AdjustStockInput, userId: number): InventoryMovement {
     if (!Number.isInteger(input.quantityChange)) {
@@ -80,7 +87,12 @@ export class AdjustProductStockUseCase {
       this.productRepo.update(input.productId, { status: 'available' });
     }
 
-    this.createAdjustmentJournalIfPossible(product.costPrice, input.quantityChange, movement.id, userId);
+    this.createAdjustmentJournalIfPossible(
+      product.costPrice,
+      input.quantityChange,
+      movement.id,
+      userId
+    );
 
     return movement;
   }
@@ -157,6 +169,23 @@ export class AdjustProductStockUseCase {
   }
 
   async execute(input: AdjustStockInput, userId: number): Promise<InventoryMovement> {
-    return this.executeCommitPhase(input, userId);
+    const movement = this.executeCommitPhase(input, userId);
+    // Fire-and-forget audit
+    this.auditService
+      .logAction(
+        userId,
+        'stock:adjust',
+        'product',
+        input.productId,
+        `Stock adjusted by ${input.quantityChange} for product ${input.productId}`,
+        {
+          quantityChange: input.quantityChange,
+          reason: input.reason || 'manual',
+          batchId: input.batchId,
+          movementId: movement.id,
+        }
+      )
+      .catch(() => {});
+    return movement;
   }
 }

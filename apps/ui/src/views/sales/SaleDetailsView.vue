@@ -144,6 +144,49 @@
               <template #item.subtotal="{ item }">
                 <span class="font-weight-bold">{{ formatAmount(item.subtotal) }}</span>
               </template>
+              <!-- Expandable row: per-item batch depletion (FIFO) -->
+              <template #expanded-row="{ columns, item }">
+                <td :colspan="columns.length" class="pa-4 bg-grey-lighten-5">
+                  <div class="text-caption font-weight-bold mb-2">تفاصيل الدفعات (FIFO)</div>
+                  <v-table v-if="item.depletions?.length" density="compact">
+                    <thead>
+                      <tr>
+                        <th>رقم الدفعة</th>
+                        <th>تاريخ الانتهاء</th>
+                        <th class="text-center">الكمية</th>
+                        <th class="text-end">تكلفة الوحدة</th>
+                        <th class="text-end">إجمالي التكلفة</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr v-for="(dep, di) in item.depletions" :key="di">
+                        <td>{{ dep.batchNumber ?? '—' }}</td>
+                        <td>
+                          <v-chip
+                            v-if="dep.expiryDate"
+                            size="x-small"
+                            variant="tonal"
+                            :color="isExpiringSoon(dep.expiryDate) ? 'error' : 'grey'"
+                          >
+                            {{ dep.expiryDate }}
+                          </v-chip>
+                          <span v-else>—</span>
+                        </td>
+                        <td class="text-center">{{ dep.quantity }}</td>
+                        <td class="text-end">{{ formatAmount(dep.costPerUnit ?? 0) }}</td>
+                        <td class="text-end font-weight-medium">
+                          {{
+                            formatAmount(Math.round((dep.quantity ?? 0) * (dep.costPerUnit ?? 0)))
+                          }}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </v-table>
+                  <div v-else class="text-caption text-medium-emphasis">
+                    لا توجد تفاصيل دفعات — قد لا يكون المنتج يتتبع الدفعات
+                  </div>
+                </td>
+              </template>
               <template #bottom>
                 <div class="d-flex justify-space-between pa-4 font-weight-bold">
                   <span>{{ t('sales.total') }}</span>
@@ -160,6 +203,35 @@
             />
           </v-card-text>
         </v-card>
+
+        <!-- COGS Summary (server-computed) -->
+        <v-card v-if="sale.cogs != null" class="win-card mt-4" flat>
+          <v-card-title class="pa-4 text-body-1 font-weight-bold"> ملخص التكلفة </v-card-title>
+          <v-card-text>
+            <v-row dense>
+              <v-col cols="6" sm="3">
+                <div class="text-caption text-medium-emphasis">تكلفة البضاعة المباعة</div>
+                <div class="text-body-1 font-weight-bold">{{ formatAmount(sale.cogs) }}</div>
+              </v-col>
+              <v-col cols="6" sm="3">
+                <div class="text-caption text-medium-emphasis">هامش الربح</div>
+                <div class="text-body-1 font-weight-bold text-success">
+                  {{ formatAmount(sale.total - (sale.cogs ?? 0)) }}
+                </div>
+              </v-col>
+            </v-row>
+          </v-card-text>
+        </v-card>
+
+        <!-- Audit Trail -->
+        <v-card class="win-card mt-4" flat>
+          <AuditLogTab
+            v-if="sale?.id"
+            entity-type="sale"
+            :entity-id="sale.id"
+            title="سجل تدقيق الفاتورة"
+          />
+        </v-card>
       </template>
     </div>
   </v-container>
@@ -171,6 +243,7 @@ import { useRoute } from 'vue-router';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useSalesStore } from '../../stores/salesStore';
 import EmptyState from '../../components/emptyState.vue';
+import AuditLogTab from '../../components/shared/AuditLogTab.vue';
 import type { Sale } from '../../types/domain';
 
 const store = useSalesStore();
@@ -220,9 +293,14 @@ function statusIcon(status: string): string {
 
 function formatAmount(value: number): string {
   return new Intl.NumberFormat('ar-IQ', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.round(value));
+}
+
+function isExpiringSoon(dateStr: string): boolean {
+  const diff = new Date(dateStr).getTime() - Date.now();
+  return diff < 30 * 24 * 60 * 60 * 1000;
 }
 
 async function loadSale() {

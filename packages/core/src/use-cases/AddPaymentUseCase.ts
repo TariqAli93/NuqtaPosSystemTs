@@ -9,6 +9,7 @@ import { roundByCurrency } from '../utils/helpers.js';
 import { Sale } from '../entities/Sale.js';
 import type { PaymentMethod } from '../entities/Payment.js';
 import type { JournalLine } from '../entities/Accounting.js';
+import { MODULE_SETTING_KEYS } from '../entities/ModuleSettings.js';
 
 const ACCT_CASH = '1001';
 const ACCT_AR = '1100';
@@ -115,8 +116,9 @@ export class AddPaymentUseCase {
     });
 
     const accountingEnabled = this.isAccountingEnabled();
+    const ledgersEnabled = this.isLedgersEnabled();
     const effectiveCustomerId = sale.customerId || input.customerId;
-    if (accountingEnabled && effectiveCustomerId) {
+    if (ledgersEnabled && effectiveCustomerId) {
       const balanceBefore = this.customerLedgerRepo.getLastBalanceSync(effectiveCustomerId);
       this.customerLedgerRepo.createSync({
         customerId: effectiveCustomerId,
@@ -128,11 +130,9 @@ export class AddPaymentUseCase {
         notes: input.notes || `Payment for sale #${sale.invoiceNumber}`,
         createdBy: userId,
       });
-    } else if (accountingEnabled) {
-      // Keep compatibility for older aggregate fields if no ledger customer link exists.
-      if (sale.customerId) {
-        this.customerRepo.updateDebt(sale.customerId, -actualPaymentAmount);
-      }
+    } else if (!ledgersEnabled && sale.customerId) {
+      // Legacy fallback when ledgers are intentionally disabled.
+      this.customerRepo.updateDebt(sale.customerId, -actualPaymentAmount);
     }
 
     if (accountingEnabled) {
@@ -182,7 +182,7 @@ export class AddPaymentUseCase {
       description: `Customer payment #${paymentId}`,
       sourceType: 'payment',
       sourceId: paymentId,
-      isPosted: true,
+      isPosted: false,
       isReversed: false,
       totalAmount: amount,
       currency,
@@ -197,7 +197,17 @@ export class AddPaymentUseCase {
 
   private isAccountingEnabled(): boolean {
     if (!this.settingsRepo) return true;
-    const value = this.settingsRepo.get('accounting.enabled');
+    const value =
+      this.settingsRepo.get(MODULE_SETTING_KEYS.ACCOUNTING_ENABLED) ??
+      this.settingsRepo.get('modules.accounting.enabled');
+    return value !== 'false';
+  }
+
+  private isLedgersEnabled(): boolean {
+    if (!this.settingsRepo) return true;
+    const value =
+      this.settingsRepo.get(MODULE_SETTING_KEYS.LEDGERS_ENABLED) ??
+      this.settingsRepo.get('modules.ledgers.enabled');
     return value !== 'false';
   }
 }

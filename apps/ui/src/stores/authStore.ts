@@ -27,6 +27,7 @@ export const useAuthStore = defineStore('auth', () => {
   );
 
   const isInitialized = computed(() => setupStatus.value?.isInitialized ?? false);
+  const isSetupWizardCompleted = computed(() => setupStatus.value?.wizardCompleted ?? false);
 
   if (typeof window !== 'undefined') {
     registerUnauthorizedHandler(() => {
@@ -68,7 +69,12 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       // Mark as initialized locally
-      setupStatus.value = { isInitialized: true, hasUsers: true, hasCompanyInfo: true };
+      setupStatus.value = {
+        isInitialized: true,
+        hasUsers: true,
+        hasCompanyInfo: true,
+        wizardCompleted: false,
+      };
 
       return result;
     } catch (err: any) {
@@ -266,6 +272,7 @@ export const useAuthStore = defineStore('auth', () => {
     isAuthenticated,
     setupStatus,
     isInitialized,
+    isSetupWizardCompleted,
     loading,
     error,
     checkInitialSetup,

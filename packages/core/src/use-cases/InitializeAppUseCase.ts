@@ -71,11 +71,15 @@ export class InitializeAppUseCase {
       isActive: true,
     } as User);
 
-    // 7. Set initialized flag (CRITICAL: must be LAST for crash safety)
+    // 7. Force setup wizard to remain incomplete until wizard settings are committed.
+    this.settingsRepo.set('setup.wizardCompleted', 'false');
+    this.settingsRepo.set('setup.wizard_completed', 'false');
+
+    // 8. Set initialized flag (CRITICAL: must be LAST for crash safety)
     this.settingsRepo.set('app_initialized', 'true');
     this.settingsRepo.set('initialized_at', new Date().toISOString());
 
-    // 8. Return success (without password)
+    // 9. Return success (without password)
     const { password, ...adminWithoutPassword } = admin;
     return {
       success: true,

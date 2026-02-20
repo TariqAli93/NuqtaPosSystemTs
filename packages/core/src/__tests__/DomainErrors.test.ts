@@ -17,7 +17,7 @@ import {
 describe('DomainErrors', () => {
   describe('DomainError (base)', () => {
     it('should create base domain error', () => {
-      const error = new DomainError('Test error message');
+      const error = new DomainError('DOMAIN_ERROR', 'Test error message');
       expect(error).toBeInstanceOf(Error);
       expect(error.message).toBe('Test error message');
       expect(error.code).toBe('DOMAIN_ERROR');
@@ -26,7 +26,7 @@ describe('DomainErrors', () => {
 
     it('should include details in error', () => {
       const details = { userId: 1, actionId: 42 };
-      const error = new DomainError('Test error', details);
+      const error = new DomainError('DOMAIN_ERROR', 'Test error', 400, details);
       expect(error.details).toEqual(details);
     });
   });

@@ -197,13 +197,13 @@ const formatPrice = (price: number) => {
     style: 'currency',
     currency: 'IQD',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
     numberingSystem: 'latn',
   }).format(price);
 };
 
 const itemSubtotal = (item: SaleItem) => {
-  return Math.max(0, item.quantity * item.unitPrice - (item.discount || 0));
+  return Math.max(0, Math.round(item.quantity * item.unitPrice - (item.discount || 0)));
 };
 
 const drawerWidth = computed(() => layout.drawerWidth);

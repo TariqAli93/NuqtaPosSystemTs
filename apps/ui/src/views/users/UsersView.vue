@@ -1,7 +1,7 @@
 ﻿<template>
-  <v-container>
+  <v-container :fluid="props.embedded">
     <div class="win-page">
-      <v-app-bar class="ds-page-header d-flex align-center justify-space-between mb-6">
+      <v-app-bar v-if="!props.embedded" class="ds-page-header d-flex align-center justify-space-between mb-6">
         <v-app-bar-title>
           <div class="win-title mb-0">{{ t('users.title') }}</div>
           <div class="text-sm">{{ t('users.subtitle') }}</div>
@@ -18,6 +18,17 @@
           </v-btn>
         </template>
       </v-app-bar>
+      <div v-else class="d-flex justify-space-between align-center mb-4">
+        <div class="text-subtitle-1 font-weight-bold">{{ t('users.title') }}</div>
+        <v-btn
+          color="primary"
+          @click="openCreateDialog"
+          prepend-icon="mdi-plus"
+          :disabled="!canCreate"
+        >
+          {{ t('users.add') }}
+        </v-btn>
+      </div>
 
       <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
         {{ error }}
@@ -114,6 +125,15 @@ import { mapErrorToArabic, mapRoleToArabic, t } from '../../i18n/t';
 import { usersClient } from '../../ipc';
 import { useAuthStore } from '../../stores/authStore';
 import type { UserInput, UserPublic, UserRole } from '../../types/domain';
+
+const props = withDefaults(
+  defineProps<{
+    embedded?: boolean;
+  }>(),
+  {
+    embedded: false,
+  }
+);
 
 const authStore = useAuthStore();
 

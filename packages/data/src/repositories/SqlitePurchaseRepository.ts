@@ -243,6 +243,10 @@ export class SqlitePurchaseRepository implements IPurchaseRepository {
   }
 
   async findById(id: number): Promise<Purchase | null> {
+    return this.findByIdSync(id);
+  }
+
+  findByIdSync(id: number): Purchase | null {
     const item = this.db.select().from(purchases).where(eq(purchases.id, id)).get();
     if (!item) return null;
 
@@ -270,6 +274,10 @@ export class SqlitePurchaseRepository implements IPurchaseRepository {
   }
 
   async updateStatus(id: number, status: string): Promise<void> {
+    this.updateStatusSync(id, status);
+  }
+
+  updateStatusSync(id: number, status: string): void {
     this.db
       .update(purchases)
       .set({ status, updatedAt: new Date().toISOString() })
@@ -278,6 +286,10 @@ export class SqlitePurchaseRepository implements IPurchaseRepository {
   }
 
   async updatePayment(id: number, paidAmount: number, remainingAmount: number): Promise<void> {
+    this.updatePaymentSync(id, paidAmount, remainingAmount);
+  }
+
+  updatePaymentSync(id: number, paidAmount: number, remainingAmount: number): void {
     this.db
       .update(purchases)
       .set({

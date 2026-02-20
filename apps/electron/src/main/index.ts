@@ -4,7 +4,6 @@ import { createDb } from '@nuqtaplus/data';
 import { registerProductHandlers } from '../ipc/ProductHandler';
 import { registerSaleHandlers } from '../ipc/SaleHandler';
 import { registerAuthHandlers } from '../ipc/AuthHandler';
-import { registerDashboardHandlers } from '../ipc/DashboardHandler';
 import { registerCustomerHandlers } from '../ipc/CustomerHandler';
 import { registerCategoryHandlers } from '../ipc/CategoryHandler';
 import { registerUserHandlers } from '../ipc/UserHandler';
@@ -22,6 +21,8 @@ import { registerBarcodeHandlers } from '../ipc/BarcodeHandler';
 import { registerAccountingHandlers } from '../ipc/AccountingHandler';
 import { registerSupplierLedgerHandlers } from '../ipc/SupplierLedgerHandler';
 import { registerDiagnosticsHandlers } from '../ipc/DiagnosticsHandler';
+import { registerSetupWizardHandlers } from '../ipc/SetupWizardHandler';
+import { registerPostingHandlers } from '../ipc/PostingHandler';
 import { UpdateService } from '../services/UpdateService.js';
 import { applyMigrations } from '../services/MigrationService.js';
 
@@ -149,7 +150,6 @@ app.whenReady().then(() => {
   registerProductHandlers(db);
   registerSaleHandlers(db);
   registerAuthHandlers(db);
-  registerDashboardHandlers(db);
   registerCustomerHandlers(db);
   registerCategoryHandlers(db);
   registerUserHandlers(db);
@@ -166,6 +166,8 @@ app.whenReady().then(() => {
   registerBarcodeHandlers(db);
   registerAccountingHandlers(db);
   registerSupplierLedgerHandlers(db);
+  registerSetupWizardHandlers(db);
+  registerPostingHandlers(db);
   if (isDev) registerDiagnosticsHandlers(db);
 
   // Initialize auto-update

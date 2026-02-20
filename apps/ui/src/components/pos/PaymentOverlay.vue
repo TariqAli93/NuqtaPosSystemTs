@@ -324,7 +324,7 @@ const keypadKeys = [
   { id: '7', label: '7' },
   { id: '8', label: '8' },
   { id: '9', label: '9' },
-  { id: '.', label: '.' },
+  { id: '00', label: '00' },
   { id: '0', label: '0' },
   { id: 'backspace', label: '⌫' },
 ];
@@ -473,30 +473,22 @@ function formatCurrency(value: number): string {
     }).format(value);
   } catch {
     return new Intl.NumberFormat('ar-IQ', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
       numberingSystem: 'latn',
-    }).format(value);
+    }).format(Math.round(value));
   }
 }
 
 function normalizeDecimalInput(value: string): string {
-  let normalized = value.replace(/[^\d.]/g, '');
-
-  const dotIndex = normalized.indexOf('.');
-  if (dotIndex >= 0) {
-    const integerPart = normalized.slice(0, dotIndex);
-    const decimalPart = normalized.slice(dotIndex + 1).replace(/\./g, '');
-    normalized = `${integerPart}.${decimalPart}`;
-  }
-
-  return Math.max(0, parseFloat(normalized) || 0).toString();
+  const normalized = value.replace(/[^\d]/g, '');
+  const parsed = parseInt(normalized, 10);
+  return (Number.isFinite(parsed) ? Math.max(0, parsed) : 0).toString();
 }
 
 function toInputAmount(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '';
-  if (Number.isInteger(value)) return String(value);
-  return value.toFixed(2).replace(/\.?0+$/, '');
+  return String(Math.round(value));
 }
 
 const isRewriteMode = ref(true); // first keypad press overwrites existing value
@@ -515,7 +507,7 @@ function onExtraDiscountInput(value: string) {
 
 function appendAmount(char: string) {
   if (props.busy) return;
-  if (!/^\d$/.test(char) && char !== '.') return;
+  if (!/^\d$/.test(char) && char !== '00') return;
 
   // Rewrite behavior: first keypad press clears and starts fresh
   if (isRewriteMode.value) {
@@ -526,11 +518,13 @@ function appendAmount(char: string) {
 
   const current = amountInput.value ?? '';
 
-  // Dot key: switch to decimal mode (only once)
-  if (char === '.') {
-    if (current.includes('.')) return;
-    amountInput.value = current === '' ? '0.' : current + '.';
-    entryMode.value = 'dec';
+  // '00' key: append two zeros
+  if (char === '00') {
+    if (current === '' || current === '0') {
+      amountInput.value = '0';
+      return;
+    }
+    amountInput.value = current + '00';
     return;
   }
 
