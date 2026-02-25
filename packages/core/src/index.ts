@@ -117,3 +117,5 @@ export * from './use-cases/AddPurchasePaymentUseCase.js';
 // ── Posting ──
 export * from './use-cases/posting/PostPeriodUseCase.js';
 export * from './use-cases/posting/ReverseEntryUseCase.js';
+export * from './use-cases/posting/PostIndividualEntryUseCase.js';
+export * from './use-cases/posting/UnpostIndividualEntryUseCase.js';

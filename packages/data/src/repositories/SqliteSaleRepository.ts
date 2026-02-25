@@ -1,7 +1,21 @@
 import { eq, desc, and, gte, lte, sql, count } from 'drizzle-orm';
 import { DbClient } from '../db.js';
-import { sales, saleItems } from '../schema/schema.js';
-import { ISaleRepository, Sale } from '@nuqtaplus/core';
+import { sales, saleItems, saleItemDepletions, productBatches } from '../schema/schema.js';
+import { ISaleRepository, Sale, SaleItemDepletion } from '@nuqtaplus/core';
+
+type SaleDepletionRow = {
+  id: number;
+  saleId: number;
+  saleItemId: number;
+  productId: number;
+  batchId: number;
+  quantityBase: number;
+  costPerUnit: number;
+  totalCost: number;
+  createdAt: string | null;
+  batchNumber: string | null;
+  expiryDate: string | null;
+};
 
 export class SqliteSaleRepository implements ISaleRepository {
   constructor(private db: DbClient) {}
@@ -31,9 +45,10 @@ export class SqliteSaleRepository implements ISaleRepository {
       .returning()
       .get();
 
+    const insertedItems: any[] = [];
     if (sale.items && sale.items.length > 0) {
       for (const item of sale.items) {
-        this.db
+        const inserted = this.db
           .insert(saleItems)
           .values({
             saleId: saleRow.id,
@@ -49,19 +64,102 @@ export class SqliteSaleRepository implements ISaleRepository {
             subtotal: item.subtotal,
             createdAt: sale.createdAt,
           })
-          .run();
+          .returning()
+          .get();
+        insertedItems.push(inserted);
       }
     }
 
-    return { ...sale, id: saleRow.id };
+    return {
+      ...sale,
+      id: saleRow.id,
+      items: insertedItems as any,
+    };
+  }
+
+  private loadSaleItemDepletions(saleId: number): SaleDepletionRow[] {
+    return this.db
+      .select({
+        id: saleItemDepletions.id,
+        saleId: saleItemDepletions.saleId,
+        saleItemId: saleItemDepletions.saleItemId,
+        productId: saleItemDepletions.productId,
+        batchId: saleItemDepletions.batchId,
+        quantityBase: saleItemDepletions.quantityBase,
+        costPerUnit: saleItemDepletions.costPerUnit,
+        totalCost: saleItemDepletions.totalCost,
+        createdAt: saleItemDepletions.createdAt,
+        batchNumber: productBatches.batchNumber,
+        expiryDate: productBatches.expiryDate,
+      })
+      .from(saleItemDepletions)
+      .leftJoin(productBatches, eq(productBatches.id, saleItemDepletions.batchId))
+      .where(eq(saleItemDepletions.saleId, saleId))
+      .all();
+  }
+
+  private mapSaleWithDetails(saleRow: typeof sales.$inferSelect): Sale {
+    const items = this.db
+      .select()
+      .from(saleItems)
+      .where(eq(saleItems.saleId, saleRow.id))
+      .orderBy(saleItems.id)
+      .all();
+
+    const depletions = this.loadSaleItemDepletions(saleRow.id);
+    const depletionsBySaleItem = new Map<number, SaleDepletionRow[]>();
+    for (const depletion of depletions) {
+      const list = depletionsBySaleItem.get(depletion.saleItemId) || [];
+      list.push(depletion);
+      depletionsBySaleItem.set(depletion.saleItemId, list);
+    }
+
+    const itemsWithDetails = items.map((item) => {
+      const itemDepletions = depletionsBySaleItem.get(item.id) || [];
+      const itemCogs = itemDepletions.reduce((sum, dep) => sum + (dep.totalCost || 0), 0);
+      const depletedQty = itemDepletions.reduce((sum, dep) => sum + (dep.quantityBase || 0), 0);
+      const weightedAverageCost = depletedQty > 0 ? Math.trunc(itemCogs / depletedQty) : 0;
+
+      return {
+        ...item,
+        cogs: itemCogs,
+        weightedAverageCost,
+        depletions: itemDepletions.map((dep) => ({
+          id: dep.id,
+          saleId: dep.saleId,
+          saleItemId: dep.saleItemId,
+          productId: dep.productId,
+          batchId: dep.batchId,
+          batchNumber: dep.batchNumber || undefined,
+          expiryDate: dep.expiryDate,
+          quantityBase: dep.quantityBase,
+          quantity: dep.quantityBase,
+          costPerUnit: dep.costPerUnit,
+          totalCost: dep.totalCost,
+          createdAt: dep.createdAt || undefined,
+        })),
+      };
+    });
+
+    const totalCogs = depletions.reduce((sum, dep) => sum + (dep.totalCost || 0), 0);
+    const profit = (saleRow.total || 0) - totalCogs;
+    const marginBps = saleRow.total > 0 ? Math.trunc((profit * 10_000) / saleRow.total) : 0;
+
+    return {
+      ...saleRow,
+      items: itemsWithDetails as any,
+      cogs: totalCogs,
+      totalCogs,
+      profit,
+      marginBps,
+    } as Sale;
   }
 
   findByIdempotencyKey(key: string): Sale | null {
     const row = this.db.select().from(sales).where(eq(sales.idempotencyKey, key)).get();
     if (!row) return null;
 
-    const items = this.db.select().from(saleItems).where(eq(saleItems.saleId, row.id)).all();
-    return { ...row, items: items as any } as Sale;
+    return this.mapSaleWithDetails(row);
   }
 
   update(id: number, data: Partial<Sale>): void {
@@ -79,8 +177,7 @@ export class SqliteSaleRepository implements ISaleRepository {
     const sale = this.db.select().from(sales).where(eq(sales.id, id)).get();
     if (!sale) return null;
 
-    const items = this.db.select().from(saleItems).where(eq(saleItems.saleId, id)).all();
-    return { ...sale, items: items as any } as Sale;
+    return this.mapSaleWithDetails(sale);
   }
 
   findAll(params?: { page: number; limit: number; startDate?: string; endDate?: string }): {
@@ -113,6 +210,43 @@ export class SqliteSaleRepository implements ISaleRepository {
 
   updateStatus(id: number, status: 'completed' | 'cancelled'): void {
     this.db.update(sales).set({ status }).where(eq(sales.id, id)).run();
+  }
+
+  createItemDepletions(
+    depletions: Omit<SaleItemDepletion, 'id' | 'createdAt' | 'batchNumber' | 'expiryDate'>[]
+  ): void {
+    if (depletions.length === 0) return;
+
+    this.db
+      .insert(saleItemDepletions)
+      .values(
+        depletions.map((depletion) => ({
+          saleId: depletion.saleId,
+          saleItemId: depletion.saleItemId,
+          productId: depletion.productId,
+          batchId: depletion.batchId,
+          quantityBase: depletion.quantityBase,
+          costPerUnit: depletion.costPerUnit,
+          totalCost: depletion.totalCost,
+        }))
+      )
+      .run();
+  }
+
+  getItemDepletionsBySaleId(saleId: number): SaleItemDepletion[] {
+    return this.loadSaleItemDepletions(saleId).map((row) => ({
+      id: row.id,
+      saleId: row.saleId,
+      saleItemId: row.saleItemId,
+      productId: row.productId,
+      batchId: row.batchId,
+      batchNumber: row.batchNumber || undefined,
+      expiryDate: row.expiryDate,
+      quantityBase: row.quantityBase,
+      costPerUnit: row.costPerUnit,
+      totalCost: row.totalCost,
+      createdAt: row.createdAt || undefined,
+    }));
   }
 
   getDailySummary(date: Date): {
@@ -181,10 +315,12 @@ export class SqliteSaleRepository implements ISaleRepository {
 
   generateReceipt(saleId: number): string {
     const sale = this.findById(saleId);
+    const formatAmount = (value: number | undefined) =>
+      typeof value === 'number' && Number.isInteger(value) ? value.toLocaleString('en-US') : '0';
     const itemsHtml = sale?.items
       ?.map(
         (item) =>
-          `<tr><td>${item.productName}</td><td>${item.quantity}</td><td>${item.unitPrice.toFixed(2)}</td><td>${item.subtotal.toFixed(2)}</td></tr>`
+          `<tr><td>${item.productName}</td><td>${item.quantity}</td><td>${formatAmount(item.unitPrice)}</td><td>${formatAmount(item.subtotal)}</td></tr>`
       )
       .join('');
 
@@ -196,10 +332,10 @@ export class SqliteSaleRepository implements ISaleRepository {
           <thead><tr><th>Product</th><th>Qty</th><th>Unit Price</th><th>Subtotal</th></tr></thead>
           <tbody>${itemsHtml}</tbody>
         </table>
-        <p>Subtotal: ${sale?.subtotal.toFixed(2)}</p>
-        <p>Discount: ${sale?.discount.toFixed(2)}</p>
-        <p>Tax: ${sale?.tax.toFixed(2)}</p>
-        <h2>Total: ${sale?.total.toFixed(2)} ${sale?.currency}</h2>
+        <p>Subtotal: ${formatAmount(sale?.subtotal)}</p>
+        <p>Discount: ${formatAmount(sale?.discount)}</p>
+        <p>Tax: ${formatAmount(sale?.tax)}</p>
+        <h2>Total: ${formatAmount(sale?.total)} ${sale?.currency}</h2>
       </body>
     </html>`;
   }

@@ -21,6 +21,11 @@ export interface AdjustStockInput {
   createdBy?: number;
 }
 
+export interface AdjustStockResult {
+  movement: InventoryMovement;
+  batchId: number;
+}
+
 export class AdjustProductStockUseCase {
   private auditService: AuditService;
 
@@ -33,7 +38,7 @@ export class AdjustProductStockUseCase {
     this.auditService = new AuditService(auditRepo as IAuditRepository);
   }
 
-  executeCommitPhase(input: AdjustStockInput, userId: number): InventoryMovement {
+  executeCommitPhase(input: AdjustStockInput, userId: number): AdjustStockResult {
     if (!Number.isInteger(input.quantityChange)) {
       throw new ValidationError('Quantity change must be an integer');
     }
@@ -47,20 +52,95 @@ export class AdjustProductStockUseCase {
       throw new NotFoundError('Product not found');
     }
 
-    const stockBefore = product.stock || 0;
-    const stockAfter = stockBefore + input.quantityChange;
+    // ── Resolve or create batch ──────────────────────────────────
+    let batchId: number;
 
-    if (stockAfter < 0) {
-      throw new InsufficientStockError('Cannot decrease stock below zero', {
-        productId: input.productId,
-        currentStock: stockBefore,
-        requestedChange: input.quantityChange,
-      });
+    if (input.quantityChange > 0) {
+      // CASE A: Positive adjustment — add to existing batch or create new one
+      if (input.batchId) {
+        const existing = this.productRepo.findBatchById(input.batchId);
+        if (!existing) {
+          throw new NotFoundError(`Batch ${input.batchId} not found`);
+        }
+        if (existing.productId !== input.productId) {
+          throw new ValidationError('Batch does not belong to this product');
+        }
+        this.productRepo.updateBatchStock(input.batchId, input.quantityChange);
+        batchId = input.batchId;
+      } else {
+        // Auto-create a new batch
+        const batchNumber = `ADJ-${input.productId}-${Date.now()}`;
+        const newBatch = this.productRepo.createBatch({
+          productId: input.productId,
+          batchNumber,
+          expiryDate: product.isExpire ? null : null, // caller should supply if needed
+          manufacturingDate: null,
+          quantityReceived: input.quantityChange,
+          quantityOnHand: input.quantityChange,
+          costPerUnit: product.costPrice || 0,
+          status: 'active',
+        });
+        batchId = newBatch.id!;
+      }
+    } else {
+      // CASE B: Negative adjustment — must target a specific batch
+      if (input.batchId) {
+        const existing = this.productRepo.findBatchById(input.batchId);
+        if (!existing) {
+          throw new NotFoundError(`Batch ${input.batchId} not found`);
+        }
+        if (existing.productId !== input.productId) {
+          throw new ValidationError('Batch does not belong to this product');
+        }
+        if (existing.quantityOnHand + input.quantityChange < 0) {
+          throw new InsufficientStockError('Cannot decrease batch stock below zero', {
+            batchId: input.batchId,
+            currentStock: existing.quantityOnHand,
+            requestedChange: input.quantityChange,
+          });
+        }
+        this.productRepo.updateBatchStock(input.batchId, input.quantityChange);
+        batchId = input.batchId;
+      } else {
+        // No batchId for negative — try to find a batch with enough stock (FIFO order)
+        const batches = this.productRepo
+          .findBatchesByProductId(input.productId)
+          .filter((b) => b.status === 'active' && b.quantityOnHand > 0);
+
+        if (batches.length === 0) {
+          throw new InsufficientStockError('No active batches available for negative adjustment', {
+            productId: input.productId,
+            requestedChange: input.quantityChange,
+          });
+        }
+
+        // Take from first batch with enough stock
+        const absChange = Math.abs(input.quantityChange);
+        const target = batches.find((b) => b.quantityOnHand >= absChange);
+        if (!target) {
+          throw new InsufficientStockError('No single batch has enough stock for this adjustment', {
+            productId: input.productId,
+            requestedChange: input.quantityChange,
+          });
+        }
+
+        this.productRepo.updateBatchStock(target.id!, input.quantityChange);
+        batchId = target.id!;
+      }
     }
 
+    // ── Recalculate products.stock as SUM(batches.quantity_on_hand) ──
+    const allBatches = this.productRepo.findBatchesByProductId(input.productId);
+    const totalBatchStock = allBatches.reduce((sum, b) => sum + (b.quantityOnHand || 0), 0);
+    const stockBefore = product.stock || 0;
+    const stockAfter = totalBatchStock;
+
+    this.productRepo.setStock(input.productId, stockAfter);
+
+    // ── Create inventory movement (always with batch_id) ─────────
     const movement = this.inventoryRepo.createMovementSync({
       productId: input.productId,
-      batchId: input.batchId,
+      batchId,
       movementType: 'adjust',
       reason: input.reason || 'manual',
       quantityBase: input.quantityChange,
@@ -75,18 +155,14 @@ export class AdjustProductStockUseCase {
       createdBy: userId,
     });
 
-    this.productRepo.updateStock(input.productId, input.quantityChange);
-
-    if (input.batchId) {
-      this.productRepo.updateBatchStock(input.batchId, input.quantityChange);
-    }
-
+    // ── Update product status ────────────────────────────────────
     if (stockAfter === 0 && product.status !== 'out_of_stock') {
       this.productRepo.update(input.productId, { status: 'out_of_stock' });
     } else if (stockAfter > 0 && product.status === 'out_of_stock') {
       this.productRepo.update(input.productId, { status: 'available' });
     }
 
+    // ── Journal entry ────────────────────────────────────────────
     this.createAdjustmentJournalIfPossible(
       product.costPrice,
       input.quantityChange,
@@ -94,7 +170,7 @@ export class AdjustProductStockUseCase {
       userId
     );
 
-    return movement;
+    return { movement, batchId };
   }
 
   private createAdjustmentJournalIfPossible(
@@ -123,7 +199,7 @@ export class AdjustProductStockUseCase {
         description: 'Inventory shrinkage adjustment',
         sourceType: 'adjustment',
         sourceId: movementId,
-        isPosted: true,
+        isPosted: false,
         isReversed: false,
         totalAmount: amount,
         currency: 'IQD',
@@ -145,7 +221,7 @@ export class AdjustProductStockUseCase {
         description: 'Inventory gain adjustment',
         sourceType: 'adjustment',
         sourceId: movementId,
-        isPosted: true,
+        isPosted: false,
         isReversed: false,
         totalAmount: amount,
         currency: 'IQD',
@@ -168,24 +244,33 @@ export class AdjustProductStockUseCase {
     }
   }
 
-  async execute(input: AdjustStockInput, userId: number): Promise<InventoryMovement> {
-    const movement = this.executeCommitPhase(input, userId);
-    // Fire-and-forget audit
-    this.auditService
-      .logAction(
+  async execute(input: AdjustStockInput, userId: number): Promise<AdjustStockResult> {
+    const result = this.executeCommitPhase(input, userId);
+    await this.executeSideEffectsPhase(result, input, userId);
+    return result;
+  }
+
+  async executeSideEffectsPhase(
+    result: AdjustStockResult,
+    input: AdjustStockInput,
+    userId: number
+  ): Promise<void> {
+    try {
+      await this.auditService.logAction(
         userId,
         'stock:adjust',
-        'product',
+        'Product',
         input.productId,
         `Stock adjusted by ${input.quantityChange} for product ${input.productId}`,
         {
           quantityChange: input.quantityChange,
           reason: input.reason || 'manual',
-          batchId: input.batchId,
-          movementId: movement.id,
+          batchId: result.batchId,
+          movementId: result.movement.id,
         }
-      )
-      .catch(() => {});
-    return movement;
+      );
+    } catch (error) {
+      console.warn('Audit logging failed for stock adjustment:', error);
+    }
   }
 }

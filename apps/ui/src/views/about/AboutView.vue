@@ -328,11 +328,6 @@
       </p>
     </v-sheet>
 
-    <!-- ─── Snackbar ─── -->
-    <v-snackbar v-model="snackbar" :color="snackbarColor" timeout="2500" location="bottom">
-      {{ snackbarText }}
-    </v-snackbar>
-
     <!-- ─── Changelog Dialog ─── -->
     <v-dialog v-model="showChangelog" max-width="560" scrollable>
       <v-card>
@@ -391,14 +386,12 @@
 import { t } from '@/i18n/t';
 import { useSettingsStore } from '@/stores/settingsStore';
 import { computed, onMounted, ref } from 'vue';
+import { notifyError, notifyInfo, notifySuccess } from '@/utils/notify';
 
 // ─── Stores ───
 const settingsStore = useSettingsStore();
 
 // ─── Reactive state ───
-const snackbar = ref(false);
-const snackbarText = ref('');
-const snackbarColor = ref('success');
 const showChangelog = ref(false);
 const showOpenSourceLicenses = ref(false);
 
@@ -537,9 +530,15 @@ const openSourceLibraries = ref([
 
 // ─── Actions ───
 function showSnack(text: string, color = 'success') {
-  snackbarText.value = text;
-  snackbarColor.value = color;
-  snackbar.value = true;
+  if (color === 'error') {
+    notifyError(text);
+    return;
+  }
+  if (color === 'info') {
+    notifyInfo(text);
+    return;
+  }
+  notifySuccess(text);
 }
 
 function buildDiagnosticsString(): string {

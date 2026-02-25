@@ -12,9 +12,6 @@
       </v-app-bar>
 
       <v-card class="win-card win-card--padded" flat>
-        <v-alert v-if="localizedError" type="error" variant="tonal" class="mb-4">
-          {{ localizedError }}
-        </v-alert>
         <v-form class="win-form" @submit.prevent="submit">
           <v-text-field v-model="form.name" :label="t('common.name')" required />
           <div class="d-flex flex-wrap ga-2">
@@ -44,11 +41,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive } from 'vue';
+import { computed, onMounted, reactive, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useCustomersStore } from '../../stores/customersStore';
 import type { CustomerInput } from '../../types/domain';
+import { notifyError, notifySuccess } from '@/utils/notify';
 
 const store = useCustomersStore();
 const route = useRoute();
@@ -57,6 +55,11 @@ const router = useRouter();
 const localizedError = computed(() =>
   store.error ? mapErrorToArabic(store.error, 'errors.unexpected') : null
 );
+
+watch(localizedError, (value) => {
+  if (!value) return;
+  notifyError(value, { dedupeKey: 'customer-form-error' });
+});
 
 const idParam = computed(() => route.params.id);
 const isEdit = computed(() => typeof idParam.value === 'string');
@@ -89,14 +92,20 @@ async function submit() {
     if (Number.isNaN(id)) return;
     const result = await store.updateCustomer(id, form);
     if (result.ok) {
+      notifySuccess(t('common.saved'));
       await router.push('/customers');
+    } else {
+      notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
     }
     return;
   }
 
   const result = await store.createCustomer(form);
   if (result.ok) {
+    notifySuccess(t('common.saved'));
     await router.push('/customers');
+  } else {
+    notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
   }
 }
 

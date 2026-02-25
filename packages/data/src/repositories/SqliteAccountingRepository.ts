@@ -22,6 +22,14 @@ export class SqliteAccountingRepository implements IAccountingRepository {
       );
     }
 
+    // Enforce posting policy: entries created via this path are always unposted.
+    // Only the posting subsystem (PostPeriodUseCase → markEntriesAsPosted) may post entries.
+    if (entry.isPosted === true) {
+      throw new Error(
+        'Cannot create a posted journal entry directly. Entries must be created as unposted and posted via PostPeriodUseCase.'
+      );
+    }
+
     const now = new Date().toISOString();
     const row = this.db
       .insert(journalEntries)
@@ -31,7 +39,7 @@ export class SqliteAccountingRepository implements IAccountingRepository {
         description: entry.description,
         sourceType: entry.sourceType,
         sourceId: entry.sourceId,
-        isPosted: entry.isPosted ?? true,
+        isPosted: false,
         totalAmount: entry.totalAmount,
         currency: entry.currency || 'IQD',
         notes: entry.notes,
@@ -110,6 +118,7 @@ export class SqliteAccountingRepository implements IAccountingRepository {
     sourceType?: string;
     dateFrom?: string;
     dateTo?: string;
+    isPosted?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<{ items: JournalEntry[]; total: number }> {
@@ -123,6 +132,9 @@ export class SqliteAccountingRepository implements IAccountingRepository {
     }
     if (params?.dateTo) {
       conditions.push(lte(journalEntries.entryDate, params.dateTo));
+    }
+    if (params?.isPosted !== undefined) {
+      conditions.push(eq(journalEntries.isPosted, params.isPosted));
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -192,6 +204,8 @@ export class SqliteAccountingRepository implements IAccountingRepository {
           JOIN journal_entries je ON jl.journal_entry_id = je.id
           WHERE jl.account_id = ${acct.id}
             AND je.is_posted = 1
+            AND COALESCE(je.is_reversed, 0) = 0
+            AND je.reversal_of_id IS NULL
             ${sql.raw(dateWhere)}
         `) as any[];
 
@@ -208,6 +222,8 @@ export class SqliteAccountingRepository implements IAccountingRepository {
           JOIN journal_entries je ON jl.journal_entry_id = je.id
           WHERE jl.account_id = ${acct.id}
             AND je.is_posted = 1
+            AND COALESCE(je.is_reversed, 0) = 0
+            AND je.reversal_of_id IS NULL
         `) as any[];
 
         if (sums.length > 0) {
@@ -253,11 +269,48 @@ export class SqliteAccountingRepository implements IAccountingRepository {
     };
   }
 
-  async getBalanceSheet(params?: { asOfDate?: string }) {
-    const dateParams = params?.asOfDate ? { dateTo: params.asOfDate } : undefined;
-    const trial = await this.getTrialBalance(dateParams);
+  async getBalanceSheet(params?: { asOfDate?: string }): Promise<{
+    assets: Array<{ accountId: number; name: string; balance: number }>;
+    liabilities: Array<{ accountId: number; name: string; balance: number }>;
+    equity: Array<{ accountId: number; name: string; balance: number }>;
+    totalAssets: number;
+    totalLiabilities: number;
+    totalEquity: number;
+    difference: number;
+  }> {
+    const allAccounts = this.db.select().from(accounts).where(eq(accounts.isActive, true)).all();
 
-    const assets = trial
+    const dateConditions: string[] = [];
+    if (params?.asOfDate) dateConditions.push(`je.entry_date <= '${params.asOfDate}'`);
+    const dateWhere = dateConditions.length > 0 ? `AND ${dateConditions.join(' AND ')}` : '';
+
+    const perAccount = allAccounts.map((acct) => {
+      const sums = this.db.all(sql`
+        SELECT
+          COALESCE(SUM(jl.debit), 0)  AS debit_total,
+          COALESCE(SUM(jl.credit), 0) AS credit_total
+        FROM journal_lines jl
+        JOIN journal_entries je ON jl.journal_entry_id = je.id
+        WHERE jl.account_id = ${acct.id}
+          AND je.is_posted = 1
+          AND COALESCE(je.is_reversed, 0) = 0
+          AND je.reversal_of_id IS NULL
+          ${sql.raw(dateWhere)}
+      `) as any[];
+
+      const debitTotal = sums[0]?.debit_total || 0;
+      const creditTotal = sums[0]?.credit_total || 0;
+
+      return {
+        accountId: acct.id,
+        name: acct.name,
+        accountType: acct.accountType,
+        debitTotal,
+        creditTotal,
+      };
+    });
+
+    const assetRows = perAccount
       .filter((r) => r.accountType === 'asset')
       .map((r) => ({
         accountId: r.accountId,
@@ -265,7 +318,7 @@ export class SqliteAccountingRepository implements IAccountingRepository {
         balance: r.debitTotal - r.creditTotal,
       }));
 
-    const liabilities = trial
+    const liabilityRows = perAccount
       .filter((r) => r.accountType === 'liability')
       .map((r) => ({
         accountId: r.accountId,
@@ -273,7 +326,7 @@ export class SqliteAccountingRepository implements IAccountingRepository {
         balance: r.creditTotal - r.debitTotal,
       }));
 
-    const equity = trial
+    const equityRows = perAccount
       .filter((r) => r.accountType === 'equity')
       .map((r) => ({
         accountId: r.accountId,
@@ -281,13 +334,71 @@ export class SqliteAccountingRepository implements IAccountingRepository {
         balance: r.creditTotal - r.debitTotal,
       }));
 
+    // ── 2. Consolidated one-row query (the authoritative totals) ─────────────
+    //
+    // WITH lines AS (
+    //   SELECT jl.debit, jl.credit, a.account_type
+    //   FROM journal_lines jl
+    //   JOIN journal_entries je ON je.id = jl.journal_entry_id
+    //   JOIN accounts a         ON a.id  = jl.account_id
+    //   WHERE je.is_posted = 1
+    //     AND COALESCE(je.is_reversed, 0) = 0
+    //     AND je.reversal_of_id IS NULL
+    //     [AND je.entry_date BETWEEN :fromDate AND :toDate]
+    // )
+    // SELECT
+    //   SUM(CASE WHEN account_type='asset'     THEN (debit - credit) ELSE 0 END) AS assets,
+    //   SUM(CASE WHEN account_type='liability'  THEN (credit - debit) ELSE 0 END) AS liabilities,
+    //   SUM(CASE WHEN account_type='equity'     THEN (credit - debit) ELSE 0 END) AS equity_accounts,
+    //   SUM(CASE WHEN account_type='revenue'    THEN (credit - debit) ELSE 0 END) AS revenue_net,
+    //   SUM(CASE WHEN account_type='expense'    THEN (debit - credit) ELSE 0 END) AS expense_net
+    // FROM lines;
+
+    const totals = this.db.all(sql`
+      WITH lines AS (
+        SELECT jl.debit, jl.credit, a.account_type
+        FROM journal_lines jl
+        JOIN journal_entries je ON je.id = jl.journal_entry_id
+        JOIN accounts a         ON a.id  = jl.account_id
+        WHERE je.is_posted = 1
+          AND COALESCE(je.is_reversed, 0) = 0
+          AND je.reversal_of_id IS NULL
+          ${sql.raw(dateWhere)}
+      )
+      SELECT
+        COALESCE(SUM(CASE WHEN account_type='asset'     THEN (debit - credit) ELSE 0 END), 0) AS assets,
+        COALESCE(SUM(CASE WHEN account_type='liability'  THEN (credit - debit) ELSE 0 END), 0) AS liabilities,
+        COALESCE(SUM(CASE WHEN account_type='equity'     THEN (credit - debit) ELSE 0 END), 0) AS equity_accounts,
+        COALESCE(SUM(CASE WHEN account_type='revenue'    THEN (credit - debit) ELSE 0 END), 0) AS revenue_net,
+        COALESCE(SUM(CASE WHEN account_type='expense'    THEN (debit - credit) ELSE 0 END), 0) AS expense_net
+      FROM lines
+    `) as any[];
+
+    const row = totals[0] || {
+      assets: 0,
+      liabilities: 0,
+      equity_accounts: 0,
+      revenue_net: 0,
+      expense_net: 0,
+    };
+
+    const totalAssets = Number(row.assets) || 0;
+    const totalLiabilities = Number(row.liabilities) || 0;
+    const equityAccounts = Number(row.equity_accounts) || 0;
+    const revenueNet = Number(row.revenue_net) || 0;
+    const expenseNet = Number(row.expense_net) || 0;
+    const currentEarnings = revenueNet - expenseNet;
+    const totalEquity = equityAccounts + currentEarnings;
+    const difference = totalAssets - (totalLiabilities + totalEquity);
+
     return {
-      assets,
-      liabilities,
-      equity,
-      totalAssets: assets.reduce((s, a) => s + a.balance, 0),
-      totalLiabilities: liabilities.reduce((s, l) => s + l.balance, 0),
-      totalEquity: equity.reduce((s, e) => s + e.balance, 0),
+      assets: assetRows,
+      liabilities: liabilityRows,
+      equity: equityRows,
+      totalAssets,
+      totalLiabilities,
+      totalEquity,
+      difference,
     };
   }
 }

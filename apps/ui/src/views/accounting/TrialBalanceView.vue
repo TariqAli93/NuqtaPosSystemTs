@@ -1,62 +1,100 @@
 <template>
-  <v-container fluid>
-    <v-row class="mb-4" align="center">
-      <v-col>
-        <h1 class="text-h5 font-weight-bold">ميزان المراجعة</h1>
-      </v-col>
-      <v-col cols="auto">
-        <v-btn variant="text" prepend-icon="mdi-arrow-right" @click="router.back()">رجوع</v-btn>
-      </v-col>
-    </v-row>
-
-    <v-card>
-      <v-data-table
-        :headers="headers"
-        :items="accountingStore.trialBalance"
-        :loading="accountingStore.loading"
+  <v-card flat>
+    <v-card-text class="d-flex align-center ga-3 flex-wrap">
+      <v-text-field
+        v-model="dateFrom"
+        type="date"
+        label="من تاريخ"
         density="compact"
-        :items-per-page="-1"
-        hide-default-footer
-      >
-        <template #item.code="{ item }">
-          <span dir="ltr">{{ item.code }}</span>
-        </template>
-        <template #item.debitTotal="{ item }">
-          <MoneyDisplay :amount="item.debitTotal" size="sm" />
-        </template>
-        <template #item.creditTotal="{ item }">
-          <MoneyDisplay :amount="item.creditTotal" size="sm" />
-        </template>
-        <template #item.balance="{ item }">
-          <MoneyDisplay :amount="item.balance" size="sm" colored />
-        </template>
-        <template #no-data>
-          <div class="text-center py-8 text-medium-emphasis">
-            لا توجد بيانات ميزان مراجعة بعد.
-          </div>
-        </template>
-      </v-data-table>
-    </v-card>
-  </v-container>
+        hide-details
+        variant="outlined"
+        style="max-width: 200px"
+        clearable
+      />
+      <v-text-field
+        v-model="dateTo"
+        type="date"
+        label="إلى تاريخ"
+        density="compact"
+        hide-details
+        variant="outlined"
+        style="max-width: 200px"
+        clearable
+      />
+      <v-btn color="primary" variant="tonal" :loading="accountingStore.loading" @click="refresh">
+        عرض
+      </v-btn>
+    </v-card-text>
+
+    <v-data-table
+      :headers="trialHeaders"
+      :items="accountingStore.trialBalance"
+      :loading="accountingStore.loading"
+      density="compact"
+      :items-per-page="20"
+    >
+      <template #item.debitTotal="{ item }">{{ formatMoney(item.debitTotal || 0) }}</template>
+      <template #item.creditTotal="{ item }">{{ formatMoney(item.creditTotal || 0) }}</template>
+      <template #item.balance="{ item }">{{ formatMoney(item.balance || 0) }}</template>
+      <template #no-data>
+        <div class="text-center py-8 text-medium-emphasis">لا توجد بيانات ميزان مراجعة بعد.</div>
+      </template>
+      <template #bottom>
+        <v-divider />
+        <v-row dense class="px-4 py-3">
+          <v-col class="text-end font-weight-bold">
+            إجمالي المدين: {{ formatMoney(totalDebit) }}
+          </v-col>
+          <v-col class="text-end font-weight-bold">
+            إجمالي الدائن: {{ formatMoney(totalCredit) }}
+          </v-col>
+          <v-col class="text-end font-weight-bold">
+            <v-chip :color="isBalanced ? 'success' : 'error'" size="small" variant="tonal">
+              {{ isBalanced ? 'متوازن ✓' : 'غير متوازن ✗' }}
+            </v-chip>
+          </v-col>
+        </v-row>
+      </template>
+    </v-data-table>
+  </v-card>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { useAccountingStore } from '../../stores/accountingStore';
-import MoneyDisplay from '../../components/shared/MoneyDisplay.vue';
+import { computed, onMounted, ref } from 'vue';
+import { formatMoney } from '@/utils/formatters';
+import { useAccountingStore } from '@/stores/accountingStore';
 
-const router = useRouter();
 const accountingStore = useAccountingStore();
 
-const headers = [
-  { title: 'الرمز', key: 'code', width: '100px' },
+const dateFrom = ref<string | null>(null);
+const dateTo = ref<string | null>(null);
+
+const trialHeaders = [
+  { title: 'الكود', key: 'code', width: 90 },
   { title: 'الحساب', key: 'name' },
-  { title: 'النوع', key: 'accountType', width: '100px' },
-  { title: 'مدين', key: 'debitTotal', align: 'end' as const, width: '150px' },
-  { title: 'دائن', key: 'creditTotal', align: 'end' as const, width: '150px' },
-  { title: 'الرصيد', key: 'balance', align: 'end' as const, width: '150px' },
+  { title: 'مدين', key: 'debitTotal', align: 'end' as const, width: 120 },
+  { title: 'دائن', key: 'creditTotal', align: 'end' as const, width: 120 },
+  { title: 'الرصيد', key: 'balance', align: 'end' as const, width: 120 },
 ];
 
-onMounted(() => accountingStore.fetchTrialBalance());
+const totalDebit = computed(() =>
+  accountingStore.trialBalance.reduce((sum, row) => sum + (row.debitTotal || 0), 0)
+);
+
+const totalCredit = computed(() =>
+  accountingStore.trialBalance.reduce((sum, row) => sum + (row.creditTotal || 0), 0)
+);
+
+const isBalanced = computed(() => Math.abs(totalDebit.value - totalCredit.value) < 0.01);
+
+async function refresh(): Promise<void> {
+  await accountingStore.fetchTrialBalance({
+    dateFrom: dateFrom.value || undefined,
+    dateTo: dateTo.value || undefined,
+  });
+}
+
+onMounted(async () => {
+  await accountingStore.fetchTrialBalance();
+});
 </script>

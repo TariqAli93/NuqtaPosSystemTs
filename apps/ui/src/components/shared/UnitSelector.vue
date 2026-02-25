@@ -8,6 +8,7 @@
     :variant="variant"
     item-title="text"
     item-value="id"
+    :class="classes"
     :hide-details="hideDetails"
     @update:model-value="onUnitChange"
   />
@@ -26,11 +27,12 @@ const props = withDefaults(
     density?: 'default' | 'comfortable' | 'compact';
     variant?: 'outlined' | 'filled' | 'underlined' | 'solo' | 'plain';
     hideDetails?: boolean | 'auto';
+    classes?: string | string[];
   }>(),
   {
     label: 'الوحدة',
     disabled: false,
-    density: 'compact',
+    density: 'default',
     variant: 'outlined',
     hideDetails: 'auto',
   }

@@ -1,5 +1,5 @@
 <template>
-  <v-card class="d-flex flex-column h-full">
+  <v-card class="d-flex flex-column h-fit">
     <v-card-title class="d-flex align-center">
       <span class="text-subtitle-1 font-weight-bold">المنتجات</span>
     </v-card-title>

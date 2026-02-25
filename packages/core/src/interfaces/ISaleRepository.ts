@@ -1,4 +1,4 @@
-import { Sale } from '../entities/Sale.js';
+import { Sale, SaleItemDepletion } from '../entities/Sale.js';
 
 export interface ISaleRepository {
   create(sale: Sale): Sale;
@@ -10,6 +10,10 @@ export interface ISaleRepository {
   };
   updateStatus(id: number, status: 'completed' | 'cancelled'): void;
   update(id: number, data: Partial<Sale>): void;
+  createItemDepletions(
+    depletions: Omit<SaleItemDepletion, 'id' | 'createdAt' | 'batchNumber' | 'expiryDate'>[]
+  ): void;
+  getItemDepletionsBySaleId(saleId: number): SaleItemDepletion[];
   getDailySummary(date: Date): {
     revenue: number;
     count: number;

@@ -178,15 +178,12 @@
 
               <!-- Credit requires customer warning -->
               <v-expand-transition>
-                <v-alert
+                <div
                   v-if="selectedPaymentMethod === 'credit' && !props.hasCustomer"
-                  type="warning"
-                  density="compact"
-                  variant="tonal"
-                  class="mt-3"
+                  class="mt-3 text-warning text-caption"
                 >
                   يجب ربط زبون لاستخدام الدفع الآجل
-                </v-alert>
+                </div>
               </v-expand-transition>
             </div>
 
@@ -265,6 +262,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import type { PaymentMethod } from '@nuqtaplus/core';
 import type { SaleInput } from '@/types/domain';
 import { safeParseAmount } from './safeParseAmount';
+import { notifyWarn } from '@/utils/notify';
 
 type ConfirmedPayload = {
   paid: number;
@@ -462,6 +460,16 @@ const canConfirm = computed(() => {
   return paidAmount.value >= effectiveTotal.value;
 });
 
+watch(
+  () => [selectedPaymentMethod.value, props.hasCustomer],
+  ([method, hasCustomer]) => {
+    if (method !== 'credit' || hasCustomer) return;
+    notifyWarn('يجب ربط زبون لاستخدام الدفع الآجل', {
+      dedupeKey: 'pos-credit-needs-customer',
+    });
+  }
+);
+
 function formatCurrency(value: number): string {
   try {
     return new Intl.NumberFormat('ar-IQ', {
@@ -476,7 +484,7 @@ function formatCurrency(value: number): string {
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
       numberingSystem: 'latn',
-    }).format(Math.round(value));
+    }).format(Number.isInteger(value) ? value : 0);
   }
 }
 
@@ -488,7 +496,8 @@ function normalizeDecimalInput(value: string): string {
 
 function toInputAmount(value: number): string {
   if (!Number.isFinite(value) || value <= 0) return '';
-  return String(Math.round(value));
+  if (!Number.isInteger(value)) return '';
+  return String(value);
 }
 
 const isRewriteMode = ref(true); // first keypad press overwrites existing value

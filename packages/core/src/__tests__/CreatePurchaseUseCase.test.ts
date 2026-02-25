@@ -120,9 +120,7 @@ class FakeSupplierLedgerRepository implements ISupplierLedgerRepository {
   entries: SupplierLedgerEntry[] = [];
   private idCounter = 1;
 
-  async create(
-    entry: Omit<SupplierLedgerEntry, 'id' | 'createdAt'>
-  ): Promise<SupplierLedgerEntry> {
+  async create(entry: Omit<SupplierLedgerEntry, 'id' | 'createdAt'>): Promise<SupplierLedgerEntry> {
     return this.createSync(entry);
   }
 
@@ -180,6 +178,15 @@ function createAccounts(): Account[] {
       code: '2100',
       name: 'Accounts Payable',
       accountType: 'liability',
+      balance: 0,
+      isSystem: false,
+      isActive: true,
+    },
+    {
+      id: 4,
+      code: '1300',
+      name: 'VAT Input',
+      accountType: 'asset',
       balance: 0,
       isSystem: false,
       isActive: true,
@@ -283,5 +290,71 @@ describe('CreatePurchaseUseCase', () => {
     expect(paymentRepo.findByPurchaseId(first.id!)).toHaveLength(1);
     expect(supplierLedgerRepo.entries).toHaveLength(1);
     expect(accountingRepo.entries).toHaveLength(1);
+  });
+
+  it('splits inventory and VAT input when tax > 0', async () => {
+    const result = await useCase.execute(
+      {
+        invoiceNumber: 'PUR-VAT-1',
+        supplierId: 1,
+        paidAmount: 11_500,
+        tax: 1_500,
+        items: [
+          {
+            productId: 10,
+            productName: 'Rice',
+            quantity: 10,
+            unitCost: 1_000,
+            lineSubtotal: 10_000,
+          },
+        ],
+      },
+      7
+    );
+
+    expect(result.total).toBe(11_500); // subtotal 10000 - discount 0 + tax 1500
+
+    expect(accountingRepo.entries).toHaveLength(1);
+    const lines = accountingRepo.entries[0].lines || [];
+
+    // Inventory debit = total - tax = 10000
+    const inventoryLine = lines.find((l) => l.accountId === 2); // code 1200
+    expect(inventoryLine?.debit).toBe(10_000);
+
+    // VAT Input debit = tax = 1500
+    const vatLine = lines.find((l) => l.accountId === 4); // code 1300
+    expect(vatLine?.debit).toBe(1_500);
+
+    // Cash credit = paidAmount = 11500
+    const cashLine = lines.find((l) => l.accountId === 1); // code 1001
+    expect(cashLine?.credit).toBe(11_500);
+
+    // Journal is balanced
+    const totalDebit = lines.reduce((sum, l) => sum + (l.debit || 0), 0);
+    const totalCredit = lines.reduce((sum, l) => sum + (l.credit || 0), 0);
+    expect(totalDebit).toBe(totalCredit);
+  });
+
+  it('creates journal entries as unposted', async () => {
+    await useCase.execute(
+      {
+        invoiceNumber: 'PUR-POST-1',
+        supplierId: 1,
+        paidAmount: 10_000,
+        items: [
+          {
+            productId: 10,
+            productName: 'Rice',
+            quantity: 10,
+            unitCost: 1_000,
+            lineSubtotal: 10_000,
+          },
+        ],
+      },
+      7
+    );
+
+    expect(accountingRepo.entries).toHaveLength(1);
+    expect(accountingRepo.entries[0].isPosted).toBe(false);
   });
 });

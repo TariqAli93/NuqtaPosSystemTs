@@ -22,18 +22,19 @@ export async function comparePassword(password: string, hash: string): Promise<b
 }
 
 /**
- * Round amount based on currency
- * For IQD: round to nearest multiple of 250 (smallest denomination)
- * For USD: round to nearest integer
+ * Enforce money precision by currency.
+ * IQD is integer-only and must not be silently rounded.
  */
 export function roundByCurrency(amount: number, currency: string): number {
-  if (currency === 'IQD') {
-    // Round to nearest multiple of 250
-    return Math.ceil(amount / 250) * 250;
-  } else {
-    // For USD and other currencies, round to nearest integer
-    return Math.ceil(amount);
+  if (!Number.isFinite(amount)) {
+    throw new Error('Amount must be a finite number');
   }
+
+  if (currency === 'IQD' && !Number.isInteger(amount)) {
+    throw new Error('IQD amounts must be integers');
+  }
+
+  return amount;
 }
 
 /**
@@ -72,22 +73,30 @@ export function calculateSaleTotals(
     throw new Error('Items must be a non-empty array');
   }
 
-  if (discount < 0 || tax < 0) {
-    throw new Error('Discount and tax must be non-negative');
+  if (!Number.isInteger(discount) || discount < 0) {
+    throw new Error('Discount must be a non-negative integer amount');
   }
-
-  if (tax > 100) {
-    throw new Error('Tax percentage cannot exceed 100%');
+  if (!Number.isInteger(tax) || tax < 0) {
+    throw new Error('Tax must be a non-negative integer amount');
   }
 
   // Calculate subtotal from all items WITHOUT any discounts
   const subtotalBeforeDiscounts = items.reduce((sum, item) => {
+    if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+      throw new Error('Item quantity must be a positive integer');
+    }
+    if (!Number.isInteger(item.unitPrice) || item.unitPrice < 0) {
+      throw new Error('Item unit price must be a non-negative integer');
+    }
     return sum + item.quantity * item.unitPrice;
   }, 0);
 
   // Calculate total item-level discounts
   const itemDiscounts = items.reduce((sum, item) => {
     const itemDiscountPerUnit = item.discount || 0;
+    if (!Number.isInteger(itemDiscountPerUnit) || itemDiscountPerUnit < 0) {
+      throw new Error('Item discount must be a non-negative integer');
+    }
     const itemDiscountTotal = itemDiscountPerUnit * (item.quantity || 1);
     return sum + itemDiscountTotal;
   }, 0);
@@ -95,19 +104,15 @@ export function calculateSaleTotals(
   // Subtotal after item-level discounts
   const subtotalAfterItemDiscounts = subtotalBeforeDiscounts - itemDiscounts;
 
-  // Apply sale-level discount
+  // Apply sale-level discount and tax amount (both are integer IQD values)
   const subtotalAfterAllDiscounts = Math.max(0, subtotalAfterItemDiscounts - discount);
-
-  // Calculate tax amount
-  const taxAmount = (subtotalAfterAllDiscounts * tax) / 100;
-
-  // Calculate final total
+  const taxAmount = tax;
   const total = subtotalAfterAllDiscounts + taxAmount;
 
   return {
-    subtotal: parseFloat(subtotalAfterItemDiscounts.toFixed(2)),
-    discount: parseFloat(discount.toFixed(2)),
-    tax: parseFloat(taxAmount.toFixed(2)),
-    total: parseFloat(total.toFixed(2)),
+    subtotal: subtotalAfterItemDiscounts,
+    discount,
+    tax: taxAmount,
+    total,
   };
 }

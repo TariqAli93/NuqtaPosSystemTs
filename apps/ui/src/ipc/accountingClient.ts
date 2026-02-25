@@ -27,7 +27,12 @@ export interface BalanceSheetReport {
   equity: { accountId: number; name: string; balance: number }[];
   totalAssets: number;
   totalLiabilities: number;
+  equityAccounts: number;
+  revenueNet: number;
+  expenseNet: number;
+  currentEarnings: number;
   totalEquity: number;
+  difference: number;
 }
 
 export const accountingClient = {
@@ -36,6 +41,7 @@ export const accountingClient = {
     sourceType?: string;
     dateFrom?: string;
     dateTo?: string;
+    isPosted?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<ApiResult<PagedResult<JournalEntry>>> =>
@@ -64,7 +70,10 @@ export const accountingClient = {
       'accounting:getProfitLoss',
       buildParamsPayload('accounting:getProfitLoss', params)
     ),
-  getBalanceSheet: (params?: { asOfDate?: string }): Promise<ApiResult<BalanceSheetReport>> =>
+  getBalanceSheet: (params?: {
+    fromDate?: string;
+    toDate?: string;
+  }): Promise<ApiResult<BalanceSheetReport>> =>
     invoke<BalanceSheetReport>(
       'accounting:getBalanceSheet',
       buildParamsPayload('accounting:getBalanceSheet', params)

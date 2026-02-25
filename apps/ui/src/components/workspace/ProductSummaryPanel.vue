@@ -68,15 +68,14 @@
           </v-col>
         </v-row>
 
-        <v-alert
+        <v-sheet
           v-if="product.isExpire"
-          type="warning"
-          variant="tonal"
-          class="mb-2"
-          density="compact"
+          class="d-flex align-center ga-2 px-3 py-2 mb-2 text-warning"
+          color="transparent"
         >
-          المنتج يتتبع الصلاحية. تاريخ الانتهاء: {{ product.expireDate || 'غير محدد' }}
-        </v-alert>
+          <v-icon size="18">mdi-alert</v-icon>
+          <span>المنتج يتتبع الصلاحية. تاريخ الانتهاء: {{ product.expireDate || 'غير محدد' }}</span>
+        </v-sheet>
       </template>
 
       <div v-else class="d-flex flex-column align-center justify-center h-100 text-medium-emphasis">

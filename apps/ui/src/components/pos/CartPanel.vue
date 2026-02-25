@@ -1,6 +1,5 @@
 <template>
   <v-navigation-drawer
-    right
     permanent
     mobile-breakpoint="md"
     retain-focus
@@ -176,7 +175,7 @@ const startX = ref(0);
 const startWidth = ref(0);
 
 // RTL support: إذا drawer على اليمين، السحب لازم يعكس الاتجاه
-const drawerLocation = ref<'left' | 'right'>('right'); // غيّرها حسب مشروعك
+const drawerLocation = ref<'left' | 'right'>('left'); // غيّرها حسب مشروعك
 const isRight = computed(() => drawerLocation.value === 'right');
 
 const emit = defineEmits<{
@@ -203,7 +202,7 @@ const formatPrice = (price: number) => {
 };
 
 const itemSubtotal = (item: SaleItem) => {
-  return Math.max(0, Math.round(item.quantity * item.unitPrice - (item.discount || 0)));
+  return Math.max(0, item.quantity * item.unitPrice - (item.discount || 0));
 };
 
 const drawerWidth = computed(() => layout.drawerWidth);

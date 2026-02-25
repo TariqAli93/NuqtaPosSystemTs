@@ -7,45 +7,40 @@
         <v-btn icon="mdi-close" variant="text" size="small" @click="close(false)" />
       </v-card-title>
       <v-card-text>
-        <v-alert v-if="product" type="info" variant="tonal" class="mb-3" density="compact">
-          المنتج: {{ product.name }} | المخزون الحالي: {{ product.stock || 0 }}
-        </v-alert>
+        <v-sheet
+          v-if="product"
+          class="d-flex align-center ga-2 px-3 py-2 mb-3 text-info"
+          color="transparent"
+        >
+          <v-icon size="18">mdi-information-outline</v-icon>
+          <span>المنتج: {{ product.name }} | المخزون الحالي: {{ product.stock || 0 }}</span>
+        </v-sheet>
 
-        <v-select
-          v-model="reason"
-          :items="reasonItems"
-          item-title="title"
-          item-value="value"
-          label="السبب"
-          variant="outlined"
-          density="compact"
-          class="mb-2"
-        />
+        <v-row>
+          <v-col cols="6">
+            <v-select
+              v-model="reason"
+              :items="reasonItems"
+              item-title="title"
+              item-value="value"
+              label="السبب"
+              variant="outlined"
+            />
+          </v-col>
 
-        <v-text-field
-          v-model.number="quantityBase"
-          label="الكمية (+ زيادة / - نقصان)"
-          type="number"
-          variant="outlined"
-          density="compact"
-          class="mb-2"
-        />
+          <v-col cols="6">
+            <v-text-field
+              v-model.number="quantityBase"
+              label="الكمية (+ زيادة / - نقصان)"
+              type="number"
+              variant="outlined"
+            />
+          </v-col>
+        </v-row>
 
-        <v-text-field
-          v-model="unitName"
-          label="الوحدة (اختياري)"
-          variant="outlined"
-          density="compact"
-          class="mb-2"
-        />
+        <UnitSelector :units="units || []" v-model="selectedUnit" class="my-2" />
 
-        <v-textarea
-          v-model="notes"
-          label="ملاحظات"
-          rows="2"
-          variant="outlined"
-          density="compact"
-        />
+        <v-textarea v-model="notes" label="ملاحظات" rows="2" variant="outlined" />
       </v-card-text>
       <v-card-actions>
         <v-spacer />
@@ -57,8 +52,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import type { Product } from '@nuqtaplus/core';
+import UnitSelector from '@/components/shared/UnitSelector.vue';
+import type { ProductUnitInput } from '@/types/workspace';
+import { useProductWorkspaceStore } from '@/stores/productWorkspaceStore';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -83,6 +81,10 @@ const reason = ref<'manual' | 'damage' | 'opening'>('manual');
 const quantityBase = ref(0);
 const unitName = ref('');
 const notes = ref('');
+const selectedUnit = ref<number | undefined>(undefined);
+const units = ref<ProductUnitInput[]>([]);
+
+const productWorkspaceStore = useProductWorkspaceStore();
 
 const reasonItems = [
   { title: 'تعديل يدوي', value: 'manual' },
@@ -98,6 +100,14 @@ watch(
     quantityBase.value = 0;
     unitName.value = props.product?.unit || '';
     notes.value = '';
+    selectedUnit.value = undefined;
+    if (props.product?.id) {
+      productWorkspaceStore.fetchUnits(props.product.id).then((result) => {
+        if (result.ok) {
+          units.value = result.data;
+        }
+      });
+    }
   }
 );
 
@@ -116,5 +126,13 @@ function submit(): void {
     notes: notes.value || undefined,
   });
 }
-</script>
 
+onMounted(async () => {
+  if (props.product?.id) {
+    const result = await productWorkspaceStore.fetchUnits(props.product.id);
+    if (result.ok) {
+      units.value = result.data;
+    }
+  }
+});
+</script>

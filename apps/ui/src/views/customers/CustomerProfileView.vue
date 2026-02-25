@@ -98,8 +98,6 @@
       </v-window>
     </template>
 
-    <v-alert v-else type="warning" variant="tonal">لم يتم العثور على العميل</v-alert>
-
     <!-- Payment Dialog -->
     <v-dialog v-model="showPaymentDialog" max-width="400" persistent>
       <v-card>
@@ -127,9 +125,6 @@
       <v-card>
         <v-card-title>تعديل رصيد يدوي</v-card-title>
         <v-card-text>
-          <v-alert type="info" variant="tonal" class="mb-3 text-caption">
-            استخدم القيمة الموجبة لزيادة الدين، والسالبة لإنقاصه.
-          </v-alert>
           <v-text-field
             v-model.number="adjustmentAmount"
             label="المبلغ"
@@ -158,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { customersClient, customerLedgerClient } from '../../ipc';
 import type { Customer } from '../../types/domain';
@@ -167,6 +162,8 @@ import MoneyDisplay from '../../components/shared/MoneyDisplay.vue';
 import MoneyInput from '../../components/shared/MoneyInput.vue';
 import LedgerTable from '../../components/shared/LedgerTable.vue';
 import { generateIdempotencyKey } from '../../utils/idempotency';
+import { notifyError, notifyInfo, notifySuccess, notifyWarn } from '@/utils/notify';
+import { toUserMessage } from '@/utils/errorMessage';
 
 const route = useRoute();
 const router = useRouter();
@@ -188,15 +185,26 @@ const paymentLoading = ref(false);
 onMounted(async () => {
   const id = Number(route.params.id);
   const result = await customersClient.getById(id);
-  if (result.ok) customer.value = result.data;
+  if (result.ok) {
+    customer.value = result.data;
+  } else {
+    notifyError(toUserMessage(result.error));
+  }
   loading.value = false;
   fetchLedger(id);
+  if (!customer.value) {
+    notifyWarn('لم يتم العثور على العميل', { dedupeKey: 'customer-not-found' });
+  }
 });
 
 async function fetchLedger(customerId: number) {
   ledgerLoading.value = true;
   const result = await customerLedgerClient.getLedger(customerId);
-  if (result.ok) ledgerEntries.value = result.data.items as LedgerEntry[];
+  if (result.ok) {
+    ledgerEntries.value = result.data.items as LedgerEntry[];
+  } else {
+    notifyError(toUserMessage(result.error), { dedupeKey: 'customer-ledger-error' });
+  }
   ledgerLoading.value = false;
 }
 
@@ -219,6 +227,9 @@ async function onRecordPayment() {
     // Refresh customer data to update debt balance
     const res = await customersClient.getById(customer.value.id!);
     if (res.ok) customer.value = res.data;
+    notifySuccess('تم تسجيل الدفعة بنجاح');
+  } else {
+    notifyError(toUserMessage(result.error));
   }
 }
 
@@ -244,6 +255,16 @@ async function onAddAdjustment() {
     fetchLedger(customer.value.id!);
     const res = await customersClient.getById(customer.value.id!);
     if (res.ok) customer.value = res.data;
+    notifySuccess('تم تعديل الرصيد بنجاح');
+  } else {
+    notifyError(toUserMessage(result.error));
   }
 }
+
+watch(showAdjustmentDialog, (opened) => {
+  if (!opened) return;
+  notifyInfo('استخدم القيمة الموجبة لزيادة الدين، والسالبة لإنقاصه.', {
+    dedupeKey: 'customer-adjustment-info',
+  });
+});
 </script>

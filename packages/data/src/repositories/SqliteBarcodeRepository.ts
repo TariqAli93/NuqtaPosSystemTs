@@ -92,8 +92,8 @@ export class SqliteBarcodeRepository implements IBarcodeRepository {
       .update(barcodePrintJobs)
       .set({
         status,
-        printError: error || null,
-        printedAt: status === 'printed' ? new Date().toISOString() : undefined,
+        printError: status === 'failed' ? error || 'Print failed' : null,
+        printedAt: status === 'printed' ? new Date().toISOString() : null,
       })
       .where(eq(barcodePrintJobs.id, id))
       .run();

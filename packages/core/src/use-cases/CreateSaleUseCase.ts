@@ -26,6 +26,7 @@ const ACCT_AR = '1100'; // ذمم العملاء
 const ACCT_REVENUE = '4001'; // إيرادات المبيعات
 const ACCT_COGS = '5001'; // تكلفة البضاعة
 const ACCT_INVENTORY = '1200'; // المخزون
+const ACCT_VAT_OUTPUT = '2200'; // ضريبة المخرجات
 
 function logDevDiagnostics(event: Record<string, unknown>): void {
   if (process.env.NODE_ENV === 'production') return;
@@ -54,6 +55,7 @@ export interface CreateSaleInput {
   currency?: string;
   notes?: string;
   interestRate?: number;
+  interestRateBps?: number;
   paymentMethod?: PaymentMethod;
   referenceNumber?: string;
   idempotencyKey?: string;
@@ -135,6 +137,19 @@ export class CreateSaleUseCase {
       throw new ValidationError('Credit/debt payments require a customer');
     }
 
+    if (input.discount !== undefined && (!Number.isInteger(input.discount) || input.discount < 0)) {
+      throw new ValidationError('Sale discount must be a non-negative integer amount');
+    }
+    if (input.tax !== undefined && (!Number.isInteger(input.tax) || input.tax < 0)) {
+      throw new ValidationError('Sale tax must be a non-negative integer amount');
+    }
+    if (
+      input.paidAmount !== undefined &&
+      (!Number.isInteger(input.paidAmount) || input.paidAmount < 0)
+    ) {
+      throw new ValidationError('Paid amount must be a non-negative integer amount');
+    }
+
     const currencySettings = this.settingsRepo.getCurrencySettings();
     const currency = input.currency || currencySettings.defaultCurrency;
 
@@ -155,6 +170,25 @@ export class CreateSaleUseCase {
     }[] = [];
 
     for (const item of input.items) {
+      if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+        throw new ValidationError('Item quantity must be a positive integer', {
+          productId: item.productId,
+          quantity: item.quantity,
+        });
+      }
+      if (!Number.isInteger(item.unitPrice) || item.unitPrice < 0) {
+        throw new ValidationError('Item unit price must be a non-negative integer amount', {
+          productId: item.productId,
+          unitPrice: item.unitPrice,
+        });
+      }
+      if (item.discount !== undefined && (!Number.isInteger(item.discount) || item.discount < 0)) {
+        throw new ValidationError('Item discount must be a non-negative integer amount', {
+          productId: item.productId,
+          discount: item.discount,
+        });
+      }
+
       const product = this.productRepo.findById(item.productId);
       if (!product) {
         throw new NotFoundError(`Product ${item.productId} not found`, {
@@ -208,6 +242,14 @@ export class CreateSaleUseCase {
       }
 
       const quantityBase = item.quantity * unitFactor;
+      if (!Number.isInteger(quantityBase) || quantityBase <= 0) {
+        throw new ValidationError('quantityBase must be a positive integer', {
+          productId: product.id,
+          quantityBase,
+          quantity: item.quantity,
+          unitFactor,
+        });
+      }
 
       // Stock check — use FIFO service if available, else fall back to cached stock
       if (this.fifoService) {
@@ -255,19 +297,35 @@ export class CreateSaleUseCase {
 
     let interestAmount = 0;
     let finalTotal = totals.total;
-    if (
-      (input.paymentType === 'credit' || input.paymentType === 'mixed') &&
-      input.interestRate &&
-      input.interestRate > 0
-    ) {
-      interestAmount = (totals.total * input.interestRate) / 100;
+    const interestRateBps = (() => {
+      if (input.interestRateBps !== undefined) {
+        if (!Number.isInteger(input.interestRateBps) || input.interestRateBps < 0) {
+          throw new ValidationError('interestRateBps must be a non-negative integer');
+        }
+        return input.interestRateBps;
+      }
+      if (input.interestRate === undefined) return 0;
+      if (!Number.isInteger(input.interestRate) || input.interestRate < 0) {
+        throw new ValidationError('Legacy interestRate must be a non-negative integer percent');
+      }
+      return input.interestRate * 100;
+    })();
+
+    if ((input.paymentType === 'credit' || input.paymentType === 'mixed') && interestRateBps > 0) {
+      const numerator = totals.total * interestRateBps;
+      if (numerator % 10_000 !== 0) {
+        throw new ValidationError(
+          'Interest configuration produces fractional IQD values. Use compatible basis points.'
+        );
+      }
+      interestAmount = numerator / 10_000;
       finalTotal = totals.total + interestAmount;
     }
 
     finalTotal = roundByCurrency(finalTotal, currency);
     const paidAmount = roundByCurrency(input.paidAmount || 0, currency);
     let remainingAmount = Math.max(0, finalTotal - paidAmount);
-    const threshold = currency === 'IQD' ? 250 : 0.01;
+    const threshold = currency === 'IQD' ? 0 : 0.01;
     if (remainingAmount < threshold) {
       remainingAmount = 0;
     } else {
@@ -289,7 +347,7 @@ export class CreateSaleUseCase {
       remainingAmount,
       status: remainingAmount <= 0 ? 'completed' : 'pending',
       notes: input.notes,
-      interestRate: input.interestRate || 0,
+      interestRate: interestRateBps,
       interestAmount: roundByCurrency(interestAmount, currency),
       idempotencyKey: input.idempotencyKey,
       createdBy: userId,
@@ -309,11 +367,28 @@ export class CreateSaleUseCase {
     };
 
     const createdSale = this.saleRepo.create(saleData);
+    const persistedItems = createdSale.items || [];
+    if (persistedItems.length !== saleItems.length) {
+      throw new ConflictError('Persisted sale items do not match requested sale items', {
+        saleId: createdSale.id,
+        expectedItems: saleItems.length,
+        persistedItems: persistedItems.length,
+      });
+    }
 
     // ── Step 6 & 7: FIFO batch depletion + inventory movements ──
     let totalCOGS = 0;
 
-    for (const item of saleItems) {
+    for (const [index, item] of saleItems.entries()) {
+      const persistedItem = persistedItems[index];
+      const saleItemId = persistedItem?.id;
+      if (!saleItemId) {
+        throw new ConflictError('Persisted sale item is missing id', {
+          saleId: createdSale.id,
+          index,
+        });
+      }
+
       const currentProduct = this.productRepo.findById(item.productId)!;
       const stockBefore = currentProduct.stock || 0;
 
@@ -321,6 +396,17 @@ export class CreateSaleUseCase {
         // ── FIFO path: deplete from oldest batches, calculate real COGS ──
         const fifoResult = this.fifoService.deplete(item.productId, item.quantityBase);
         totalCOGS += fifoResult.totalCost;
+        this.saleRepo.createItemDepletions(
+          fifoResult.depletions.map((depletion) => ({
+            saleId: createdSale.id!,
+            saleItemId,
+            productId: item.productId,
+            batchId: depletion.batchId,
+            quantityBase: depletion.quantity,
+            costPerUnit: depletion.costPerUnit,
+            totalCost: depletion.totalCost,
+          }))
+        );
 
         // Create one inventory movement per batch depletion for full traceability
         let runningStock = stockBefore;
@@ -377,6 +463,17 @@ export class CreateSaleUseCase {
 
         if (item.batchId) {
           this.productRepo.updateBatchStock(item.batchId, -item.quantityBase);
+          this.saleRepo.createItemDepletions([
+            {
+              saleId: createdSale.id!,
+              saleItemId,
+              productId: item.productId,
+              batchId: item.batchId,
+              quantityBase: item.quantityBase,
+              costPerUnit: item.costPrice,
+              totalCost: item.fallbackCostTotal,
+            },
+          ]);
         }
       }
     }
@@ -438,6 +535,12 @@ export class CreateSaleUseCase {
       diagnostics.customerLedgerCreated = { created: false, reason: 'remainingAmount<=0' };
     }
 
+    createdSale.cogs = totalCOGS;
+    createdSale.totalCogs = totalCOGS;
+    createdSale.profit = createdSale.total - totalCOGS;
+    createdSale.marginBps =
+      createdSale.total > 0 ? Math.trunc((createdSale.profit * 10_000) / createdSale.total) : 0;
+
     logDevDiagnostics({
       phase: 'commit',
       idempotencyKey: input.idempotencyKey,
@@ -470,6 +573,8 @@ export class CreateSaleUseCase {
     const revenueAcct = this.accountingRepo.findAccountByCode(ACCT_REVENUE);
     const cogsAcct = this.accountingRepo.findAccountByCode(ACCT_COGS);
     const inventoryAcct = this.accountingRepo.findAccountByCode(ACCT_INVENTORY);
+    const vatOutputAcct =
+      sale.tax > 0 ? this.accountingRepo.findAccountByCode(ACCT_VAT_OUTPUT) : null;
 
     // If required accounts are missing, skip journal entry creation
     const missing: string[] = [];
@@ -480,6 +585,7 @@ export class CreateSaleUseCase {
       if (!cogsAcct?.id) missing.push(ACCT_COGS);
       if (!inventoryAcct?.id) missing.push(ACCT_INVENTORY);
     }
+    if (sale.tax > 0 && !vatOutputAcct?.id) missing.push(ACCT_VAT_OUTPUT);
 
     if (missing.length > 0) {
       console.warn(
@@ -491,13 +597,24 @@ export class CreateSaleUseCase {
     const lines: JournalLine[] = [];
     const revenueAccountId = revenueAcct!.id!;
 
-    // Revenue entry (always)
+    // Revenue entry: net amount (total minus tax)
+    const netRevenue = sale.tax > 0 ? sale.total - sale.tax : sale.total;
     lines.push({
       accountId: revenueAccountId,
       debit: 0,
-      credit: sale.total,
+      credit: netRevenue,
       description: 'إيرادات المبيعات',
     });
+
+    // VAT Output (tax collected, if any)
+    if (sale.tax > 0 && vatOutputAcct?.id) {
+      lines.push({
+        accountId: vatOutputAcct.id,
+        debit: 0,
+        credit: sale.tax,
+        description: 'ضريبة المخرجات',
+      });
+    }
 
     // Cash received (if any)
     if (paidAmount > 0 && cashAcct?.id) {

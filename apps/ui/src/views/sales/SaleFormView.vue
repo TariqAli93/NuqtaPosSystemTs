@@ -6,23 +6,6 @@
         <div class="win-subtitle">{{ t('sales.formHint') }}</div>
       </div>
       <v-card class="win-card win-card--padded" flat>
-        <v-alert v-if="localizedError" type="error" variant="tonal" class="mb-4">
-          {{ localizedError }}
-        </v-alert>
-
-        <!-- Stock warnings for items with insufficient stock -->
-        <v-alert
-          v-for="warn in stockWarnings"
-          :key="warn.productId"
-          type="warning"
-          variant="tonal"
-          class="mb-2"
-          density="compact"
-        >
-          {{ warn.productName }}: المخزون المتاح {{ warn.available }} — الكمية المطلوبة
-          {{ warn.requested }}
-        </v-alert>
-
         <v-form class="win-form" @submit.prevent="submit">
           <div class="d-flex flex-wrap ga-2">
             <v-text-field v-model="form.invoiceNumber" :label="t('sales.invoice')" required />
@@ -66,6 +49,8 @@
               <v-text-field
                 v-model.number="item.quantity"
                 type="number"
+                step="1"
+                min="1"
                 density="compact"
                 hide-details
                 @update:model-value="checkStockForItem(item)"
@@ -78,7 +63,7 @@
               <MoneyInput v-model="item.discount" density="compact" hide-details />
             </template>
             <template #item.subtotal="{ item }">
-              {{ formatMoney(itemSubtotal(item)) }}
+              {{ formatCurrency(itemSubtotal(item)) }}
             </template>
             <template #item.actions="{ item }">
               <v-btn
@@ -94,8 +79,8 @@
 
           <v-divider class="my-4" />
           <div class="d-flex justify-end ga-4">
-            <div>{{ t('sales.subtotal') }}: {{ formatMoney(displaySubtotal) }}</div>
-            <div>{{ t('sales.total') }}: {{ formatMoney(displayTotal) }}</div>
+            <div>{{ t('sales.subtotal') }}: {{ formatCurrency(displaySubtotal) }}</div>
+            <div>{{ t('sales.total') }}: {{ formatCurrency(displayTotal) }}</div>
           </div>
 
           <v-textarea v-model="form.notes" :label="t('common.notes')" rows="3" class="mt-4" />
@@ -120,7 +105,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, onMounted, onUnmounted } from 'vue';
+import { computed, reactive, ref, onMounted, onUnmounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useSalesStore } from '../../stores/salesStore';
@@ -130,11 +115,12 @@ import { useCurrency } from '../../composables/useCurrency';
 import { productsClient } from '../../ipc';
 import MoneyInput from '@/components/shared/MoneyInput.vue';
 import type { SaleInput, SaleItem, Product } from '../../types/domain';
+import { notifyError, notifySuccess, notifyWarn } from '@/utils/notify';
 
 const store = useSalesStore();
 const productsStore = useProductsStore();
 const router = useRouter();
-const { currency, formatMoney } = useCurrency();
+const { currency, formatCurrency } = useCurrency();
 
 const localizedError = computed(() =>
   store.error ? mapErrorToArabic(store.error, 'errors.saveFailed') : null
@@ -164,6 +150,18 @@ const stockWarnings = computed(() => {
   return warnings;
 });
 const hasStockWarnings = computed(() => stockWarnings.value.length > 0);
+
+watch(localizedError, (value) => {
+  if (!value) return;
+  notifyError(value, { dedupeKey: 'sale-form-error' });
+});
+
+watch(stockWarnings, (warnings) => {
+  warnings.forEach((warn) => {
+    const message = `${warn.productName}: المخزون المتاح ${warn.available} — الكمية المطلوبة ${warn.requested}`;
+    notifyWarn(message, { dedupeKey: `sale-stock-${warn.productId}` });
+  });
+});
 
 async function fetchStockForProduct(productId: number): Promise<void> {
   if (stockCache.value.has(productId)) return;
@@ -262,12 +260,12 @@ const items = ref<SaleItem[]>([
 
 // Display-only subtotal/total — server computes final COGS and totals
 const itemSubtotal = (item: SaleItem) =>
-  Math.round(Math.max(0, item.quantity * item.unitPrice - (item.discount || 0)));
+  Math.max(0, item.quantity * item.unitPrice - (item.discount || 0));
 
 const displaySubtotal = computed(() =>
   items.value.reduce((sum: number, item: SaleItem) => sum + itemSubtotal(item), 0)
 );
-const displayTotal = computed(() => Math.round(displaySubtotal.value - form.discount + form.tax));
+const displayTotal = computed(() => displaySubtotal.value - form.discount + form.tax);
 
 function addItem() {
   items.value.push({
@@ -320,12 +318,15 @@ async function submit() {
 
   const result = await store.createSale(payload);
   if (result.ok) {
+    notifySuccess(t('common.saved'));
     const saleId = (result as any).data?.id;
     if (saleId) {
       await router.push(`/sales/${saleId}`);
       return;
     }
     await router.push('/sales');
+  } else {
+    notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
   }
 }
 </script>

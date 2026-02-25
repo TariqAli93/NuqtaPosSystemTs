@@ -1,126 +1,188 @@
 <template>
-  <v-container fluid>
-    <v-row class="mb-4" align="center">
-      <v-col>
-        <h1 class="text-h5 font-weight-bold">القيود اليومية</h1>
-      </v-col>
-      <v-col cols="auto">
-        <v-btn variant="text" prepend-icon="mdi-arrow-right" @click="router.back()">رجوع</v-btn>
-      </v-col>
-    </v-row>
+  <v-tabs v-model="activeTab" color="primary" bg-color="surface" class="mb-4">
+    <v-tab value="all">الكل</v-tab>
+    <v-tab value="posted">مرحل</v-tab>
+    <v-tab value="unposted">غير مرحل</v-tab>
+  </v-tabs>
 
-    <v-card>
-      <v-card-text>
-        <v-row dense class="mb-4">
-          <v-col cols="12" sm="3">
-            <v-select
-              v-model="sourceFilter"
-              :items="sources"
-              label="المصدر"
-              variant="outlined"
-              density="compact"
-              hide-details
-              clearable
-              @update:model-value="onFilter"
-            />
-          </v-col>
-          <v-col cols="12" sm="3">
-            <v-text-field
-              v-model="dateFrom"
-              label="من تاريخ"
-              type="date"
-              variant="outlined"
-              density="compact"
-              hide-details
-              clearable
-              @update:model-value="onFilter"
-            />
-          </v-col>
-          <v-col cols="12" sm="3">
-            <v-text-field
-              v-model="dateTo"
-              label="إلى تاريخ"
-              type="date"
-              variant="outlined"
-              density="compact"
-              hide-details
-              clearable
-              @update:model-value="onFilter"
-            />
-          </v-col>
-        </v-row>
+  <v-card>
+    <v-card-text>
+      <v-data-table-server
+        v-model:items-per-page="options.itemsPerPage"
+        v-model:page="options.page"
+        :headers="headers"
+        :items="store.journalEntries"
+        :items-length="store.journalTotal"
+        :loading="loading"
+        density="comfortable"
+        @update:options="onOptionsUpdate"
+      >
+        <template #item.entryNumber="{ item }">
+          <span class="font-weight-medium text-primary">{{ item.entryNumber }}</span>
+        </template>
 
-        <v-data-table
-          :headers="headers"
-          :items="accountingStore.journalEntries"
-          :loading="accountingStore.loading"
-          :items-per-page="20"
-          density="compact"
-          @click:row="
-            (_: Event, { item }: { item: any }) =>
-              router.push({ name: 'JournalEntryDetail', params: { id: item.id } })
-          "
-        >
-          <template #item.totalAmount="{ item }">
-            <MoneyDisplay :amount="item.totalAmount" size="sm" />
-          </template>
-          <template #item.sourceType="{ item }">
-            <v-chip size="x-small" variant="tonal">{{ sourceLabel(item.sourceType) }}</v-chip>
-          </template>
-          <template #item.entryDate="{ item }">
-            {{ formatDate(item.entryDate) }}
-          </template>
-          <template #no-data>
-            <div class="text-center py-8 text-medium-emphasis">
-              لا توجد قيود محاسبية بعد. ستظهر القيود بعد البيع/الشراء/الدفعات.
-            </div>
-          </template>
-        </v-data-table>
-      </v-card-text>
-    </v-card>
-  </v-container>
+        <template #item.entryDate="{ item }">
+          {{ formatDate(item.entryDate) }}
+        </template>
+
+        <template #item.totalAmount="{ item }">
+          {{ formatMoney(item.totalAmount, item.currency) }}
+        </template>
+
+        <template #item.isPosted="{ item }">
+          <v-chip size="small" :color="item.isPosted ? 'success' : 'warning'" variant="tonal">
+            {{ item.isPosted ? 'مرحل' : 'غير مرحل' }}
+          </v-chip>
+        </template>
+
+        <template #item.actions="{ item }">
+          <v-btn
+            v-if="!item.isPosted"
+            variant="text"
+            color="success"
+            size="small"
+            :loading="actionLoading === item.id"
+            @click="postEntry(item)"
+            class="me-2"
+          >
+            ترحيل
+          </v-btn>
+          <v-btn
+            v-if="item.isPosted"
+            variant="text"
+            color="warning"
+            size="small"
+            :loading="actionLoading === item.id"
+            @click="unpostEntry(item)"
+            class="me-2"
+          >
+            إلغاء الترحيل
+          </v-btn>
+          <v-btn
+            variant="text"
+            color="primary"
+            size="small"
+            :to="{ name: 'JournalEntryDetail', params: { id: item.id } }"
+          >
+            عرض التفاصيل
+          </v-btn>
+        </template>
+
+        <template #no-data>
+          <div class="text-center py-6 text-medium-emphasis">لا توجد قيود لعرضها</div>
+        </template>
+      </v-data-table-server>
+    </v-card-text>
+  </v-card>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { formatDate } from '@/utils/formatters';
-import { useRouter } from 'vue-router';
-import { useAccountingStore } from '../../stores/accountingStore';
-import MoneyDisplay from '../../components/shared/MoneyDisplay.vue';
+import { ref, watch, onMounted } from 'vue';
+import { useAccountingStore } from '@/stores/accountingStore';
+import { postingClient } from '@/ipc/postingClient';
+import { notifyError, notifySuccess } from '@/utils/notify';
+import { toUserMessage } from '@/utils/errorMessage';
 
-const router = useRouter();
-const accountingStore = useAccountingStore();
-const sourceFilter = ref<string | null>(null);
-const dateFrom = ref<string | null>(null);
-const dateTo = ref<string | null>(null);
+const store = useAccountingStore();
 
-const sources = [
-  { title: 'مبيعات', value: 'sale' },
-  { title: 'مشتريات', value: 'purchase' },
-  { title: 'دفعة', value: 'payment' },
-  { title: 'يدوي', value: 'manual' },
-];
+const activeTab = ref<'all' | 'posted' | 'unposted'>('all');
+const loading = ref(false);
+const actionLoading = ref<number | null>(null);
+
+const options = ref({
+  page: 1,
+  itemsPerPage: 10,
+});
 
 const headers = [
-  { title: 'الرقم', key: 'entryNumber', width: '120px' },
-  { title: 'التاريخ', key: 'entryDate', width: '130px' },
+  { title: 'رقم القيد', key: 'entryNumber' },
+  { title: 'التاريخ', key: 'entryDate' },
   { title: 'الوصف', key: 'description' },
-  { title: 'المصدر', key: 'sourceType', width: '100px' },
-  { title: 'المبلغ', key: 'totalAmount', align: 'end' as const, width: '140px' },
+  { title: 'المبلغ الإجمالي', key: 'totalAmount' },
+  { title: 'الحالة', key: 'isPosted' },
+  { title: 'إجراءات', key: 'actions', sortable: false, align: 'end' as const },
 ];
 
-function sourceLabel(s?: string): string {
-  if (!s) return 'غير محدد';
-  return { sale: 'بيع', purchase: 'شراء', payment: 'دفعة', manual: 'يدوي' }[s] ?? s;
-}
+const formatMoney = (amount: number, currency = 'IQD') => {
+  const formatted = new Intl.NumberFormat('ar-IQ', {
+    maximumFractionDigits: 0,
+    minimumFractionDigits: 0,
+    numberingSystem: 'latn',
+  }).format(amount || 0);
+  return `${formatted} ${currency}`;
+};
 
-onMounted(() => accountingStore.fetchJournalEntries());
-
-function onFilter() {
-  accountingStore.fetchJournalEntries({
-    sourceType: sourceFilter.value || undefined,
-    dateFrom: dateFrom.value || undefined,
-    dateTo: dateTo.value || undefined,
+const formatDate = (value?: string) => {
+  if (!value) return '—';
+  return new Date(value).toLocaleDateString('ar-IQ', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    numberingSystem: 'latn',
   });
+};
+
+async function loadData() {
+  loading.value = true;
+
+  let isPosted: boolean | undefined = undefined;
+  if (activeTab.value === 'posted') isPosted = true;
+  if (activeTab.value === 'unposted') isPosted = false;
+
+  await store.fetchJournalEntries({
+    isPosted,
+    limit: options.value.itemsPerPage,
+    offset: (options.value.page - 1) * options.value.itemsPerPage,
+  });
+
+  loading.value = false;
 }
+
+async function postEntry(entry: any) {
+  if (!confirm(`هل أنت متأكد من ترحيل القيد رقم ${entry.entryNumber}؟`)) return;
+
+  actionLoading.value = entry.id;
+  try {
+    const result = await postingClient.postIndividualEntry(entry.id);
+    if (!result.ok) throw new Error(result.error.message || 'تعذر ترحيل القيد');
+
+    notifySuccess(`تم ترحيل القيد ${entry.entryNumber} بنجاح`);
+    await loadData();
+  } catch (err: any) {
+    notifyError(toUserMessage(err));
+  } finally {
+    actionLoading.value = null;
+  }
+}
+
+async function unpostEntry(entry: any) {
+  if (!confirm(`هل أنت متأكد من إلغاء ترحيل القيد رقم ${entry.entryNumber}؟`)) return;
+
+  actionLoading.value = entry.id;
+  try {
+    const result = await postingClient.unpostIndividualEntry(entry.id);
+    if (!result.ok) throw new Error(result.error.message || 'تعذر إلغاء ترحيل القيد');
+
+    notifySuccess(`تم إلغاء ترحيل القيد ${entry.entryNumber} بنجاح`);
+    await loadData();
+  } catch (err: any) {
+    notifyError(toUserMessage(err));
+  } finally {
+    actionLoading.value = null;
+  }
+}
+
+function onOptionsUpdate(newOptions: any) {
+  options.value = newOptions;
+  loadData();
+}
+
+watch(activeTab, () => {
+  options.value.page = 1; // Reset to first page when changing tabs
+  loadData();
+});
+
+onMounted(() => {
+  loadData();
+});
 </script>

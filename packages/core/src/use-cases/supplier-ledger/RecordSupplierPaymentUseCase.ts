@@ -2,8 +2,10 @@ import { ISupplierLedgerRepository } from '../../interfaces/ISupplierLedgerRepos
 import { ISupplierRepository } from '../../interfaces/ISupplierRepository.js';
 import { IPaymentRepository } from '../../interfaces/IPaymentRepository.js';
 import { IAccountingRepository } from '../../interfaces/IAccountingRepository.js';
+import { IAuditRepository } from '../../interfaces/IAuditRepository.js';
 import { NotFoundError, ValidationError } from '../../errors/DomainErrors.js';
 import { SupplierLedgerEntry } from '../../entities/Ledger.js';
+import { AuditService } from '../../services/AuditService.js';
 
 const ACCT_CASH = '1001';
 const AP_ACCOUNT_CODES = ['2001', '2100'];
@@ -17,16 +19,26 @@ export interface RecordSupplierPaymentInput {
 }
 
 export class RecordSupplierPaymentUseCase {
+  private auditService?: AuditService;
+
   constructor(
     private ledgerRepo: ISupplierLedgerRepository,
     private supplierRepo: ISupplierRepository,
     private paymentRepo: IPaymentRepository,
-    private accountingRepo: IAccountingRepository
-  ) {}
+    private accountingRepo: IAccountingRepository,
+    auditRepo?: IAuditRepository
+  ) {
+    if (auditRepo) {
+      this.auditService = new AuditService(auditRepo);
+    }
+  }
 
   executeCommitPhase(data: RecordSupplierPaymentInput, userId: number): SupplierLedgerEntry {
     if (data.amount <= 0) {
       throw new ValidationError('Payment amount must be greater than zero');
+    }
+    if (!Number.isInteger(data.amount)) {
+      throw new ValidationError('Payment amount must be an integer IQD amount');
     }
 
     const supplier = this.supplierRepo.findByIdSync(data.supplierId);
@@ -76,9 +88,8 @@ export class RecordSupplierPaymentUseCase {
   private createJournalEntry(paymentId: number, amount: number, userId: number): void {
     const cashAcct = this.accountingRepo.findAccountByCode(ACCT_CASH);
     const apAcct =
-      AP_ACCOUNT_CODES.map((code) => this.accountingRepo.findAccountByCode(code)).find(
-        Boolean
-      ) || null;
+      AP_ACCOUNT_CODES.map((code) => this.accountingRepo.findAccountByCode(code)).find(Boolean) ||
+      null;
 
     if (!cashAcct?.id || !apAcct?.id) {
       console.warn('[RecordSupplierPaymentUseCase] Missing cash/AP accounts, skipping journal');
@@ -91,7 +102,7 @@ export class RecordSupplierPaymentUseCase {
       description: `Supplier payment #${paymentId}`,
       sourceType: 'payment',
       sourceId: paymentId,
-      isPosted: true,
+      isPosted: false,
       isReversed: false,
       totalAmount: amount,
       currency: 'IQD',
@@ -104,6 +115,33 @@ export class RecordSupplierPaymentUseCase {
   }
 
   async execute(data: RecordSupplierPaymentInput, userId = 1): Promise<SupplierLedgerEntry> {
-    return this.executeCommitPhase(data, userId);
+    const result = this.executeCommitPhase(data, userId);
+    await this.executeSideEffectsPhase(result, data, userId);
+    return result;
+  }
+
+  async executeSideEffectsPhase(
+    entry: SupplierLedgerEntry,
+    data: RecordSupplierPaymentInput,
+    userId: number
+  ): Promise<void> {
+    if (!this.auditService) return;
+    try {
+      await this.auditService.logAction(
+        userId,
+        'supplierLedger:payment',
+        'Supplier',
+        data.supplierId,
+        `Recorded supplier payment for supplier #${data.supplierId}`,
+        {
+          amount: data.amount,
+          paymentMethod: data.paymentMethod,
+          ledgerEntryId: entry.id,
+          paymentId: entry.paymentId,
+        }
+      );
+    } catch (error) {
+      console.warn('Audit logging failed for supplier payment:', error);
+    }
   }
 }

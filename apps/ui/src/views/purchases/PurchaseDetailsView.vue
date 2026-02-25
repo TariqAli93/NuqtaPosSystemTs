@@ -5,6 +5,11 @@
         <v-btn icon="mdi-arrow-right" variant="text" @click="router.back()" class="me-2" />
         <span class="text-h5 font-weight-bold">تفاصيل فاتورة المشتريات</span>
       </v-col>
+      <v-col cols="auto" v-if="purchase && purchase.remainingAmount > 0">
+        <v-btn color="primary" prepend-icon="mdi-cash-minus" @click="showPaymentDialog = true">
+          تسجيل دفعة
+        </v-btn>
+      </v-col>
     </v-row>
 
     <v-skeleton-loader v-if="purchasesStore.loading" type="card" />
@@ -131,22 +136,74 @@
       </v-card>
     </template>
 
-    <v-alert v-else type="warning" variant="tonal">لم يتم العثور على الفاتورة</v-alert>
+    <v-dialog v-model="showPaymentDialog" max-width="400" persistent>
+      <v-card>
+        <v-card-title>تسجيل دفعة</v-card-title>
+        <v-card-text>
+          <MoneyInput v-model="paymentAmount" label="المبلغ" class="mb-3" />
+          <v-textarea
+            v-model="paymentNotes"
+            label="ملاحظات"
+            variant="outlined"
+            density="compact"
+            rows="2"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="showPaymentDialog = false">إلغاء</v-btn>
+          <v-btn color="primary" :loading="paymentLoading" @click="onRecordPayment">حفظ</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue';
+import { computed, onMounted, ref } from 'vue';
 import { formatDate } from '@/utils/formatters';
 import { useRoute, useRouter } from 'vue-router';
 import { usePurchasesStore } from '../../stores/purchasesStore';
 import MoneyDisplay from '../../components/shared/MoneyDisplay.vue';
+import MoneyInput from '../../components/shared/MoneyInput.vue';
+import { purchasesClient } from '../../ipc/purchasesClient';
+import { generateIdempotencyKey } from '../../utils/idempotency';
+import { notifyError, notifySuccess, notifyWarn } from '@/utils/notify';
+import { mapErrorToArabic } from '@/i18n/t';
 
 const route = useRoute();
 const router = useRouter();
 const purchasesStore = usePurchasesStore();
 
 const purchase = computed(() => purchasesStore.currentPurchase);
+
+const showPaymentDialog = ref(false);
+const paymentAmount = ref(0);
+const paymentNotes = ref('');
+const paymentLoading = ref(false);
+
+async function onRecordPayment() {
+  if (!purchase.value || paymentAmount.value <= 0) return;
+  paymentLoading.value = true;
+  const result = await purchasesClient.addPayment({
+    purchaseId: purchase.value.id!,
+    supplierId: purchase.value.supplierId,
+    amount: paymentAmount.value,
+    paymentMethod: 'cash',
+    notes: paymentNotes.value || undefined,
+    idempotencyKey: generateIdempotencyKey('purchase-payment'),
+  });
+  paymentLoading.value = false;
+  if (!result.ok) {
+    notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
+    return;
+  }
+  showPaymentDialog.value = false;
+  paymentAmount.value = 0;
+  paymentNotes.value = '';
+  purchasesStore.fetchPurchaseById(purchase.value.id!);
+  notifySuccess('تم تسجيل الدفعة بنجاح');
+}
 
 const itemHeaders = [
   { title: 'المنتج', key: 'productName' },
@@ -170,7 +227,14 @@ const movementHeaders = [
   { title: 'بعد', key: 'stockAfter', align: 'center' as const },
 ];
 
-onMounted(() => {
-  purchasesStore.fetchPurchaseById(Number(route.params.id));
+onMounted(async () => {
+  const result = await purchasesStore.fetchPurchaseById(Number(route.params.id));
+  if (!result.ok) {
+    notifyError(mapErrorToArabic(result.error, 'errors.loadFailed'));
+    return;
+  }
+  if (!purchase.value) {
+    notifyWarn('لم يتم العثور على الفاتورة', { dedupeKey: 'purchase-not-found' });
+  }
 });
 </script>

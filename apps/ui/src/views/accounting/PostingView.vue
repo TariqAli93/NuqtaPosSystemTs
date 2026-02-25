@@ -2,55 +2,26 @@
   <v-container fluid class="pa-6">
     <div class="d-flex align-center justify-space-between mb-6">
       <div>
-        <h1 class="text-h5 font-weight-bold">ØªØ±Ø­ÙŠÙ„ Ø§Ù„Ù‚ÙŠÙˆØ¯ Ø§Ù„Ù…Ø­Ø§Ø³Ø¨ÙŠØ©</h1>
+        <h1 class="text-h5 font-weight-bold">ترحيل القيود المحاسبية</h1>
         <p class="text-body-2 text-medium-emphasis mt-1">
-          ØªØ±Ø­ÙŠÙ„ Ø§Ù„Ù‚ÙŠÙˆØ¯ Ø§Ù„Ù…Ø³ÙˆØ¯Ø© Ø¥Ù„Ù‰ Ø¯ÙØ¹Ø§Øª Ù…Ø±Ø­Ù‘Ù„Ø© Ø­Ø³Ø¨ Ø§Ù„ÙØªØ±Ø©
-          Ø§Ù„Ø²Ù…Ù†ÙŠØ©
+          ترحيل القيود المسودة إلى دفعات مرحّلة حسب الفترة الزمنية
         </p>
       </div>
     </div>
-
-    <!-- Error alert -->
-    <v-alert
-      v-if="errorMessage"
-      type="error"
-      variant="tonal"
-      class="mb-4"
-      closable
-      @click:close="errorMessage = null"
-    >
-      {{ errorMessage }}
-    </v-alert>
-
-    <!-- Success alert -->
-    <v-alert
-      v-if="successMessage"
-      type="success"
-      variant="tonal"
-      class="mb-4"
-      closable
-      @click:close="successMessage = null"
-    >
-      {{ successMessage }}
-    </v-alert>
 
     <!-- Post New Batch Card -->
     <v-card class="mb-6" variant="outlined">
       <v-card-title class="d-flex align-center ga-2">
         <v-icon color="primary">mdi-send-check</v-icon>
-        ØªØ±Ø­ÙŠÙ„ ÙØªØ±Ø© Ø¬Ø¯ÙŠØ¯Ø©
+        ترحيل فترة جديدة
       </v-card-title>
       <v-card-text>
         <v-row dense>
           <v-col cols="12" md="3">
             <v-select
               v-model="postForm.periodType"
-              :items="[
-                { title: 'ÙŠÙˆÙ…ÙŠ', value: 'day' },
-                { title: 'Ø´Ù‡Ø±ÙŠ', value: 'month' },
-                { title: 'Ø³Ù†ÙˆÙŠ', value: 'year' },
-              ]"
-              label="Ù†ÙˆØ¹ Ø§Ù„ÙØªØ±Ø©"
+              :items="periodTypeItems"
+              label="نوع الفترة"
               variant="outlined"
               density="comfortable"
             />
@@ -58,7 +29,7 @@
           <v-col cols="12" md="3">
             <v-text-field
               v-model="postForm.periodStart"
-              label="Ø¨Ø¯Ø§ÙŠØ© Ø§Ù„ÙØªØ±Ø©"
+              label="بداية الفترة"
               type="date"
               variant="outlined"
               density="comfortable"
@@ -67,7 +38,7 @@
           <v-col cols="12" md="3">
             <v-text-field
               v-model="postForm.periodEnd"
-              label="Ù†Ù‡Ø§ÙŠØ© Ø§Ù„ÙØªØ±Ø©"
+              label="نهاية الفترة"
               type="date"
               variant="outlined"
               density="comfortable"
@@ -81,13 +52,13 @@
               prepend-icon="mdi-send-check"
               @click="postPeriod"
             >
-              ØªØ±Ø­ÙŠÙ„
+              ترحيل
             </v-btn>
           </v-col>
         </v-row>
         <v-text-field
           v-model="postForm.notes"
-          label="Ù…Ù„Ø§Ø­Ø¸Ø§Øª (Ø§Ø®ØªÙŠØ§Ø±ÙŠ)"
+          label="ملاحظات (اختياري)"
           variant="outlined"
           density="comfortable"
           class="mt-2"
@@ -99,12 +70,53 @@
     <v-card variant="outlined">
       <v-card-title class="d-flex align-center ga-2">
         <v-icon color="primary">mdi-history</v-icon>
-        Ø³Ø¬Ù„ Ø§Ù„Ø¯ÙØ¹Ø§Øª Ø§Ù„Ù…Ø±Ø­Ù‘Ù„Ø©
+        سجل الدفعات المرحّلة
         <v-spacer />
         <v-btn variant="text" icon size="small" :loading="loadingBatches" @click="loadBatches">
           <v-icon>mdi-refresh</v-icon>
         </v-btn>
       </v-card-title>
+
+      <!-- Batch filter row -->
+      <v-card-text class="pb-0">
+        <v-row dense>
+          <v-col cols="12" sm="3">
+            <v-select
+              v-model="filterPeriodType"
+              :items="[{ title: 'الكل', value: '' }, ...periodTypeItems]"
+              label="نوع الفترة"
+              variant="outlined"
+              density="compact"
+              hide-details
+              @update:model-value="loadBatches"
+            />
+          </v-col>
+          <v-col cols="12" sm="3">
+            <v-text-field
+              v-model="filterDateFrom"
+              label="من تاريخ"
+              type="date"
+              variant="outlined"
+              density="compact"
+              hide-details
+              clearable
+              @update:model-value="loadBatches"
+            />
+          </v-col>
+          <v-col cols="12" sm="3">
+            <v-text-field
+              v-model="filterDateTo"
+              label="إلى تاريخ"
+              type="date"
+              variant="outlined"
+              density="compact"
+              hide-details
+              clearable
+              @update:model-value="loadBatches"
+            />
+          </v-col>
+        </v-row>
+      </v-card-text>
 
       <v-data-table
         :headers="batchHeaders"
@@ -113,7 +125,7 @@
         :items-per-page="20"
         density="comfortable"
         class="elevation-0"
-        no-data-text="Ù„Ø§ ØªÙˆØ¬Ø¯ Ø¯ÙØ¹Ø§Øª Ù…Ø±Ø­Ù‘Ù„Ø©"
+        no-data-text="لا توجد دفعات مرحّلة"
       >
         <template #item.periodType="{ item }">
           <v-chip size="small" variant="tonal" :color="periodColor(item.periodType)">
@@ -137,40 +149,56 @@
 
         <template #item.actions="{ item }">
           <div class="d-flex ga-1">
-            <v-btn
-              v-if="item.status !== 'locked'"
-              variant="text"
-              size="small"
-              color="warning"
-              icon
-              :loading="lockingId === item.id"
-              @click="toggleLock(item)"
-            >
-              <v-icon size="18">mdi-lock-outline</v-icon>
-            </v-btn>
-            <v-btn
-              v-else
-              variant="text"
-              size="small"
-              color="info"
-              icon
-              :loading="lockingId === item.id"
-              @click="toggleLock(item)"
-            >
-              <v-icon size="18">mdi-lock-open-outline</v-icon>
-            </v-btn>
+            <v-tooltip v-if="item.status === 'locked'" location="top">
+              <template #activator="{ props: tp }">
+                <v-btn
+                  v-bind="tp"
+                  variant="text"
+                  size="small"
+                  color="grey"
+                  icon
+                  :loading="unlockingId === item.id"
+                  @click="confirmUnlock(item)"
+                >
+                  <v-icon size="18">mdi-lock-open-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>فتح القفل</span>
+            </v-tooltip>
+            <v-tooltip v-else location="top">
+              <template #activator="{ props: tp }">
+                <v-btn
+                  v-bind="tp"
+                  variant="text"
+                  size="small"
+                  color="warning"
+                  icon
+                  :loading="lockingId === item.id"
+                  @click="confirmLock(item)"
+                >
+                  <v-icon size="18">mdi-lock-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>قفل الدفعة</span>
+            </v-tooltip>
 
-            <v-btn
-              variant="text"
-              size="small"
-              color="error"
-              icon
-              :loading="reversingId === item.id"
-              :disabled="item.status === 'locked'"
-              @click="confirmReverse(item)"
-            >
-              <v-icon size="18">mdi-undo</v-icon>
-            </v-btn>
+            <v-tooltip location="top">
+              <template #activator="{ props: tp }">
+                <v-btn
+                  v-bind="tp"
+                  variant="text"
+                  size="small"
+                  color="error"
+                  icon
+                  :loading="reversingId === item.id"
+                  :disabled="item.status === 'locked'"
+                  @click="confirmReverse(item)"
+                >
+                  <v-icon size="18">mdi-undo</v-icon>
+                </v-btn>
+              </template>
+              <span>عكس الدفعة</span>
+            </v-tooltip>
           </div>
         </template>
       </v-data-table>
@@ -179,16 +207,45 @@
     <!-- Reverse confirmation dialog -->
     <v-dialog v-model="reverseDialog" max-width="420">
       <v-card>
-        <v-card-title>ØªØ£ÙƒÙŠØ¯ Ø§Ù„Ø¹ÙƒØ³</v-card-title>
+        <v-card-title>تأكيد العكس</v-card-title>
         <v-card-text>
-          Ù‡Ù„ Ø£Ù†Øª Ù…ØªØ£ÙƒØ¯ Ù…Ù† Ø¹ÙƒØ³ Ù‡Ø°Ù‡ Ø§Ù„Ø¯ÙØ¹Ø©ØŸ Ø³ÙŠØªÙ… Ø¥Ù†Ø´Ø§Ø¡ Ù‚ÙŠÙˆØ¯
-          Ø¹ÙƒØ³ÙŠØ© Ù„Ø¬Ù…ÙŠØ¹ Ø§Ù„Ù‚ÙŠÙˆØ¯ ÙÙŠ Ù‡Ø°Ù‡ Ø§Ù„Ø¯ÙØ¹Ø©.
+          هل أنت متأكد من عكس هذه الدفعة؟ سيتم إنشاء قيود عكسية لجميع القيود في هذه الدفعة.
         </v-card-text>
         <v-card-actions>
           <v-spacer />
-          <v-btn variant="text" @click="reverseDialog = false">Ø¥Ù„ØºØ§Ø¡</v-btn>
-          <v-btn color="error" @click="executeReverse" :loading="reversingId !== null">
-            Ø¹ÙƒØ³
+          <v-btn variant="text" @click="reverseDialog = false">إلغاء</v-btn>
+          <v-btn color="error" @click="executeReverse" :loading="reversingId !== null">عكس</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Lock confirmation dialog -->
+    <v-dialog v-model="lockDialog" max-width="420">
+      <v-card>
+        <v-card-title>تأكيد القفل</v-card-title>
+        <v-card-text>
+          هل أنت متأكد من قفل هذه الدفعة؟ بعد القفل لن يمكن عكس أو تعديل أي قيد فيها.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="lockDialog = false">إلغاء</v-btn>
+          <v-btn color="warning" @click="executeLock" :loading="lockingId !== null">قفل</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Unlock confirmation dialog -->
+    <v-dialog v-model="unlockDialog" max-width="420">
+      <v-card>
+        <v-card-title>تأكيد فتح القفل</v-card-title>
+        <v-card-text>
+          هل أنت متأكد من فتح قفل هذه الدفعة؟ سيسمح ذلك بعكس القيود المنتمية لها.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="unlockDialog = false">إلغاء</v-btn>
+          <v-btn color="primary" @click="executeUnlock" :loading="unlockingId !== null">
+            فتح القفل
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -199,16 +256,30 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { postingClient, type PostingBatch } from '../../ipc/postingClient';
+import { notifyError, notifySuccess } from '@/utils/notify';
 
-const errorMessage = ref<string | null>(null);
-const successMessage = ref<string | null>(null);
 const posting = ref(false);
 const loadingBatches = ref(false);
 const batches = ref<PostingBatch[]>([]);
+
 const reverseDialog = ref(false);
+const lockDialog = ref(false);
+const unlockDialog = ref(false);
+
 const reversingId = ref<number | null>(null);
 const lockingId = ref<number | null>(null);
+const unlockingId = ref<number | null>(null);
 const selectedBatch = ref<PostingBatch | null>(null);
+
+const filterPeriodType = ref('');
+const filterDateFrom = ref<string | null>(null);
+const filterDateTo = ref<string | null>(null);
+
+const periodTypeItems = [
+  { title: 'يومي', value: 'day' },
+  { title: 'شهري', value: 'month' },
+  { title: 'سنوي', value: 'year' },
+];
 
 const postForm = reactive({
   periodType: 'month' as 'day' | 'month' | 'year',
@@ -219,20 +290,20 @@ const postForm = reactive({
 
 const batchHeaders = [
   { title: '#', key: 'id', width: '60px' },
-  { title: 'Ù†ÙˆØ¹ Ø§Ù„ÙØªØ±Ø©', key: 'periodType' },
-  { title: 'Ù…Ù†', key: 'periodStart' },
-  { title: 'Ø¥Ù„Ù‰', key: 'periodEnd' },
-  { title: 'Ø¹Ø¯Ø¯ Ø§Ù„Ù‚ÙŠÙˆØ¯', key: 'entriesCount' },
-  { title: 'Ø§Ù„Ù…Ø¨Ù„Øº Ø§Ù„Ø¥Ø¬Ù…Ø§Ù„ÙŠ', key: 'totalAmount' },
-  { title: 'ØªØ§Ø±ÙŠØ® Ø§Ù„ØªØ±Ø­ÙŠÙ„', key: 'postedAt' },
-  { title: 'Ø§Ù„Ø­Ø§Ù„Ø©', key: 'status', width: '100px' },
-  { title: '', key: 'actions', sortable: false, width: '100px' },
+  { title: 'نوع الفترة', key: 'periodType' },
+  { title: 'من', key: 'periodStart' },
+  { title: 'إلى', key: 'periodEnd' },
+  { title: 'عدد القيود', key: 'entriesCount' },
+  { title: 'المبلغ الإجمالي', key: 'totalAmount' },
+  { title: 'تاريخ الترحيل', key: 'postedAt' },
+  { title: 'الحالة', key: 'status', width: '100px' },
+  { title: '', key: 'actions', sortable: false, width: '120px' },
 ];
 
 function periodLabel(type: string): string {
-  if (type === 'day') return 'ÙŠÙˆÙ…ÙŠ';
-  if (type === 'month') return 'Ø´Ù‡Ø±ÙŠ';
-  return 'Ø³Ù†ÙˆÙŠ';
+  if (type === 'day') return 'يومي';
+  if (type === 'month') return 'شهري';
+  return 'سنوي';
 }
 
 function periodColor(type: string): string {
@@ -250,47 +321,6 @@ function formatMoney(amount: number): string {
   return new Intl.NumberFormat('ar-IQ', { numberingSystem: 'latn' }).format(amount);
 }
 
-async function postPeriod() {
-  errorMessage.value = null;
-  successMessage.value = null;
-  posting.value = true;
-
-  const result = await postingClient.postPeriod({
-    periodType: postForm.periodType,
-    periodStart: postForm.periodStart,
-    periodEnd: postForm.periodEnd,
-    notes: postForm.notes || undefined,
-  });
-
-  posting.value = false;
-
-  if (result.ok) {
-    successMessage.value = `ØªÙ… ØªØ±Ø­ÙŠÙ„ ${result.data.entriesCount ?? 0} Ù‚ÙŠØ¯ Ø¨Ù†Ø¬Ø§Ø­`;
-    postForm.notes = '';
-    await loadBatches();
-  } else {
-    errorMessage.value = result.error.message || 'ÙØ´Ù„ Ø§Ù„ØªØ±Ø­ÙŠÙ„';
-  }
-}
-
-async function loadBatches() {
-  loadingBatches.value = true;
-  const result = await postingClient.getBatches();
-  loadingBatches.value = false;
-
-  if (result.ok) {
-    batches.value = result.data.items || [];
-  } else {
-    errorMessage.value = result.error.message || 'ÙØ´Ù„ ØªØ­Ù…ÙŠÙ„ Ø§Ù„Ø¯ÙØ¹Ø§Øª';
-  }
-}
-
-function confirmReverse(batch: PostingBatch) {
-  if (batch.status === 'locked') return; // guard: locked batches cannot be reversed
-  selectedBatch.value = batch;
-  reverseDialog.value = true;
-}
-
 function batchStatusLabel(status?: string): string {
   if (status === 'locked') return 'مقفل';
   if (status === 'posted') return 'مرحّل';
@@ -303,47 +333,106 @@ function batchStatusColor(status?: string): string {
   return 'grey';
 }
 
-async function toggleLock(batch: PostingBatch) {
-  lockingId.value = batch.id;
-  errorMessage.value = null;
+async function postPeriod() {
+  posting.value = true;
 
-  try {
-    if (batch.status === 'locked') {
-      const result = await postingClient.unlockBatch(batch.id);
-      if (result.ok) {
-        batch.status = 'posted';
-      } else {
-        errorMessage.value = result.error.message || 'فشل فتح القفل';
-      }
-    } else {
-      const result = await postingClient.lockBatch(batch.id);
-      if (result.ok) {
-        batch.status = 'locked';
-      } else {
-        errorMessage.value = result.error.message || 'فشل القفل';
-      }
-    }
-  } finally {
-    lockingId.value = null;
+  const result = await postingClient.postPeriod({
+    periodType: postForm.periodType,
+    periodStart: postForm.periodStart,
+    periodEnd: postForm.periodEnd,
+    notes: postForm.notes || undefined,
+  });
+
+  posting.value = false;
+
+  if (result.ok) {
+    notifySuccess(`تم ترحيل ${result.data.entriesCount ?? 0} قيد بنجاح`);
+    postForm.notes = '';
+    await loadBatches();
+  } else {
+    notifyError(result.error.message || 'فشل الترحيل');
+  }
+}
+
+async function loadBatches() {
+  loadingBatches.value = true;
+  const result = await postingClient.getBatches({
+    periodType: filterPeriodType.value || undefined,
+    dateFrom: filterDateFrom.value || undefined,
+    dateTo: filterDateTo.value || undefined,
+  });
+  loadingBatches.value = false;
+
+  if (result.ok) {
+    batches.value = result.data.items || [];
+  } else {
+    notifyError(result.error.message || 'فشل تحميل الدفعات');
+  }
+}
+
+function confirmReverse(batch: PostingBatch) {
+  if (batch.status === 'locked') return;
+  selectedBatch.value = batch;
+  reverseDialog.value = true;
+}
+
+function confirmLock(batch: PostingBatch) {
+  if (batch.status === 'locked') return;
+  selectedBatch.value = batch;
+  lockDialog.value = true;
+}
+
+function confirmUnlock(batch: PostingBatch) {
+  if (batch.status !== 'locked') return;
+  selectedBatch.value = batch;
+  unlockDialog.value = true;
+}
+
+async function executeLock() {
+  if (!selectedBatch.value?.id) return;
+  lockingId.value = selectedBatch.value.id;
+  lockDialog.value = false;
+
+  const result = await postingClient.lockBatch(selectedBatch.value.id);
+  lockingId.value = null;
+
+  if (result.ok) {
+    notifySuccess('تم قفل الدفعة بنجاح');
+    await loadBatches();
+  } else {
+    notifyError(result.error.message || 'فشل القفل');
+  }
+}
+
+async function executeUnlock() {
+  if (!selectedBatch.value?.id) return;
+  unlockingId.value = selectedBatch.value.id;
+  unlockDialog.value = false;
+
+  const result = await postingClient.unlockBatch(selectedBatch.value.id);
+  unlockingId.value = null;
+
+  if (result.ok) {
+    notifySuccess('تم فتح قفل الدفعة بنجاح');
+    await loadBatches();
+  } else {
+    notifyError(result.error.message || 'فشل فتح القفل');
   }
 }
 
 async function executeReverse() {
   if (!selectedBatch.value?.id) return;
-
   reversingId.value = selectedBatch.value.id;
   reverseDialog.value = false;
-  errorMessage.value = null;
-  successMessage.value = null;
 
   const result = await postingClient.reverseBatch(selectedBatch.value.id);
   reversingId.value = null;
 
   if (result.ok) {
-    successMessage.value = 'ØªÙ… Ø¹ÙƒØ³ Ø§Ù„Ø¯ÙØ¹Ø© Ø¨Ù†Ø¬Ø§Ø­';
+    notifySuccess('تم عكس الدفعة بنجاح');
     await loadBatches();
   } else {
-    errorMessage.value = result.error.message || 'ÙØ´Ù„ Ø¹ÙƒØ³ Ø§Ù„Ø¯ÙØ¹Ø©';
+    notifyError(result.error.message || 'فشل عكس الدفعة');
   }
 }
 

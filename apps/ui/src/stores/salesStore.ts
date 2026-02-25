@@ -87,6 +87,17 @@ export const useSalesStore = defineStore('sales', () => {
     }
   }
 
+  async function refundSale(id: number) {
+    loading.value = true;
+    error.value = null;
+    const result = await salesClient.refund(id);
+    if (!result.ok) {
+      error.value = result.error.message;
+    }
+    loading.value = false;
+    return result;
+  }
+
   return {
     items,
     total,
@@ -97,6 +108,7 @@ export const useSalesStore = defineStore('sales', () => {
     addPayment,
     getSale,
     cancelSale,
+    refundSale,
     generateReceipt,
   };
 });

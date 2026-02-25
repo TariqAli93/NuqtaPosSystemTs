@@ -80,8 +80,19 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { settingsClient } from '@/ipc/settingsClient';
+import { notifyError, notifySuccess } from '@/utils/notify';
+import { toUserMessage } from '@/utils/errorMessage';
 
 const saving = ref(false);
+
+const TYPED_BARCODE_KEYS = [
+  'barcode.defaultFormat',
+  'barcode.prefix',
+  'barcode.labelWidth',
+  'barcode.labelHeight',
+  'barcode.showPrice',
+  'barcode.showProductName',
+] as const;
 
 const barcodeFormats = [
   { title: 'EAN-13', value: 'ean13' },
@@ -102,21 +113,55 @@ const barcodeSettings = reactive({
 
 async function loadSettings() {
   try {
-    const result = await settingsClient.get('barcode');
+    const result = await settingsClient.getTyped([...TYPED_BARCODE_KEYS]);
     if (result.ok && result.data) {
-      Object.assign(barcodeSettings, result.data);
+      const data = result.data;
+      if (typeof data['barcode.defaultFormat'] === 'string') {
+        barcodeSettings.defaultFormat = data['barcode.defaultFormat'];
+      }
+      if (typeof data['barcode.prefix'] === 'string') {
+        barcodeSettings.prefix = data['barcode.prefix'];
+      }
+      if (typeof data['barcode.labelWidth'] === 'number') {
+        barcodeSettings.labelWidth = data['barcode.labelWidth'];
+      }
+      if (typeof data['barcode.labelHeight'] === 'number') {
+        barcodeSettings.labelHeight = data['barcode.labelHeight'];
+      }
+      if (typeof data['barcode.showPrice'] === 'boolean') {
+        barcodeSettings.showPrice = data['barcode.showPrice'];
+      }
+      if (typeof data['barcode.showProductName'] === 'boolean') {
+        barcodeSettings.showProductName = data['barcode.showProductName'];
+      }
     }
   } catch (err) {
     console.error('Failed to load barcode settings:', err);
+    notifyError(toUserMessage(err));
   }
 }
 
 async function save() {
   saving.value = true;
   try {
-    await settingsClient.set('barcode', JSON.stringify({ ...barcodeSettings }));
+    if (
+      !Number.isInteger(barcodeSettings.labelWidth) ||
+      !Number.isInteger(barcodeSettings.labelHeight)
+    ) {
+      throw new Error('Barcode label dimensions must be integers');
+    }
+    await settingsClient.setTyped({
+      'barcode.defaultFormat': barcodeSettings.defaultFormat,
+      'barcode.prefix': barcodeSettings.prefix,
+      'barcode.labelWidth': barcodeSettings.labelWidth,
+      'barcode.labelHeight': barcodeSettings.labelHeight,
+      'barcode.showPrice': barcodeSettings.showPrice,
+      'barcode.showProductName': barcodeSettings.showProductName,
+    });
+    notifySuccess('تم حفظ إعدادات الباركود');
   } catch (err) {
     console.error('Failed to save barcode settings:', err);
+    notifyError(toUserMessage(err));
   } finally {
     saving.value = false;
   }

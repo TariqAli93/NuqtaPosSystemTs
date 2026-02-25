@@ -326,22 +326,6 @@
     confirm-color="primary"
     @confirm="showStockAlert = false"
   />
-
-  <v-snackbar v-model="showScanFeedback" :color="scanFeedbackColor" :timeout="2000" location="top">
-    <div class="d-flex align-center">
-      <v-icon :icon="scanFeedbackIcon" class="mr-2" />
-      {{ scanFeedbackMessage }}
-    </div>
-  </v-snackbar>
-
-  <v-snackbar
-    v-model="showPaymentToast"
-    :color="paymentToastColor"
-    :timeout="2200"
-    location="bottom"
-  >
-    {{ paymentToastMessage }}
-  </v-snackbar>
 </template>
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue';
@@ -367,6 +351,7 @@ import type { ProductUnit } from '@/types/domain';
 import { useGlobalBarcodeScanner } from '@/composables/useGlobalBarcodeScanner';
 import MoneyInput from '@/components/shared/MoneyInput.vue';
 import { generateIdempotencyKey } from '@/utils/idempotency';
+import { notifyError, notifyInfo, notifySuccess, notifyWarn } from '@/utils/notify';
 
 const productsStore = useProductsStore();
 const salesStore = useSalesStore();
@@ -424,14 +409,6 @@ const showResumeDialog = ref(false);
 const showMoreDialog = ref(false);
 const showStockAlert = ref(false);
 const stockAlertMessage = ref('');
-
-const showScanFeedback = ref(false);
-const scanFeedbackMessage = ref('');
-const scanFeedbackColor = ref('success');
-const scanFeedbackIcon = ref('mdi-check-circle');
-const showPaymentToast = ref(false);
-const paymentToastMessage = ref('');
-const paymentToastColor = ref<'success' | 'error'>('success');
 
 const pendingRemoveIndex = ref<number | null>(null);
 const customerSearch = ref('');
@@ -590,6 +567,7 @@ const loadHeldSales = () => {
   } catch (error) {
     console.error(error);
     heldSales.value = [];
+    notifyError(t('errors.unexpected'));
   }
 };
 
@@ -598,6 +576,7 @@ const saveHeldSales = () => {
     localStorage.setItem('nuqta_held_sales', JSON.stringify(heldSales.value));
   } catch (error) {
     console.error(error);
+    notifyError(t('errors.unexpected'));
   }
 };
 
@@ -630,30 +609,23 @@ function findProductByScanToken(scanToken: string): Product | undefined {
 }
 
 function showScanSuccess(productName: string) {
-  scanFeedbackMessage.value = `${t('pos.productAdded')}: ${productName}`;
-  scanFeedbackColor.value = 'success';
-  scanFeedbackIcon.value = 'mdi-check-circle';
-  showScanFeedback.value = true;
+  notifySuccess(`${t('pos.productAdded')}: ${productName}`);
 }
 
 function showScanError() {
-  scanFeedbackMessage.value = `${t('pos.barcodeNotFound')}`;
-  scanFeedbackColor.value = 'error';
-  scanFeedbackIcon.value = 'mdi-alert-circle';
-  showScanFeedback.value = true;
+  notifyError(`${t('pos.barcodeNotFound')}`);
 }
 
 function showScanWarning(message: string) {
-  scanFeedbackMessage.value = message;
-  scanFeedbackColor.value = 'warning';
-  scanFeedbackIcon.value = 'mdi-alert';
-  showScanFeedback.value = true;
+  notifyWarn(message);
 }
 
 function showPaymentMessage(message: string, color: 'success' | 'error') {
-  paymentToastMessage.value = message;
-  paymentToastColor.value = color;
-  showPaymentToast.value = true;
+  if (color === 'success') {
+    notifySuccess(message);
+  } else {
+    notifyError(message);
+  }
 }
 
 async function handleSearchSubmit() {
@@ -847,7 +819,7 @@ function clearNote() {
 
 function handleHold() {
   if (cartItems.value.length === 0) {
-    alert(t('pos.nothingToHold'));
+    notifyWarn(t('pos.nothingToHold'));
     return;
   }
   holdName.value = '';
@@ -940,10 +912,12 @@ function triggerAfterPay(saleId: number) {
     .then((result) => {
       if (!result.ok) {
         console.error('pos:afterPay failed', result.error);
+        notifyError(mapErrorToArabic(result.error, 'errors.unexpected'));
       }
     })
     .catch((error) => {
       console.error('pos:afterPay failed', error);
+      notifyError(t('errors.unexpected'));
     });
 }
 

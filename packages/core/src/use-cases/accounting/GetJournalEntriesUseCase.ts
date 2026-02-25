@@ -8,6 +8,7 @@ export class GetJournalEntriesUseCase {
     sourceType?: string;
     dateFrom?: string;
     dateTo?: string;
+    isPosted?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<{ items: JournalEntry[]; total: number }> {

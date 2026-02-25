@@ -349,7 +349,7 @@ export class BackupService {
    * Follows the same logic as db.ts in packages/data
    */
   private getOriginalDbPath(): string {
-    const appDataPath = app.getPath('appData');
-    return path.join(appDataPath, 'nuqtaplus', 'nuqta_plus.db');
+    const appDataPath = app.getPath('userData');
+    return path.join(appDataPath, 'Databases', 'nuqta_plus.db');
   }
 }

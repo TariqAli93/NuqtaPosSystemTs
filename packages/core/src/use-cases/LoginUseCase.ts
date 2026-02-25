@@ -14,17 +14,17 @@ export class LoginUseCase {
     const user = await this.userRepo.findByUsername(credentials.username);
 
     if (!user) {
-      throw new UnauthorizedError('Invalid username or password');
+      throw new UnauthorizedError('البيانات غير صحيحة');
     }
 
     if (!user.isActive) {
-      throw new ValidationError('Account is inactive', { userId: user.id });
+      throw new ValidationError('الحساب غير نشط', { userId: user.id });
     }
 
     const isValid = await comparePassword(credentials.password, user.password);
 
     if (!isValid) {
-      throw new UnauthorizedError('Invalid username or password');
+      throw new UnauthorizedError('البيانات غير صحيحة');
     }
 
     // Update last login

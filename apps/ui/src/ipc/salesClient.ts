@@ -24,10 +24,10 @@ export const salesClient = {
 
   getById: (id: number): Promise<ApiResult<Sale>> =>
     invoke<Sale>('sales:getById', buildIdPayload('sales:getById', id)),
-  cancel: (id: number): Promise<ApiResult<null>> =>
-    invoke<null>('sales:cancel', buildIdPayload('sales:cancel', id)),
-  refund: (id: number): Promise<ApiResult<null>> =>
-    invoke<null>('sales:refund', buildIdPayload('sales:refund', id)),
+  cancel: (id: number): Promise<ApiResult<Sale>> =>
+    invoke<Sale>('sales:cancel', buildIdPayload('sales:cancel', id)),
+  refund: (id: number): Promise<ApiResult<Sale>> =>
+    invoke<Sale>('sales:refund', buildIdPayload('sales:refund', id)),
   generateReceipt: (id: number): Promise<ApiResult<{ receiptHtml: string }>> =>
     invoke<{ receiptHtml: string }>(
       'sales:generateReceipt',

@@ -4,12 +4,14 @@ import { ICustomerRepository } from '../interfaces/ICustomerRepository.js';
 import { ICustomerLedgerRepository } from '../interfaces/ICustomerLedgerRepository.js';
 import { IAccountingRepository } from '../interfaces/IAccountingRepository.js';
 import { ISettingsRepository } from '../interfaces/ISettingsRepository.js';
+import { IAuditRepository } from '../interfaces/IAuditRepository.js';
 import { NotFoundError, InvalidStateError, ValidationError } from '../errors/DomainErrors.js';
 import { roundByCurrency } from '../utils/helpers.js';
 import { Sale } from '../entities/Sale.js';
 import type { PaymentMethod } from '../entities/Payment.js';
 import type { JournalLine } from '../entities/Accounting.js';
 import { MODULE_SETTING_KEYS } from '../entities/ModuleSettings.js';
+import { AuditService } from '../services/AuditService.js';
 
 const ACCT_CASH = '1001';
 const ACCT_AR = '1100';
@@ -31,14 +33,21 @@ export interface AddPaymentCommitResult {
 }
 
 export class AddPaymentUseCase {
+  private auditService?: AuditService;
+
   constructor(
     private saleRepo: ISaleRepository,
     private paymentRepo: IPaymentRepository,
     private customerRepo: ICustomerRepository,
     private customerLedgerRepo: ICustomerLedgerRepository,
     private accountingRepo: IAccountingRepository,
-    private settingsRepo?: ISettingsRepository
-  ) {}
+    private settingsRepo?: ISettingsRepository,
+    auditRepo?: IAuditRepository
+  ) {
+    if (auditRepo) {
+      this.auditService = new AuditService(auditRepo);
+    }
+  }
 
   executeCommitPhase(input: AddPaymentInput, userId: number): AddPaymentCommitResult {
     if (input.idempotencyKey) {
@@ -71,6 +80,12 @@ export class AddPaymentUseCase {
       });
     }
 
+    if (!Number.isInteger(input.amount)) {
+      throw new ValidationError('Payment amount must be an integer IQD amount', {
+        amount: input.amount,
+      });
+    }
+
     if (input.paymentMethod === 'card' && !input.referenceNumber?.trim()) {
       throw new ValidationError('Card payments require a reference number');
     }
@@ -80,6 +95,19 @@ export class AddPaymentUseCase {
     }
 
     const currency = sale.currency || 'IQD';
+    if (
+      currency === 'IQD' &&
+      (!Number.isInteger(sale.remainingAmount) ||
+        !Number.isInteger(sale.paidAmount) ||
+        !Number.isInteger(sale.total))
+    ) {
+      throw new InvalidStateError('Sale amounts must be integer IQD values', {
+        saleId: sale.id,
+        remainingAmount: sale.remainingAmount,
+        paidAmount: sale.paidAmount,
+        total: sale.total,
+      });
+    }
     const amount = roundByCurrency(input.amount, currency);
     const saleRemaining = roundByCurrency(sale.remainingAmount, currency);
 
@@ -103,7 +131,7 @@ export class AddPaymentUseCase {
     const newPaidAmount = roundByCurrency(sale.paidAmount + actualPaymentAmount, currency);
     let newRemainingAmount = roundByCurrency(sale.remainingAmount - actualPaymentAmount, currency);
 
-    const threshold = currency === 'IQD' ? 250 : 0.01;
+    const threshold = currency === 'IQD' ? 0 : 0.01;
     if (newRemainingAmount < threshold) newRemainingAmount = 0;
 
     const newStatus = newRemainingAmount <= 0 ? 'completed' : 'pending';
@@ -192,7 +220,34 @@ export class AddPaymentUseCase {
   }
 
   async execute(input: AddPaymentInput, userId: number): Promise<Sale> {
-    return this.executeCommitPhase(input, userId).updatedSale;
+    const result = this.executeCommitPhase(input, userId);
+    await this.executeSideEffectsPhase(result, input, userId);
+    return result.updatedSale;
+  }
+
+  async executeSideEffectsPhase(
+    result: AddPaymentCommitResult,
+    input: AddPaymentInput,
+    userId: number
+  ): Promise<void> {
+    if (!this.auditService) return;
+    try {
+      await this.auditService.logAction(
+        userId,
+        'sale:payment:add',
+        'Sale',
+        input.saleId,
+        `Payment added to sale #${input.saleId}`,
+        {
+          saleId: input.saleId,
+          amount: input.amount,
+          paymentMethod: input.paymentMethod,
+          remainingAmount: result.updatedSale.remainingAmount,
+        }
+      );
+    } catch (error) {
+      console.warn('Audit logging failed for sale payment:', error);
+    }
   }
 
   private isAccountingEnabled(): boolean {

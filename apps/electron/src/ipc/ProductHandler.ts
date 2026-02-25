@@ -622,20 +622,19 @@ export function registerProductHandlers(db: DatabaseType) {
       }
 
       const userId = userContextService.getUserId() || 1;
+      const adjustInput = {
+        productId: data.productId,
+        quantityChange: data.quantityChange,
+        reason: data.reason,
+        notes: data.notes,
+        batchId: data.batchId,
+        unitName: data.unitName,
+        unitFactor: data.unitFactor,
+      };
       const result = withTransaction(db.sqlite, () =>
-        adjustStockUseCase.executeCommitPhase(
-          {
-            productId: data.productId,
-            quantityChange: data.quantityChange,
-            reason: data.reason,
-            notes: data.notes,
-            batchId: data.batchId,
-            unitName: data.unitName,
-            unitFactor: data.unitFactor,
-          },
-          userId
-        )
+        adjustStockUseCase.executeCommitPhase(adjustInput, userId)
       );
+      await adjustStockUseCase.executeSideEffectsPhase(result, adjustInput, userId);
       return ok(result);
     } catch (error: unknown) {
       return mapErrorToIpcResponse(error);

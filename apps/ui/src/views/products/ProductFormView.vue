@@ -12,9 +12,6 @@
       </v-app-bar>
 
       <v-card class="win-card win-card--padded" flat>
-        <v-alert v-if="localizedError" type="error" variant="tonal" class="mb-4">
-          {{ localizedError }}
-        </v-alert>
         <v-form class="win-form" @submit.prevent="submit">
           <v-text-field v-model="form.name" :label="t('products.name')" required />
           <div class="d-flex flex-wrap ga-2">
@@ -79,17 +76,6 @@
             {{ t('products.addUnit') }}
           </v-btn>
         </v-card-title>
-
-        <v-alert
-          v-if="unitError"
-          type="error"
-          variant="tonal"
-          class="mb-4"
-          closable
-          @click:close="unitError = ''"
-        >
-          {{ unitError }}
-        </v-alert>
 
         <v-table v-if="units.length > 0" density="comfortable" class="mt-2">
           <thead>
@@ -223,18 +209,11 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
-
-    <v-snackbar v-model="showScanFeedback" :timeout="1500" location="top" color="info">
-      <div class="d-flex align-center">
-        <v-icon icon="mdi-barcode-scan" class="mr-2" />
-        {{ scanFeedbackMessage }}
-      </div>
-    </v-snackbar>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, onUnmounted } from 'vue';
+import { computed, onMounted, reactive, ref, onUnmounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useProductsStore } from '../../stores/productsStore';
@@ -242,6 +221,8 @@ import type { ProductInput, ProductUnit } from '../../types/domain';
 import { useGlobalBarcodeScanner } from '../../composables/useGlobalBarcodeScanner';
 import MoneyInput from '@/components/shared/MoneyInput.vue';
 import { productsClient } from '@/ipc';
+import { notifyError, notifyInfo, notifySuccess, notifyWarn } from '@/utils/notify';
+import { toUserMessage } from '@/utils/errorMessage';
 
 const props = withDefaults(
   defineProps<{
@@ -259,6 +240,11 @@ const router = useRouter();
 const localizedError = computed(() =>
   store.error ? mapErrorToArabic(store.error, 'errors.unexpected') : null
 );
+
+watch(localizedError, (value) => {
+  if (!value) return;
+  notifyError(value, { dedupeKey: 'product-form-error' });
+});
 
 const idParam = computed(() => route.params.id);
 const isEdit = computed(() => typeof idParam.value === 'string');
@@ -293,7 +279,6 @@ const showDeleteUnitConfirm = ref(false);
 const editingUnit = ref<ProductUnit | null>(null);
 const pendingDeleteUnit = ref<ProductUnit | null>(null);
 const unitSaving = ref(false);
-const unitError = ref('');
 
 const unitForm = reactive({
   unitName: '',
@@ -325,6 +310,7 @@ async function loadUnits() {
     }
   } catch (err) {
     console.error('Failed to load units', err);
+    notifyError(toUserMessage(err));
   }
 }
 
@@ -355,15 +341,13 @@ function openEditUnitDialog(unit: ProductUnit) {
 }
 
 async function saveUnit() {
-  unitError.value = '';
-
   // Validation
   if (!unitForm.unitName.trim()) {
-    unitError.value = t('products.unitNameRequired');
+    notifyWarn(t('products.unitNameRequired'));
     return;
   }
   if (unitForm.factorToBase < 1 || !Number.isInteger(unitForm.factorToBase)) {
-    unitError.value = t('products.factorMustBePositiveInt');
+    notifyWarn(t('products.factorMustBePositiveInt'));
     return;
   }
 
@@ -372,7 +356,7 @@ async function saveUnit() {
     (u) => u.unitName === unitForm.unitName.trim() && u.id !== editingUnit.value?.id
   );
   if (duplicate) {
-    unitError.value = t('products.unitNameDuplicate');
+    notifyWarn(t('products.unitNameDuplicate'));
     return;
   }
 
@@ -381,7 +365,7 @@ async function saveUnit() {
 
   try {
     if (editingUnit.value?.id) {
-      await productsClient.updateUnit(editingUnit.value.id, {
+      const result = await productsClient.updateUnit(editingUnit.value.id, {
         unitName: unitForm.unitName.trim(),
         factorToBase: unitForm.factorToBase,
         sellingPrice: unitForm.sellingPrice || null,
@@ -389,8 +373,12 @@ async function saveUnit() {
         isDefault: unitForm.isDefault,
         isActive: unitForm.isActive,
       });
+      if (!result.ok) {
+        notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
+        return;
+      }
     } else {
-      await productsClient.createUnit({
+      const result = await productsClient.createUnit({
         productId,
         unitName: unitForm.unitName.trim(),
         factorToBase: unitForm.factorToBase,
@@ -399,11 +387,16 @@ async function saveUnit() {
         isDefault: unitForm.isDefault,
         isActive: unitForm.isActive,
       });
+      if (!result.ok) {
+        notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
+        return;
+      }
     }
     showUnitDialog.value = false;
     await loadUnits();
+    notifySuccess(t('common.saved'));
   } catch (err) {
-    unitError.value = mapErrorToArabic(String(err), 'errors.unexpected');
+    notifyError(toUserMessage(err));
   } finally {
     unitSaving.value = false;
   }
@@ -418,12 +411,17 @@ async function deleteUnit() {
   if (!pendingDeleteUnit.value?.id) return;
   unitSaving.value = true;
   try {
-    await productsClient.deleteUnit(pendingDeleteUnit.value.id);
+    const result = await productsClient.deleteUnit(pendingDeleteUnit.value.id);
+    if (!result.ok) {
+      notifyError(mapErrorToArabic(result.error, 'errors.deleteFailed'));
+      return;
+    }
     showDeleteUnitConfirm.value = false;
     pendingDeleteUnit.value = null;
     await loadUnits();
+    notifySuccess(t('common.deleted'));
   } catch (err) {
-    unitError.value = mapErrorToArabic(String(err), 'errors.unexpected');
+    notifyError(toUserMessage(err));
   } finally {
     unitSaving.value = false;
   }
@@ -433,17 +431,19 @@ async function setDefault(unit: ProductUnit) {
   if (!unit.id) return;
   const productId = Number(idParam.value);
   try {
-    await productsClient.setDefaultUnit(productId, unit.id);
+    const result = await productsClient.setDefaultUnit(productId, unit.id);
+    if (!result.ok) {
+      notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
+      return;
+    }
     await loadUnits();
+    notifySuccess(t('common.saved'));
   } catch (err) {
-    unitError.value = mapErrorToArabic(String(err), 'errors.unexpected');
+    notifyError(toUserMessage(err));
   }
 }
 
 // ── Barcode Scanner ──────────────────────────────────────────
-const showScanFeedback = ref(false);
-const scanFeedbackMessage = ref('');
-
 const scanner = useGlobalBarcodeScanner({
   mode: 'product',
   onScan: handleBarcodeScan,
@@ -454,11 +454,7 @@ const scanner = useGlobalBarcodeScanner({
 
 function handleBarcodeScan(barcode: string) {
   form.barcode = barcode;
-  scanFeedbackMessage.value = t('pos.barcodeScanHint');
-  showScanFeedback.value = true;
-  setTimeout(() => {
-    showScanFeedback.value = false;
-  }, 1500);
+  notifyInfo(t('pos.barcodeScanHint'), { dedupeKey: 'product-scan' });
 }
 
 async function loadProduct() {
@@ -494,19 +490,25 @@ async function submit() {
       if (Number.isNaN(id)) return;
       const result = await store.updateProduct(id, form);
       if (result.ok) {
+        notifySuccess(t('common.saved'));
         await router.push(props.redirectTo);
+      } else {
+        notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
       }
     } catch (error) {
-      console.log(error);
+      notifyError(toUserMessage(error));
     }
   } else {
     try {
       const result = await store.createProduct(form);
       if (result.ok) {
+        notifySuccess(t('common.saved'));
         await router.push(props.redirectTo);
+      } else {
+        notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
       }
     } catch (error) {
-      console.log(error);
+      notifyError(toUserMessage(error));
     }
   }
 }

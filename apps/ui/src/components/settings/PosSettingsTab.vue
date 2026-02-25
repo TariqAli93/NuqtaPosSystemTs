@@ -68,8 +68,19 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref } from 'vue';
 import { settingsClient } from '@/ipc/settingsClient';
+import { notifyError, notifySuccess } from '@/utils/notify';
+import { toUserMessage } from '@/utils/errorMessage';
 
 const saving = ref(false);
+
+const TYPED_POS_KEYS = [
+  'pos.enableBarcodeScanner',
+  'pos.autoAddOnScan',
+  'pos.showStockWarning',
+  'pos.defaultTaxRateBps',
+  'pos.defaultPaymentMethod',
+  'pos.autoGenerateInvoice',
+] as const;
 
 const paymentTypes = [
   { title: 'نقدي', value: 'cash' },
@@ -86,21 +97,51 @@ const posSettings = reactive({
 
 async function loadSettings() {
   try {
-    const result = await settingsClient.get('pos');
+    const result = await settingsClient.getTyped([...TYPED_POS_KEYS]);
     if (result.ok && result.data) {
-      Object.assign(posSettings, result.data);
+      const data = result.data;
+      if (typeof data['pos.enableBarcodeScanner'] === 'boolean') {
+        posSettings.enableBarcodeScanner = data['pos.enableBarcodeScanner'];
+      }
+      if (typeof data['pos.autoAddOnScan'] === 'boolean') {
+        posSettings.autoAddOnScan = data['pos.autoAddOnScan'];
+      } else if (typeof data['pos.autoGenerateInvoice'] === 'boolean') {
+        posSettings.autoAddOnScan = data['pos.autoGenerateInvoice'];
+      }
+      if (typeof data['pos.showStockWarning'] === 'boolean') {
+        posSettings.showStockWarning = data['pos.showStockWarning'];
+      }
+      if (typeof data['pos.defaultTaxRateBps'] === 'number') {
+        posSettings.defaultTaxRate = Math.max(0, Math.trunc(data['pos.defaultTaxRateBps'] / 100));
+      }
+      if (typeof data['pos.defaultPaymentMethod'] === 'string') {
+        posSettings.defaultPaymentType = data['pos.defaultPaymentMethod'];
+      }
     }
   } catch (err) {
     console.error('Failed to load POS settings:', err);
+    notifyError(toUserMessage(err));
   }
 }
 
 async function save() {
   saving.value = true;
   try {
-    await settingsClient.set('pos', { ...posSettings });
+    if (!Number.isInteger(posSettings.defaultTaxRate)) {
+      throw new Error('Default tax rate must be an integer percentage');
+    }
+    await settingsClient.setTyped({
+      'pos.enableBarcodeScanner': posSettings.enableBarcodeScanner,
+      'pos.autoAddOnScan': posSettings.autoAddOnScan,
+      'pos.showStockWarning': posSettings.showStockWarning,
+      'pos.defaultTaxRateBps': posSettings.defaultTaxRate * 100,
+      'pos.defaultPaymentMethod': posSettings.defaultPaymentType,
+      'pos.autoGenerateInvoice': posSettings.autoAddOnScan,
+    });
+    notifySuccess('تم حفظ إعدادات نقطة البيع');
   } catch (err) {
     console.error('Failed to save POS settings:', err);
+    notifyError(toUserMessage(err));
   } finally {
     saving.value = false;
   }

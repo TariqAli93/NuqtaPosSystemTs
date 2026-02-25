@@ -140,9 +140,7 @@ class InMemorySupplierLedgerRepository implements ISupplierLedgerRepository {
   entries: SupplierLedgerEntry[] = [];
   private idCounter = 1;
 
-  async create(
-    entry: Omit<SupplierLedgerEntry, 'id' | 'createdAt'>
-  ): Promise<SupplierLedgerEntry> {
+  async create(entry: Omit<SupplierLedgerEntry, 'id' | 'createdAt'>): Promise<SupplierLedgerEntry> {
     return this.createSync(entry);
   }
 
@@ -229,9 +227,10 @@ class InMemoryPostingRepository implements IPostingRepository {
     if (!original.isPosted) throw new Error('Cannot reverse unposted entry');
     if (original.isReversed) throw new Error('Entry is already reversed');
 
-    const nextId = this.accountingRepo.entries.reduce((max, entry) => {
-      return Math.max(max, entry.id || 0);
-    }, 0) + 1;
+    const nextId =
+      this.accountingRepo.entries.reduce((max, entry) => {
+        return Math.max(max, entry.id || 0);
+      }, 0) + 1;
 
     const reversedLines = (original.lines || []).map((line) => ({
       ...line,
@@ -247,7 +246,8 @@ class InMemoryPostingRepository implements IPostingRepository {
       description: `Reversal of ${original.entryNumber}`,
       reversalOfId: original.id,
       isReversed: false,
-      isPosted: true,
+      isPosted: false,
+      postingBatchId: undefined,
       createdBy: userId,
       lines: reversedLines,
     };
@@ -255,6 +255,30 @@ class InMemoryPostingRepository implements IPostingRepository {
     original.isReversed = true;
     this.accountingRepo.entries.push(reversal);
     return reversal;
+  }
+
+  voidUnpostedEntry(entryId: number): void {
+    const entry = this.accountingRepo.entries.find((e) => e.id === entryId);
+    if (!entry) throw new Error(`Journal entry ${entryId} not found`);
+    if (entry.isPosted)
+      throw new Error(`Journal entry ${entryId} is posted — use reversal instead`);
+    if (entry.isReversed) throw new Error(`Journal entry ${entryId} is already voided/reversed`);
+    entry.isReversed = true;
+  }
+
+  lockBatch(batchId: number): void {
+    const batch = this.batches.find((b) => b.id === batchId);
+    if (batch) (batch as any).isLocked = true;
+  }
+
+  unlockBatch(batchId: number): void {
+    const batch = this.batches.find((b) => b.id === batchId);
+    if (batch) (batch as any).isLocked = false;
+  }
+
+  isBatchLocked(batchId: number): boolean {
+    const batch = this.batches.find((b) => b.id === batchId);
+    return !!(batch as any)?.isLocked;
   }
 }
 

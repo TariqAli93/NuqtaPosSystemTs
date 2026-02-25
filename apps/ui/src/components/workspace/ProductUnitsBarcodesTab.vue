@@ -177,15 +177,14 @@
       </v-card>
     </v-row>
   </div>
-
-  <v-alert v-else type="info" variant="tonal">اختر منتجاً لإدارة الوحدات والباركود</v-alert>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { reactive, ref, watch } from 'vue';
 import { formatDate } from '@/utils/formatters';
 import type { BarcodePrintJob, BarcodeTemplate, Product, ProductUnit } from '@nuqtaplus/core';
 import type { ProductUnitInput } from '@/types/workspace';
+import { notifyInfo } from '@/utils/notify';
 
 const props = defineProps<{
   product: Product | null;
@@ -194,6 +193,17 @@ const props = defineProps<{
   printJobs: BarcodePrintJob[];
   loading: boolean;
 }>();
+
+watch(
+  () => props.product,
+  (value) => {
+    if (value) return;
+    notifyInfo('اختر منتجاً لإدارة الوحدات والباركود', {
+      dedupeKey: 'units-barcodes-no-product',
+    });
+  },
+  { immediate: true }
+);
 
 const emit = defineEmits<{
   saveUnit: [payload: { unitId?: number; input: ProductUnitInput }];

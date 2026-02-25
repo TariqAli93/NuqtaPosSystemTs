@@ -60,6 +60,33 @@ const PERMISSION_MATRIX: Record<string, UserRole[]> = {
 
   // Audit permissions
   'audit:read': ['admin', 'manager'],
+  'audit:cleanup': ['admin'],
+  'audit:export': ['admin', 'manager'],
+
+  // Inventory permissions
+  'inventory:view': ['admin', 'manager', 'cashier', 'viewer'],
+  'inventory:update': ['admin', 'manager'],
+
+  // Purchases permissions
+  'purchases:create': ['admin', 'manager'],
+  'purchases:read': ['admin', 'manager', 'cashier', 'viewer'],
+  'purchases:update': ['admin', 'manager'],
+  'purchases:delete': ['admin', 'manager'],
+
+  // Suppliers permissions
+  'suppliers:create': ['admin', 'manager'],
+  'suppliers:read': ['admin', 'manager', 'cashier', 'viewer'],
+  'suppliers:update': ['admin', 'manager'],
+  'suppliers:delete': ['admin', 'manager'],
+
+  // Accounting permissions
+  'accounting:view': ['admin', 'manager'],
+  'accounting:update': ['admin'],
+
+  // Simple mode permissions
+  'simpleMode:toggle': ['admin', 'manager'],
+
+  // Additional permissions can be added here
 };
 
 export class PermissionService {

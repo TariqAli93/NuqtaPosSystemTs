@@ -1,4 +1,5 @@
 import { Product } from '../entities/Product.js';
+import { ProductBatch } from '../entities/ProductBatch.js';
 import { ProductUnit } from '../entities/ProductUnit.js';
 
 export interface IProductRepository {
@@ -18,8 +19,15 @@ export interface IProductRepository {
   update(id: number, product: Partial<Product>): Product;
   delete(id: number): void;
   updateStock(id: number, quantityChange: number): void;
+  /** Set products.stock to the exact value (used for cache sync from batch totals) */
+  setStock(id: number, absoluteStock: number): void;
   updateBatchStock(batchId: number, quantityChange: number): void;
   countLowStock(threshold: number): number;
+
+  // ── Product Batches ────────────────────────────────────────────
+  findBatchesByProductId(productId: number): ProductBatch[];
+  createBatch(batch: Omit<ProductBatch, 'id' | 'createdAt'>): ProductBatch;
+  findBatchById(batchId: number): ProductBatch | null;
 
   // ── Product Units (Packaging / Conversion) ────────────────────
   findUnitsByProductId(productId: number): ProductUnit[];

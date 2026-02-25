@@ -43,7 +43,8 @@ export function registerPurchaseHandlers(db: DatabaseType) {
     paymentRepo,
     supplierLedgerRepo,
     accountingRepo,
-    settingsRepo
+    settingsRepo,
+    auditRepo
   );
   const getAllUseCase = new GetPurchasesUseCase(purchaseRepo);
   const getByIdUseCase = new GetPurchaseByIdUseCase(purchaseRepo);
@@ -59,6 +60,7 @@ export function registerPurchaseHandlers(db: DatabaseType) {
       const result = withTransaction(db.sqlite, () =>
         createUseCase.executeCommitPhase(data as any, userId)
       );
+      await createUseCase.executeSideEffectsPhase(result, userId);
 
       return ok(result.createdPurchase);
     } catch (error: unknown) {
@@ -100,11 +102,20 @@ export function registerPurchaseHandlers(db: DatabaseType) {
       if (!data || typeof data !== 'object' || Array.isArray(data)) {
         throw buildValidationError('purchases:addPayment', payload, 'data must be an object');
       }
+      const amount = Number((data as any).amount);
+      if (!Number.isFinite(amount) || amount <= 0 || !Number.isInteger(amount)) {
+        throw buildValidationError(
+          'purchases:addPayment',
+          payload,
+          'amount must be a positive integer IQD value'
+        );
+      }
 
       const userId = userContextService.getUserId() || 1;
       const result = withTransaction(db.sqlite, () =>
         addPaymentUseCase.executeCommitPhase(data as any, userId)
       );
+      await addPaymentUseCase.executeSideEffectsPhase(result, data as any, userId);
 
       return ok(result.updatedPurchase);
     } catch (error: unknown) {

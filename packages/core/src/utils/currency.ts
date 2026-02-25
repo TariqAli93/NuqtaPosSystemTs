@@ -1,14 +1,13 @@
 /**
- * Round amount based on currency
- * For IQD: round to nearest multiple of 250 (smallest denomination)
- * For USD: round to nearest integer
+ * Enforce money precision by currency.
+ * IQD is integer-only and must not be silently rounded.
  */
 export function roundByCurrency(amount: number, currency: string): number {
-  if (currency === 'IQD') {
-    // Round to nearest multiple of 250
-    return Math.ceil(amount / 250) * 250;
-  } else {
-    // For USD and other currencies, round to nearest integer
-    return Math.ceil(amount);
+  if (!Number.isFinite(amount)) {
+    throw new Error('Amount must be a finite number');
   }
+  if (currency === 'IQD' && !Number.isInteger(amount)) {
+    throw new Error('IQD amounts must be integers');
+  }
+  return amount;
 }

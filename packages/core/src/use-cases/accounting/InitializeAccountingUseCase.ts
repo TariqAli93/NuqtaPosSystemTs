@@ -12,13 +12,17 @@ export const ACCOUNTING_SETTING_KEYS = {
   apAccountCode: 'accounting.apAccountCode',
   salesRevenueAccountCode: 'accounting.salesRevenueAccountCode',
   cogsAccountCode: 'accounting.cogsAccountCode',
+  vatInputAccountCode: 'accounting.vatInputAccountCode',
+  vatOutputAccountCode: 'accounting.vatOutputAccountCode',
 } as const;
 
 export const DEFAULT_ACCOUNTING_CODES = {
   cashAccountCode: '1001',
   arAccountCode: '1100',
   inventoryAccountCode: '1200',
+  vatInputAccountCode: '1300',
   apAccountCode: '2100',
+  vatOutputAccountCode: '2200',
   salesRevenueAccountCode: '4001',
   cogsAccountCode: '5001',
 } as const;
@@ -30,6 +34,8 @@ export interface AccountingCodeSelections {
   apAccountCode: string;
   salesRevenueAccountCode: string;
   cogsAccountCode: string;
+  vatInputAccountCode: string;
+  vatOutputAccountCode: string;
 }
 
 export interface AccountingSetupStatus {
@@ -49,6 +55,8 @@ export interface InitializeAccountingInput {
   apAccountCode?: string;
   salesRevenueAccountCode?: string;
   cogsAccountCode?: string;
+  vatInputAccountCode?: string;
+  vatOutputAccountCode?: string;
 }
 
 export interface InitializeAccountingResult extends AccountingSetupStatus {
@@ -100,6 +108,18 @@ const ACCOUNT_BLUEPRINTS: AccountBlueprint[] = [
     name: 'تكلفة البضاعة',
     nameAr: 'تكلفة البضاعة',
     accountType: 'expense',
+  },
+  {
+    selectionKey: 'vatInputAccountCode',
+    name: 'ضريبة المدخلات',
+    nameAr: 'ضريبة المدخلات',
+    accountType: 'asset',
+  },
+  {
+    selectionKey: 'vatOutputAccountCode',
+    name: 'ضريبة المخرجات',
+    nameAr: 'ضريبة المخرجات',
+    accountType: 'liability',
   },
 ];
 
@@ -226,6 +246,14 @@ export class InitializeAccountingUseCase {
       selected.salesRevenueAccountCode
     );
     this.settingsRepo.set(ACCOUNTING_SETTING_KEYS.cogsAccountCode, selected.cogsAccountCode);
+    this.settingsRepo.set(
+      ACCOUNTING_SETTING_KEYS.vatInputAccountCode,
+      selected.vatInputAccountCode
+    );
+    this.settingsRepo.set(
+      ACCOUNTING_SETTING_KEYS.vatOutputAccountCode,
+      selected.vatOutputAccountCode
+    );
   }
 
   private resolveSelectedCodes(input: InitializeAccountingInput = {}): AccountingCodeSelections {
@@ -260,6 +288,16 @@ export class InitializeAccountingUseCase {
         ACCOUNTING_SETTING_KEYS.cogsAccountCode,
         DEFAULT_ACCOUNTING_CODES.cogsAccountCode
       ),
+      vatInputAccountCode: this.resolveCode(
+        input.vatInputAccountCode,
+        ACCOUNTING_SETTING_KEYS.vatInputAccountCode,
+        DEFAULT_ACCOUNTING_CODES.vatInputAccountCode
+      ),
+      vatOutputAccountCode: this.resolveCode(
+        input.vatOutputAccountCode,
+        ACCOUNTING_SETTING_KEYS.vatOutputAccountCode,
+        DEFAULT_ACCOUNTING_CODES.vatOutputAccountCode
+      ),
     };
   }
 
@@ -281,7 +319,9 @@ export class InitializeAccountingUseCase {
   }
 
   private findMissingCodes(selectedCodes: AccountingCodeSelections): string[] {
-    const uniqueCodes = Array.from(new Set(Object.values(selectedCodes).map((code) => code.trim())));
+    const uniqueCodes = Array.from(
+      new Set(Object.values(selectedCodes).map((code) => code.trim()))
+    );
     return uniqueCodes.filter((code) => !this.accountingRepo.findAccountByCode(code)?.id);
   }
 }

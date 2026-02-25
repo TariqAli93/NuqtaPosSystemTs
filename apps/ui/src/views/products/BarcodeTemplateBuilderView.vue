@@ -507,7 +507,11 @@ function selectTemplate(tmpl: BarcodeTemplate) {
   if (tmpl.layoutJson) {
     try {
       const parsed = JSON.parse(tmpl.layoutJson);
-      layoutElements.value = Array.isArray(parsed.elements) ? parsed.elements : [];
+      if (parsed && typeof parsed === 'object' && Array.isArray(parsed.elements)) {
+        layoutElements.value = parsed.elements;
+      } else {
+        layoutElements.value = [];
+      }
     } catch {
       layoutElements.value = [];
     }
@@ -584,7 +588,7 @@ async function saveTemplate() {
 
   saving.value = true;
   try {
-    const layoutJson = JSON.stringify({ elements: layoutElements.value });
+    const layoutJson = JSON.stringify({ version: 1, elements: layoutElements.value });
 
     // Since updateTemplate is not wired via IPC, we always create new
     // (delete old first if editing)

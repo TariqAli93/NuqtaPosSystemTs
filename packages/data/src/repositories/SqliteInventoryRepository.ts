@@ -13,6 +13,13 @@ export class SqliteInventoryRepository implements IInventoryRepository {
   }
 
   createMovementSync(movement: Omit<InventoryMovement, 'id' | 'createdAt'>): InventoryMovement {
+    // Guard: adjustment movements MUST have a batchId
+    if (movement.sourceType === 'adjustment' && !movement.batchId) {
+      throw new Error(
+        `[SqliteInventoryRepository] adjustment movement for product ${movement.productId} must have a batchId`
+      );
+    }
+
     const created = this.db
       .insert(inventoryMovements)
       .values({ ...movement, createdAt: new Date().toISOString() })
@@ -33,7 +40,8 @@ export class SqliteInventoryRepository implements IInventoryRepository {
   }): Promise<{ items: InventoryMovement[]; total: number }> {
     const conditions: any[] = [];
     if (params?.productId) conditions.push(eq(inventoryMovements.productId, params.productId));
-    if (params?.movementType) conditions.push(eq(inventoryMovements.movementType, params.movementType));
+    if (params?.movementType)
+      conditions.push(eq(inventoryMovements.movementType, params.movementType));
     if (params?.sourceType) conditions.push(eq(inventoryMovements.sourceType, params.sourceType));
     if (params?.sourceId) conditions.push(eq(inventoryMovements.sourceId, params.sourceId));
     if (params?.dateFrom) conditions.push(gte(inventoryMovements.createdAt, params.dateFrom));

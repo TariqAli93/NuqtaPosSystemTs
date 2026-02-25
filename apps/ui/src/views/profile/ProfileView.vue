@@ -6,10 +6,6 @@
         <div class="win-subtitle">{{ t('profile.subtitle') }}</div>
       </div>
 
-      <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
-        {{ error }}
-      </v-alert>
-
       <v-card class="win-card win-card--padded" flat>
         <v-list>
           <v-list-item
@@ -71,10 +67,6 @@
           </v-card-actions>
         </v-card>
       </v-dialog>
-
-      <v-snackbar v-model="successOpen" color="success" timeout="2000">
-        {{ t('profile.passwordChanged') }}
-      </v-snackbar>
     </div>
   </v-container>
 </template>
@@ -85,6 +77,7 @@ import { useRouter } from 'vue-router';
 import { useAuthStore } from '../../stores/authStore';
 import { authClient } from '../../ipc';
 import { mapErrorToArabic, mapRoleToArabic, t } from '../../i18n/t';
+import { notifyError, notifySuccess, notifyWarn } from '@/utils/notify';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -93,8 +86,6 @@ const passwordDialog = ref(false);
 const currentPassword = ref('');
 const newPassword = ref('');
 const saving = ref(false);
-const successOpen = ref(false);
-const error = ref<string | null>(null);
 
 function formatLastLogin(value?: string | null): string {
   if (!value) return t('common.none');
@@ -118,7 +109,6 @@ function logout() {
 
 function openPasswordDialog() {
   if (!authStore.user?.username) return;
-  error.value = null;
   currentPassword.value = '';
   newPassword.value = '';
   passwordDialog.value = true;
@@ -126,17 +116,16 @@ function openPasswordDialog() {
 
 async function changePassword() {
   if (!authStore.user?.username) {
-    error.value = t('common.notAvailable');
+    notifyWarn(t('common.notAvailable'));
     return;
   }
 
   if (!currentPassword.value.trim() || !newPassword.value.trim()) {
-    error.value = t('errors.invalidData');
+    notifyWarn(t('errors.invalidData'));
     return;
   }
 
   saving.value = true;
-  error.value = null;
 
   const result = await authClient.changePassword({
     username: authStore.user.username,
@@ -145,10 +134,10 @@ async function changePassword() {
   });
 
   if (!result.ok) {
-    error.value = mapErrorToArabic(result.error, 'errors.saveFailed');
+    notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
   } else {
     passwordDialog.value = false;
-    successOpen.value = true;
+    notifySuccess(t('profile.passwordChanged'));
   }
 
   saving.value = false;

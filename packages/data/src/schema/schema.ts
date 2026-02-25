@@ -199,6 +199,31 @@ export const saleItems = sqliteTable('sale_items', {
   createdAt: text('created_at').default(sql`(datetime('now','localtime'))`),
 });
 
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// SALE ITEM DEPLETIONS (FIFO batch traceability per sold line)
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+
+export const saleItemDepletions = sqliteTable(
+  'sale_item_depletions',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    saleId: integer('sale_id').notNull(),
+    saleItemId: integer('sale_item_id').notNull(),
+    productId: integer('product_id').notNull(),
+    batchId: integer('batch_id').notNull(),
+    quantityBase: integer('quantity_base').notNull(),
+    costPerUnit: integer('cost_per_unit').notNull(),
+    totalCost: integer('total_cost').notNull(),
+    createdAt: text('created_at').default(sql`(datetime('now','localtime'))`),
+  },
+  (table) => [
+    index('idx_sale_item_depletions_sale').on(table.saleId),
+    index('idx_sale_item_depletions_item').on(table.saleItemId),
+    index('idx_sale_item_depletions_batch').on(table.batchId),
+    uniqueIndex('idx_sale_item_depletions_unique').on(table.saleItemId, table.batchId),
+  ]
+);
+
 // ═══════════════════════════════════════════════════════════════
 // PURCHASES (Procurement Invoices)
 // ═══════════════════════════════════════════════════════════════
@@ -320,6 +345,7 @@ export const inventoryMovements = sqliteTable(
   },
   (table) => [
     index('idx_inv_mov_product').on(table.productId),
+    index('idx_inv_mov_batch').on(table.batchId),
     index('idx_inv_mov_date').on(table.createdAt),
     index('idx_inv_mov_source').on(table.sourceType, table.sourceId),
   ]
@@ -383,7 +409,7 @@ export const journalEntries = sqliteTable(
     description: text('description').notNull(),
     sourceType: text('source_type'),
     sourceId: integer('source_id'),
-    isPosted: integer('is_posted', { mode: 'boolean' }).default(true),
+    isPosted: integer('is_posted', { mode: 'boolean' }).default(false),
     isReversed: integer('is_reversed', { mode: 'boolean' }).default(false),
     reversalOfId: integer('reversal_of_id'),
     postingBatchId: integer('posting_batch_id'),

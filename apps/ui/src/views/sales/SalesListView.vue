@@ -1,7 +1,7 @@
 ﻿<template>
   <v-container>
     <div class="win-page">
-      <v-app-bar class="ds-page-header d-flex align-center justify-space-between mb-6">
+      <v-app-bar class="mb-6" border="bottom">
         <v-app-bar-title>
           <div class="win-title mb-0">{{ t('sales.title') }}</div>
           <div class="text-sm">{{ t('sales.subtitle') }}</div>
@@ -46,9 +46,6 @@
 
       <v-card class="win-card" flat>
         <v-card-text class="pa-0">
-          <v-alert v-if="localizedError" type="error" variant="tonal" class="ma-4">
-            {{ localizedError }}
-          </v-alert>
           <v-data-table
             :headers="tableHeaders"
             :items="filteredSales"
@@ -64,13 +61,14 @@
               <span class="text-medium-emphasis">{{ item.customerId ?? t('common.none') }}</span>
             </template>
             <template #item.total="{ item }">
-              <span class="font-weight-bold">{{ formatAmount(item.total) }}</span>
+              <span class="font-weight-bold">{{ formatCurrency(item.total) }}</span>
             </template>
             <template #item.status="{ item }">
               <v-chip size="small" variant="tonal" :color="statusBadgeClass(item.status)">
                 {{ statusLabel(item.status) }}
               </v-chip>
             </template>
+
             <template #item.actions="{ item }">
               <v-btn
                 size="small"
@@ -101,11 +99,15 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useSalesStore } from '../../stores/salesStore';
 import EmptyState from '../../components/emptyState.vue';
+import { useCurrency } from '@/composables/useCurrency';
+import { notifyError } from '@/utils/notify';
 
 const store = useSalesStore();
 const searchQuery = ref('');
 const statusFilter = ref<string | null>(null);
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+const { formatCurrency } = useCurrency();
 
 const statusOptions = computed(() => [
   { title: t('sales.pending'), value: 'pending' },
@@ -159,13 +161,6 @@ function statusBadgeClass(status: string): string {
   return statusMap[status] || 'ds-badge-neutral';
 }
 
-function formatAmount(value: number): string {
-  return new Intl.NumberFormat('ar-IQ', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(value);
-}
-
 function fetchWithFilters() {
   void store.fetchSales({
     limit: 25,
@@ -178,6 +173,11 @@ function fetchWithFilters() {
 watch([searchQuery, statusFilter], () => {
   if (searchTimeout) clearTimeout(searchTimeout);
   searchTimeout = setTimeout(fetchWithFilters, 300);
+});
+
+watch(localizedError, (value) => {
+  if (!value) return;
+  notifyError(value, { dedupeKey: 'sales-list-error' });
 });
 
 onMounted(() => {

@@ -3,12 +3,14 @@ import { IPaymentRepository } from '../interfaces/IPaymentRepository.js';
 import { ISupplierLedgerRepository } from '../interfaces/ISupplierLedgerRepository.js';
 import { IAccountingRepository } from '../interfaces/IAccountingRepository.js';
 import { ISettingsRepository } from '../interfaces/ISettingsRepository.js';
+import { IAuditRepository } from '../interfaces/IAuditRepository.js';
 import { NotFoundError, InvalidStateError, ValidationError } from '../errors/DomainErrors.js';
 import { roundByCurrency } from '../utils/helpers.js';
 import { Purchase } from '../entities/Purchase.js';
 import type { PaymentMethod } from '../entities/Payment.js';
 import type { JournalLine } from '../entities/Accounting.js';
 import { MODULE_SETTING_KEYS } from '../entities/ModuleSettings.js';
+import { AuditService } from '../services/AuditService.js';
 
 const ACCT_CASH = '1001';
 const ACCT_AP = '2100';
@@ -35,13 +37,20 @@ export interface AddPurchasePaymentInput {
  * 5) create draft journal entry (if accounting is enabled)
  */
 export class AddPurchasePaymentUseCase {
+  private auditService?: AuditService;
+
   constructor(
     private purchaseRepo: IPurchaseRepository,
     private paymentRepo: IPaymentRepository,
     private supplierLedgerRepo: ISupplierLedgerRepository,
     private accountingRepo: IAccountingRepository,
-    private settingsRepo?: ISettingsRepository
-  ) {}
+    private settingsRepo?: ISettingsRepository,
+    auditRepo?: IAuditRepository
+  ) {
+    if (auditRepo) {
+      this.auditService = new AuditService(auditRepo);
+    }
+  }
 
   executeCommitPhase(
     input: AddPurchasePaymentInput,
@@ -61,6 +70,12 @@ export class AddPurchasePaymentUseCase {
 
     if (input.amount <= 0) {
       throw new ValidationError('Payment amount must be greater than zero', {
+        amount: input.amount,
+      });
+    }
+
+    if (!Number.isInteger(input.amount)) {
+      throw new ValidationError('Payment amount must be an integer IQD amount', {
         amount: input.amount,
       });
     }
@@ -86,6 +101,19 @@ export class AddPurchasePaymentUseCase {
     }
 
     const currency = input.currency || purchase.currency || 'IQD';
+    if (
+      currency === 'IQD' &&
+      (!Number.isInteger(purchase.remainingAmount || 0) ||
+        !Number.isInteger(purchase.paidAmount || 0) ||
+        !Number.isInteger(purchase.total || 0))
+    ) {
+      throw new InvalidStateError('Purchase amounts must be integer IQD values', {
+        purchaseId: purchase.id,
+        remainingAmount: purchase.remainingAmount,
+        paidAmount: purchase.paidAmount,
+        total: purchase.total,
+      });
+    }
     const requestedAmount = roundByCurrency(input.amount, currency);
     const currentRemaining = roundByCurrency(purchase.remainingAmount || 0, currency);
     const amount = Math.min(requestedAmount, currentRemaining);
@@ -97,7 +125,7 @@ export class AddPurchasePaymentUseCase {
       });
     }
 
-    const threshold = currency === 'IQD' ? 250 : 0.01;
+    const threshold = currency === 'IQD' ? 0 : 0.01;
     const newPaidAmount = roundByCurrency((purchase.paidAmount || 0) + amount, currency);
     let newRemainingAmount = roundByCurrency(
       Math.max(0, (purchase.total || 0) - newPaidAmount),
@@ -195,7 +223,34 @@ export class AddPurchasePaymentUseCase {
   }
 
   async execute(input: AddPurchasePaymentInput, userId: number): Promise<Purchase> {
-    return this.executeCommitPhase(input, userId).updatedPurchase;
+    const result = this.executeCommitPhase(input, userId);
+    await this.executeSideEffectsPhase(result, input, userId);
+    return result.updatedPurchase;
+  }
+
+  async executeSideEffectsPhase(
+    result: { updatedPurchase: Purchase },
+    input: AddPurchasePaymentInput,
+    userId: number
+  ): Promise<void> {
+    if (!this.auditService) return;
+    try {
+      await this.auditService.logAction(
+        userId,
+        'purchase:payment:add',
+        'Purchase',
+        input.purchaseId,
+        `Payment added to purchase #${input.purchaseId}`,
+        {
+          purchaseId: input.purchaseId,
+          amount: input.amount,
+          paymentMethod: input.paymentMethod,
+          remainingAmount: result.updatedPurchase.remainingAmount,
+        }
+      );
+    } catch (error) {
+      console.warn('Audit logging failed for purchase payment:', error);
+    }
   }
 
   private isAccountingEnabled(): boolean {

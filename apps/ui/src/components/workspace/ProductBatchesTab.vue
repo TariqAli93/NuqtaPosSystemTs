@@ -83,21 +83,29 @@
       </template>
     </v-data-table>
   </div>
-
-  <v-alert v-else type="info" variant="tonal">اختر منتجاً لعرض الدفعات</v-alert>
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue';
+import { reactive, watch } from 'vue';
 import { formatDate, formatMoney } from '@/utils/formatters';
 import type { Product, ProductBatch } from '@nuqtaplus/core';
 import type { ProductBatchInput } from '@/types/workspace';
+import { notifyInfo } from '@/utils/notify';
 
 const props = defineProps<{
   product: Product | null;
   batches: ProductBatch[];
   loading: boolean;
 }>();
+
+watch(
+  () => props.product,
+  (value) => {
+    if (value) return;
+    notifyInfo('اختر منتجاً لعرض الدفعات', { dedupeKey: 'batches-no-product' });
+  },
+  { immediate: true }
+);
 
 const emit = defineEmits<{
   createBatch: [payload: ProductBatchInput];

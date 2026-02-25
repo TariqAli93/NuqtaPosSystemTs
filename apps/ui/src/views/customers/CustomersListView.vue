@@ -1,7 +1,7 @@
 ﻿<template>
   <v-container>
     <div class="win-page">
-      <v-app-bar class="ds-page-header d-flex align-center justify-space-between mb-6">
+      <v-app-bar class="mb-6" border="bottom">
         <v-app-bar-title>
           <div class="win-title mb-0">{{ t('customers.title') }}</div>
           <div class="text-sm">{{ t('customers.subtitle') }}</div>
@@ -31,9 +31,6 @@
 
       <v-card class="win-card" flat>
         <v-card-text class="pa-0">
-          <v-alert v-if="localizedError" type="error" variant="tonal" class="ma-4">
-            {{ localizedError }}
-          </v-alert>
           <v-data-table
             :headers="tableHeaders"
             :items="store.items"
@@ -92,6 +89,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useCustomersStore } from '../../stores/customersStore';
 import EmptyState from '../../components/emptyState.vue';
+import { notifyError } from '@/utils/notify';
 
 const store = useCustomersStore();
 const searchQuery = ref('');
@@ -124,6 +122,11 @@ function fetchWithSearch() {
 watch(searchQuery, () => {
   if (searchTimeout) clearTimeout(searchTimeout);
   searchTimeout = setTimeout(fetchWithSearch, 300);
+});
+
+watch(localizedError, (value) => {
+  if (!value) return;
+  notifyError(value, { dedupeKey: 'customers-list-error' });
 });
 
 onMounted(() => {

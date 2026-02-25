@@ -108,8 +108,6 @@
       </v-window>
     </template>
 
-    <v-alert v-else type="warning" variant="tonal">لم يتم العثور على المورد</v-alert>
-
     <v-dialog v-model="showPaymentDialog" max-width="400" persistent>
       <v-card>
         <v-card-title>تسجيل دفعة مورد</v-card-title>
@@ -145,6 +143,8 @@ import LedgerTable from '../../components/shared/LedgerTable.vue';
 import MoneyDisplay from '../../components/shared/MoneyDisplay.vue';
 import MoneyInput from '../../components/shared/MoneyInput.vue';
 import { generateIdempotencyKey } from '../../utils/idempotency';
+import { notifyError, notifySuccess, notifyWarn } from '@/utils/notify';
+import { toUserMessage } from '@/utils/errorMessage';
 
 const route = useRoute();
 const router = useRouter();
@@ -180,7 +180,14 @@ async function refreshSupplier() {
   const result = await suppliersClient.getById(id);
   if (result.ok) {
     supplier.value = result.data;
-    await Promise.all([fetchLedger(id), fetchPurchases(id)]);
+    if (!supplier.value) {
+      notifyWarn('لم يتم العثور على المورد', { dedupeKey: 'supplier-not-found' });
+    } else {
+      await Promise.all([fetchLedger(id), fetchPurchases(id)]);
+    }
+  } else {
+    notifyError(toUserMessage(result.error));
+    supplier.value = null;
   }
   loading.value = false;
 }
@@ -188,14 +195,22 @@ async function refreshSupplier() {
 async function fetchLedger(supplierId: number) {
   ledgerLoading.value = true;
   const result = await supplierLedgerClient.getLedger(supplierId);
-  if (result.ok) ledgerEntries.value = result.data.items as LedgerEntry[];
+  if (result.ok) {
+    ledgerEntries.value = result.data.items as LedgerEntry[];
+  } else {
+    notifyError(toUserMessage(result.error), { dedupeKey: 'supplier-ledger-error' });
+  }
   ledgerLoading.value = false;
 }
 
 async function fetchPurchases(supplierId: number) {
   purchasesLoading.value = true;
   const result = await purchasesClient.getAll({ supplierId, limit: 100, offset: 0 });
-  if (result.ok) purchases.value = result.data.items;
+  if (result.ok) {
+    purchases.value = result.data.items;
+  } else {
+    notifyError(toUserMessage(result.error), { dedupeKey: 'supplier-purchases-error' });
+  }
   purchasesLoading.value = false;
 }
 
@@ -210,10 +225,14 @@ async function onRecordPayment() {
     idempotencyKey: generateIdempotencyKey('supplier-payment'),
   });
   paymentLoading.value = false;
-  if (!result.ok) return;
+  if (!result.ok) {
+    notifyError(toUserMessage(result.error));
+    return;
+  }
   showPaymentDialog.value = false;
   paymentAmount.value = 0;
   paymentNotes.value = '';
   await refreshSupplier();
+  notifySuccess('تم تسجيل الدفعة بنجاح');
 }
 </script>

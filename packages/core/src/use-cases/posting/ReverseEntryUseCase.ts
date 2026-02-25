@@ -5,13 +5,12 @@ import { IAccountingRepository } from '../../interfaces/IAccountingRepository.js
 
 /**
  * ReverseEntryUseCase
- * Creates a reversing journal entry for a posted entry.
+ * Creates a reversing journal entry for a posted entry, or voids an unposted entry.
  *
  * Rules:
- * - Original entry must exist and be posted
- * - Original entry must not already be reversed
- * - Creates a new entry with opposite debit/credit and links via reversalOfId
- * - Marks original as isReversed = true
+ * - Original entry must exist and not already be reversed
+ * - Posted entries: locked posting batches cannot be reversed; creates a counter-entry
+ * - Unposted entries: voided in place (marked isReversed=true, no counter-entry)
  */
 export class ReverseEntryUseCase {
   constructor(
@@ -20,22 +19,26 @@ export class ReverseEntryUseCase {
   ) {}
 
   async execute(entryId: number, userId: number): Promise<JournalEntry> {
-    // Get the original entry
+    const original = await this.getValidatedOriginalEntry(entryId);
+    return this.executeCommitPhase(original, userId);
+  }
+
+  async getValidatedOriginalEntry(entryId: number): Promise<JournalEntry> {
     const original = await this.accountingRepo.getEntryById(entryId);
     if (!original) {
       throw new NotFoundError('Journal entry not found', { entryId });
     }
 
-    if (!original.isPosted) {
-      throw new InvalidStateError('Cannot reverse an unposted entry', { entryId });
+    if (!original.id) {
+      throw new InvalidStateError('Journal entry id is missing', { entryId });
     }
 
     if (original.isReversed) {
       throw new InvalidStateError('Entry is already reversed', { entryId });
     }
 
-    // Check if the entry's posting batch is locked
-    if (original.postingBatchId) {
+    // Enforce lock only for posted entries with a batch
+    if (original.isPosted && original.postingBatchId) {
       const isLocked = this.postingRepo.isBatchLocked(original.postingBatchId);
       if (isLocked) {
         throw new InvalidStateError('Cannot reverse entry in a locked posting batch', {
@@ -45,8 +48,33 @@ export class ReverseEntryUseCase {
       }
     }
 
-    // Create the reversal entry via the posting repo
-    const reversal = this.postingRepo.createReversalEntry(entryId, userId);
-    return reversal;
+    return original;
+  }
+
+  executeCommitPhase(originalEntry: JournalEntry, userId: number): JournalEntry {
+    if (!originalEntry.id) {
+      throw new InvalidStateError('Journal entry id is missing', {
+        entryId: originalEntry.id,
+      });
+    }
+
+    // Unposted entries: void in place (no counter-entry)
+    if (!originalEntry.isPosted) {
+      this.postingRepo.voidUnpostedEntry(originalEntry.id);
+      return { ...originalEntry, isReversed: true };
+    }
+
+    // Posted entries: enforce lock and create counter-entry
+    if (originalEntry.postingBatchId) {
+      const isLocked = this.postingRepo.isBatchLocked(originalEntry.postingBatchId);
+      if (isLocked) {
+        throw new InvalidStateError('Cannot reverse entry in a locked posting batch', {
+          entryId: originalEntry.id,
+          postingBatchId: originalEntry.postingBatchId,
+        });
+      }
+    }
+
+    return this.postingRepo.createReversalEntry(originalEntry.id, userId);
   }
 }

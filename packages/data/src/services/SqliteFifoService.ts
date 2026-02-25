@@ -95,7 +95,7 @@ export class SqliteFifoService implements IFifoDepletionService {
     return {
       depletions,
       totalCost,
-      weightedAverageCost: quantityNeeded > 0 ? Math.round(totalCost / quantityNeeded) : 0,
+      weightedAverageCost: quantityNeeded > 0 ? totalCost / quantityNeeded : 0,
     };
   }
 

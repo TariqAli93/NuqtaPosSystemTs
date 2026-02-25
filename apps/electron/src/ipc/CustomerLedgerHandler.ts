@@ -5,6 +5,7 @@ import {
   SqliteCustomerRepository,
   SqlitePaymentRepository,
   SqliteAccountingRepository,
+  SqliteAuditRepository,
   withTransaction,
 } from '@nuqtaplus/data';
 import {
@@ -22,15 +23,21 @@ export function registerCustomerLedgerHandlers(db: DatabaseType) {
   const customerRepo = new SqliteCustomerRepository(db.db);
   const paymentRepo = new SqlitePaymentRepository(db.db);
   const accountingRepo = new SqliteAccountingRepository(db.db);
+  const auditRepo = new SqliteAuditRepository(db.db);
 
   const getLedgerUseCase = new GetCustomerLedgerUseCase(ledgerRepo);
   const recordPaymentUseCase = new RecordCustomerPaymentUseCase(
     ledgerRepo,
     customerRepo,
     paymentRepo,
-    accountingRepo
+    accountingRepo,
+    auditRepo
   );
-  const addAdjustmentUseCase = new AddCustomerLedgerAdjustmentUseCase(ledgerRepo, customerRepo);
+  const addAdjustmentUseCase = new AddCustomerLedgerAdjustmentUseCase(
+    ledgerRepo,
+    customerRepo,
+    auditRepo
+  );
   const reconcileDebtUseCase = new ReconcileCustomerDebtUseCase(customerRepo, ledgerRepo);
 
   ipcMain.handle('customerLedger:getLedger', async (_, payload) => {
@@ -82,6 +89,13 @@ export function registerCustomerLedgerHandlers(db: DatabaseType) {
           'customerId and amount must be numbers'
         );
       }
+      if (!Number.isInteger(amount) || amount <= 0) {
+        throw buildValidationError(
+          'customerLedger:recordPayment',
+          payload,
+          'amount must be a positive integer IQD value'
+        );
+      }
       const result = withTransaction(db.sqlite, () =>
         recordPaymentUseCase.executeCommitPhase({
           customerId,
@@ -90,6 +104,17 @@ export function registerCustomerLedgerHandlers(db: DatabaseType) {
           notes: typeof data.notes === 'string' ? data.notes : undefined,
           idempotencyKey: typeof data.idempotencyKey === 'string' ? data.idempotencyKey : undefined,
         }, userId)
+      );
+      await recordPaymentUseCase.executeSideEffectsPhase(
+        result,
+        {
+          customerId,
+          amount,
+          paymentMethod: String(data.paymentMethod),
+          notes: typeof data.notes === 'string' ? data.notes : undefined,
+          idempotencyKey: typeof data.idempotencyKey === 'string' ? data.idempotencyKey : undefined,
+        },
+        userId
       );
       return ok(result);
     } catch (e: unknown) {
@@ -120,6 +145,13 @@ export function registerCustomerLedgerHandlers(db: DatabaseType) {
           'customerId and amount must be numbers'
         );
       }
+      if (!Number.isInteger(amount)) {
+        throw buildValidationError(
+          'customerLedger:addAdjustment',
+          payload,
+          'amount must be an integer IQD value'
+        );
+      }
       const userId = userContextService.getUserId() || 1;
       const result = withTransaction(db.sqlite, () =>
         addAdjustmentUseCase.executeCommitPhase(
@@ -130,6 +162,15 @@ export function registerCustomerLedgerHandlers(db: DatabaseType) {
           },
           userId
         )
+      );
+      await addAdjustmentUseCase.executeSideEffectsPhase(
+        result,
+        {
+          customerId,
+          amount,
+          notes: typeof data.notes === 'string' ? data.notes : undefined,
+        },
+        userId
       );
       return ok(result);
     } catch (e: unknown) {

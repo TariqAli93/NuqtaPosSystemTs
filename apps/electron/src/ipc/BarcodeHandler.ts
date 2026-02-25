@@ -1,4 +1,5 @@
 import { ipcMain } from 'electron';
+import { BarcodeTemplateSchema, normalizeBarcodeLayoutJson } from '@nuqtaplus/core';
 import { DatabaseType, SqliteBarcodeRepository } from '@nuqtaplus/data';
 import { assertPayload, buildValidationError } from '../services/IpcPayloadValidator.js';
 import { ok, mapErrorToIpcResponse } from '../services/IpcErrorMapperService.js';
@@ -21,7 +22,22 @@ export function registerBarcodeHandlers(db: DatabaseType) {
       if (!data.data || typeof data.data !== 'object' || Array.isArray(data.data)) {
         throw buildValidationError('barcode:createTemplate', payload, 'data must be an object');
       }
-      const template = await repo.createTemplate(data.data as any);
+      const input = data.data as Record<string, unknown>;
+      const normalizedLayoutJson = normalizeBarcodeLayoutJson(
+        typeof input.layoutJson === 'string' ? input.layoutJson : null
+      );
+      const parsedTemplate = BarcodeTemplateSchema.omit({ id: true, createdAt: true }).safeParse({
+        ...input,
+        layoutJson: normalizedLayoutJson,
+      });
+      if (!parsedTemplate.success) {
+        throw buildValidationError(
+          'barcode:createTemplate',
+          payload,
+          parsedTemplate.error.issues[0]?.message || 'Invalid barcode template payload'
+        );
+      }
+      const template = await repo.createTemplate(parsedTemplate.data as any);
       return ok(template);
     } catch (e: unknown) {
       return mapErrorToIpcResponse(e);
@@ -47,7 +63,20 @@ export function registerBarcodeHandlers(db: DatabaseType) {
       if (!data.data || typeof data.data !== 'object' || Array.isArray(data.data)) {
         throw buildValidationError('barcode:createPrintJob', payload, 'data must be an object');
       }
-      const job = await repo.createPrintJob(data.data as any);
+      const input = data.data as Record<string, unknown>;
+      const quantity = Number(input.quantity);
+      if (!Number.isInteger(quantity) || quantity <= 0) {
+        throw buildValidationError(
+          'barcode:createPrintJob',
+          payload,
+          'quantity must be a positive integer'
+        );
+      }
+      const job = await repo.createPrintJob({
+        ...input,
+        quantity,
+        status: 'pending',
+      } as any);
       return ok(job);
     } catch (e: unknown) {
       return mapErrorToIpcResponse(e);

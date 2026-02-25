@@ -1,6 +1,9 @@
 export function safeParseAmount(input: string | number | null | undefined): number {
   if (typeof input === 'number') {
-    return Number.isFinite(input) ? Math.max(0, Math.round(input)) : 0;
+    if (!Number.isFinite(input) || !Number.isInteger(input)) {
+      return 0;
+    }
+    return Math.max(0, input);
   }
 
   if (typeof input !== 'string') {
@@ -13,11 +16,15 @@ export function safeParseAmount(input: string | number | null | undefined): numb
     return 0;
   }
 
-  const parsed = Number(normalized);
-
-  if (!Number.isFinite(parsed)) {
+  if (normalized.includes('.')) {
     return 0;
   }
 
-  return Math.max(0, Math.round(parsed));
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+    return 0;
+  }
+
+  return Math.max(0, parsed);
 }

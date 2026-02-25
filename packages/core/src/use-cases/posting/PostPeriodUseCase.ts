@@ -85,6 +85,7 @@ export class PostPeriodUseCase {
       periodEnd: input.periodEnd,
       entriesCount: entryIds.length,
       totalAmount,
+      status: 'posted',
       postedAt: new Date().toISOString(),
       postedBy: userId,
       notes: input.notes,

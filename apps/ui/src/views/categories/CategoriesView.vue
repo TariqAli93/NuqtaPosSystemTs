@@ -1,7 +1,7 @@
 ﻿<template>
   <v-container>
     <div class="win-page">
-      <v-app-bar class="ds-page-header d-flex align-center justify-space-between mb-6">
+      <v-app-bar class="mb-6" border="bottom">
         <v-app-bar-title>
           <div class="win-title mb-0">{{ t('categories.title') }}</div>
           <div class="text-sm">{{ t('categories.subtitle') }}</div>
@@ -13,10 +13,6 @@
           </v-btn>
         </template>
       </v-app-bar>
-
-      <v-alert v-if="error" type="error" variant="tonal" class="mb-6">
-        {{ error }}
-      </v-alert>
 
       <v-card class="win-card" flat>
         <v-card-text class="pa-0">
@@ -113,6 +109,7 @@ import { mapErrorToArabic, t } from '../../i18n/t';
 import { categoriesClient } from '../../ipc';
 import EmptyState from '../../components/emptyState.vue';
 import type { Category } from '../../types/domain';
+import { notifyError, notifySuccess, notifyWarn } from '@/utils/notify';
 
 const tableHeaders = computed(() => [
   { title: t('categories.name'), key: 'name' },
@@ -123,7 +120,6 @@ const categories = ref<Category[]>([]);
 const loading = ref(false);
 const saving = ref(false);
 const deleting = ref(false);
-const error = ref<string | null>(null);
 
 const dialogOpen = ref(false);
 const deleteDialog = ref(false);
@@ -133,14 +129,13 @@ const name = ref('');
 
 async function loadCategories() {
   loading.value = true;
-  error.value = null;
 
   const result = await categoriesClient.getAll({});
   if (result.ok) {
     const data = result.data as unknown;
     categories.value = Array.isArray(data) ? (data as Category[]) : [];
   } else {
-    error.value = mapErrorToArabic(result.error, 'errors.loadFailed');
+    notifyError(mapErrorToArabic(result.error, 'errors.loadFailed'));
   }
 
   loading.value = false;
@@ -160,12 +155,11 @@ function openEditDialog(category: Category) {
 
 async function saveCategory() {
   if (!name.value.trim()) {
-    error.value = t('errors.invalidData');
+    notifyWarn(t('errors.invalidData'));
     return;
   }
 
   saving.value = true;
-  error.value = null;
 
   if (editingId.value === null) {
     const result = await categoriesClient.create({
@@ -175,7 +169,7 @@ async function saveCategory() {
     });
 
     if (!result.ok) {
-      error.value = mapErrorToArabic(result.error, 'errors.saveFailed');
+      notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
       saving.value = false;
       return;
     }
@@ -185,7 +179,7 @@ async function saveCategory() {
     });
 
     if (!result.ok) {
-      error.value = mapErrorToArabic(result.error, 'errors.saveFailed');
+      notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
       saving.value = false;
       return;
     }
@@ -194,6 +188,7 @@ async function saveCategory() {
   saving.value = false;
   dialogOpen.value = false;
   await loadCategories();
+  notifySuccess(t('common.saved'));
 }
 
 function openDeleteDialog(category: Category) {
@@ -208,13 +203,13 @@ async function confirmDelete() {
   }
 
   deleting.value = true;
-  error.value = null;
 
   const result = await categoriesClient.delete(deletingId.value);
   if (!result.ok) {
-    error.value = mapErrorToArabic(result.error, 'errors.deleteFailed');
+    notifyError(mapErrorToArabic(result.error, 'errors.deleteFailed'));
   } else {
     await loadCategories();
+    notifySuccess(t('common.deleted'));
   }
 
   deleting.value = false;

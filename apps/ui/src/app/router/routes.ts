@@ -18,6 +18,8 @@ import { purchasesRoutes } from '../../modules/purchases/routes';
 import { inventoryRoutes } from '../../modules/inventory/routes';
 import { accountingRoutes } from '../../modules/accounting/routes';
 import { simpleModeRoutes } from '../../modules/simple/routes';
+import DashboardView from '../../views/dashboard/DashboardView.vue';
+import BackupView from '../../views/backup/BackupView.vue';
 
 export const routes: RouteRecordRaw[] = [
   setupRoute,
@@ -35,6 +37,18 @@ export const routes: RouteRecordRaw[] = [
         path: '',
         redirect: '/pos',
       },
+      {
+        path: 'dashboard',
+        name: 'Dashboard',
+        component: DashboardView,
+      },
+      {
+        path: 'backup',
+        name: 'Backup',
+        component: BackupView,
+        meta: { requiresRole: 'admin' },
+      },
+
       {
         path: 'pos',
         name: 'POS',

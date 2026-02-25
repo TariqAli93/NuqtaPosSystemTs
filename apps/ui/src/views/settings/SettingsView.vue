@@ -1,7 +1,7 @@
 ﻿<template>
   <v-container>
     <div class="win-page">
-      <v-app-bar class="ds-page-header d-flex align-center justify-space-between mb-6">
+      <v-app-bar class="mb-6" border="bottom">
         <v-app-bar-title>
           <div class="win-title mb-0">{{ t('settings.title') }}</div>
           <div class="text-sm">{{ t('settings.subtitle') }}</div>

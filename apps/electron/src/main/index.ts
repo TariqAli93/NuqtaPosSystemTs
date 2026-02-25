@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog } from 'electron';
 import path from 'path';
-import { createDb } from '@nuqtaplus/data';
+import { createDb, seedMissingBatches } from '@nuqtaplus/data';
 import { registerProductHandlers } from '../ipc/ProductHandler';
 import { registerSaleHandlers } from '../ipc/SaleHandler';
 import { registerAuthHandlers } from '../ipc/AuthHandler';
@@ -10,7 +10,6 @@ import { registerUserHandlers } from '../ipc/UserHandler';
 import { registerSettingsHandlers } from '../ipc/SettingsHandler';
 import { registerAuditHandlers } from '../ipc/AuditHandler';
 import { registerBackupHandlers } from '../ipc/BackupHandler';
-import { registerUpdateHandlers } from '../ipc/UpdateHandler';
 import { registerPrinterHandlers } from '../ipc/PrinterHandler';
 import { registerPosHandlers } from '../ipc/PosHandler';
 import { registerSupplierHandlers } from '../ipc/SupplierHandler';
@@ -20,11 +19,12 @@ import { registerCustomerLedgerHandlers } from '../ipc/CustomerLedgerHandler';
 import { registerBarcodeHandlers } from '../ipc/BarcodeHandler';
 import { registerAccountingHandlers } from '../ipc/AccountingHandler';
 import { registerSupplierLedgerHandlers } from '../ipc/SupplierLedgerHandler';
-import { registerDiagnosticsHandlers } from '../ipc/DiagnosticsHandler';
 import { registerSetupWizardHandlers } from '../ipc/SetupWizardHandler';
 import { registerPostingHandlers } from '../ipc/PostingHandler';
+import { registerDashboardHandlers } from '../ipc/DashboardHandler';
 import { UpdateService } from '../services/UpdateService.js';
 import { applyMigrations } from '../services/MigrationService.js';
+import { BarcodePrintJobExecutor } from '../services/BarcodePrintJobExecutor.js';
 
 app.setAppUserModelId('com.nuqta.nuqtaplus');
 app.setPath('userData', path.join(app.getPath('appData'), 'CodelNuqtaPlus'));
@@ -113,10 +113,21 @@ try {
   process.exit(1);
 }
 
+// One-time data fix: seed missing product batches so FIFO works on legacy data
+try {
+  const seeded = seedMissingBatches(db.db);
+  if (seeded.length > 0) {
+    console.log(`[DB] Seeded ${seeded.length} missing product batches:`, seeded);
+  }
+} catch (error: any) {
+  console.error('[WARN] seedMissingBatches failed (non-fatal):', error.message);
+}
+
 const isDev = process.env.NODE_ENV !== 'production';
 
 // Initialize Update Service
 const updateService = new UpdateService();
+const barcodePrintJobExecutor = new BarcodePrintJobExecutor(db);
 let win: BrowserWindow | null = null;
 function createWindow() {
   win = new BrowserWindow({
@@ -156,7 +167,6 @@ app.whenReady().then(() => {
   registerSettingsHandlers(db);
   registerAuditHandlers(db);
   registerBackupHandlers(db);
-  registerUpdateHandlers(updateService);
   registerPrinterHandlers();
   registerPosHandlers(db);
   registerSupplierHandlers(db);
@@ -168,10 +178,11 @@ app.whenReady().then(() => {
   registerSupplierLedgerHandlers(db);
   registerSetupWizardHandlers(db);
   registerPostingHandlers(db);
-  if (isDev) registerDiagnosticsHandlers(db);
+  registerDashboardHandlers(db);
 
   // Initialize auto-update
   updateService.initialize();
+  barcodePrintJobExecutor.start();
 
   createWindow();
 
@@ -185,6 +196,7 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   // Cleanup update service
   updateService.dispose();
+  barcodePrintJobExecutor.stop();
 
   if (process.platform !== 'darwin') {
     app.quit();

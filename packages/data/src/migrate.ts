@@ -24,6 +24,11 @@ if (!fs.existsSync(dbDir)) {
 
 const migrationsFolder = path.resolve(__dirname, '../drizzle');
 
+// if migrations folder doesn't exist, create it and add a sample migration
+if (!fs.existsSync(migrationsFolder)) {
+  fs.mkdirSync(migrationsFolder, { recursive: true });
+}
+
 console.log('[DB] Starting migration process');
 
 console.log('[DB] Running migrations');

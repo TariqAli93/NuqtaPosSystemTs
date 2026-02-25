@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron';
+import { ipcMain, app } from 'electron';
 import { DatabaseType } from '@nuqtaplus/data';
 import { BackupService } from '../services/BackupService.js';
 import { requirePermission } from '../services/PermissionGuardService.js';
@@ -35,6 +35,9 @@ export function registerBackupHandlers(db: DatabaseType): void {
       });
 
       const result = backupService.createBackup();
+
+      // we most restart the app after restore, so returning the backup path is not a security risk and can be useful for debugging
+      app.relaunch(); // Restart the app to release any locks on the database file
 
       return ok({
         backupPath: result.backupPath,
@@ -134,6 +137,12 @@ export function registerBackupHandlers(db: DatabaseType): void {
       }
 
       const result = backupService.restoreFromBackup(data.token);
+
+      // Schedule app relaunch so the IPC response reaches the renderer first
+      setTimeout(() => {
+        app.relaunch();
+        app.exit(0);
+      }, 500);
 
       return ok({
         message: result.message,

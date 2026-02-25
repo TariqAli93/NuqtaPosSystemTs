@@ -19,4 +19,6 @@ export * from './repositories/SqlitePostingRepository.js';
 export * from './services/SqliteFifoService.js';
 export * as schema from './schema/schema.js';
 export * from './seed.js';
+export { seedMissingBatches } from './scripts/seedMissingBatches.js';
+export type { SeedBatchResult } from './scripts/seedMissingBatches.js';
 export { DbConnection as DatabaseType } from './db.js';

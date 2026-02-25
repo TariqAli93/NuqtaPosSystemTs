@@ -114,14 +114,21 @@ export class SqliteProductRepository implements IProductRepository {
     }
   }
 
+  setStock(id: number, absoluteStock: number): void {
+    this.db.update(products).set({ stock: absoluteStock }).where(eq(products.id, id)).run();
+  }
+
   updateBatchStock(batchId: number, quantityChange: number): void {
     const batch = this.db.select().from(productBatches).where(eq(productBatches.id, batchId)).get();
     if (!batch) return;
+    const quantityOnHand = Math.max(0, (batch.quantityOnHand || 0) + quantityChange);
+    const status = quantityOnHand > 0 ? 'active' : 'depleted';
 
     this.db
       .update(productBatches)
       .set({
-        quantityOnHand: Math.max(0, (batch.quantityOnHand || 0) + quantityChange),
+        quantityOnHand,
+        status,
       })
       .where(eq(productBatches.id, batchId))
       .run();
@@ -214,6 +221,15 @@ export class SqliteProductRepository implements IProductRepository {
       .where(eq(productBatches.productId, productId))
       .orderBy(asc(productBatches.expiryDate), desc(productBatches.id))
       .all() as unknown as ProductBatch[];
+  }
+
+  findBatchById(batchId: number): ProductBatch | null {
+    const result = this.db
+      .select()
+      .from(productBatches)
+      .where(eq(productBatches.id, batchId))
+      .get();
+    return (result as unknown as ProductBatch) || null;
   }
 
   createBatch(batch: Omit<ProductBatch, 'id' | 'createdAt'>): ProductBatch {

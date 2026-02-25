@@ -90,6 +90,7 @@
                   <v-text-field
                     v-model.number="line.quantity"
                     type="number"
+                    step="1"
                     variant="plain"
                     density="compact"
                     hide-details
@@ -133,7 +134,7 @@
                   </div>
                 </td>
                 <td>
-                  <MoneyDisplay :amount="Math.round(line.quantity * line.unitCost)" size="sm" />
+                  <MoneyDisplay :amount="line.quantity * line.unitCost" size="sm" />
                 </td>
                 <td>
                   <v-btn
@@ -149,20 +150,6 @@
           </v-table>
 
           <!-- Validation warning for missing expiry dates -->
-          <v-alert
-            v-if="missingExpiryLines.length > 0"
-            type="warning"
-            variant="tonal"
-            density="compact"
-            class="mt-3"
-          >
-            منتجات تتطلب تاريخ انتهاء:
-            {{
-              missingExpiryLines
-                .map((l) => productsMap.get(l.productId!)?.name ?? 'غير معروف')
-                .join('، ')
-            }}
-          </v-alert>
         </v-card-text>
       </v-card>
 
@@ -214,6 +201,8 @@ import { productsClient } from '../../ipc';
 import MoneyInput from '../../components/shared/MoneyInput.vue';
 import { generateIdempotencyKey } from '../../utils/idempotency';
 import MoneyDisplay from '../../components/shared/MoneyDisplay.vue';
+import { notifyError, notifySuccess, notifyWarn } from '@/utils/notify';
+import { mapErrorToArabic } from '@/i18n/t';
 
 const router = useRouter();
 const purchasesStore = usePurchasesStore();
@@ -243,10 +232,8 @@ const form = reactive({
   ],
 });
 
-const subtotal = computed(() =>
-  form.items.reduce((s, l) => s + Math.round(l.quantity * l.unitCost), 0)
-);
-const grandTotal = computed(() => Math.round(subtotal.value - form.discount + form.tax));
+const subtotal = computed(() => form.items.reduce((s, l) => s + l.quantity * l.unitCost, 0));
+const grandTotal = computed(() => subtotal.value - form.discount + form.tax);
 
 // Lines that require expiry date but don't have one
 const missingExpiryLines = computed(() =>
@@ -294,6 +281,10 @@ async function onSubmit() {
 
   // Block submit if any expiry-tracked product is missing expiryDate
   if (missingExpiryLines.value.length > 0) {
+    const names = missingExpiryLines.value
+      .map((l) => productsMap.value.get(l.productId!)?.name ?? 'غير معروف')
+      .join('، ');
+    notifyWarn(`منتجات تتطلب تاريخ انتهاء: ${names}`, { dedupeKey: 'purchase-missing-expiry' });
     return;
   }
 
@@ -317,6 +308,11 @@ async function onSubmit() {
     notes: form.notes || undefined,
     idempotencyKey: generateIdempotencyKey('purchase'),
   });
-  if (result.ok) router.push({ name: 'Purchases' });
+  if (result.ok) {
+    notifySuccess('تم حفظ فاتورة المشتريات');
+    router.push({ name: 'Purchases' });
+  } else {
+    notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
+  }
 }
 </script>

@@ -2,8 +2,10 @@ import { ICustomerLedgerRepository } from '../../interfaces/ICustomerLedgerRepos
 import { ICustomerRepository } from '../../interfaces/ICustomerRepository.js';
 import { IPaymentRepository } from '../../interfaces/IPaymentRepository.js';
 import { IAccountingRepository } from '../../interfaces/IAccountingRepository.js';
+import { IAuditRepository } from '../../interfaces/IAuditRepository.js';
 import { NotFoundError, ValidationError } from '../../errors/DomainErrors.js';
 import { CustomerLedgerEntry } from '../../entities/Ledger.js';
+import { AuditService } from '../../services/AuditService.js';
 
 const ACCT_CASH = '1001';
 const ACCT_AR = '1100';
@@ -17,16 +19,26 @@ export interface RecordPaymentInput {
 }
 
 export class RecordCustomerPaymentUseCase {
+  private auditService?: AuditService;
+
   constructor(
     private ledgerRepo: ICustomerLedgerRepository,
     private customerRepo: ICustomerRepository,
     private paymentRepo: IPaymentRepository,
-    private accountingRepo: IAccountingRepository
-  ) {}
+    private accountingRepo: IAccountingRepository,
+    auditRepo?: IAuditRepository
+  ) {
+    if (auditRepo) {
+      this.auditService = new AuditService(auditRepo);
+    }
+  }
 
   executeCommitPhase(data: RecordPaymentInput, userId: number): CustomerLedgerEntry {
     if (data.amount <= 0) {
       throw new ValidationError('Payment amount must be greater than zero');
+    }
+    if (!Number.isInteger(data.amount)) {
+      throw new ValidationError('Payment amount must be an integer IQD amount');
     }
 
     const customer = this.customerRepo.findById(data.customerId);
@@ -87,7 +99,7 @@ export class RecordCustomerPaymentUseCase {
       description: `Customer payment #${paymentId}`,
       sourceType: 'payment',
       sourceId: paymentId,
-      isPosted: true,
+      isPosted: false,
       isReversed: false,
       totalAmount: amount,
       currency: 'IQD',
@@ -100,6 +112,33 @@ export class RecordCustomerPaymentUseCase {
   }
 
   async execute(data: RecordPaymentInput, userId = 1): Promise<CustomerLedgerEntry> {
-    return this.executeCommitPhase(data, userId);
+    const result = this.executeCommitPhase(data, userId);
+    await this.executeSideEffectsPhase(result, data, userId);
+    return result;
+  }
+
+  async executeSideEffectsPhase(
+    entry: CustomerLedgerEntry,
+    data: RecordPaymentInput,
+    userId: number
+  ): Promise<void> {
+    if (!this.auditService) return;
+    try {
+      await this.auditService.logAction(
+        userId,
+        'customerLedger:payment',
+        'Customer',
+        data.customerId,
+        `Recorded customer payment for customer #${data.customerId}`,
+        {
+          amount: data.amount,
+          paymentMethod: data.paymentMethod,
+          ledgerEntryId: entry.id,
+          paymentId: entry.paymentId,
+        }
+      );
+    } catch (error) {
+      console.warn('Audit logging failed for customer payment:', error);
+    }
   }
 }

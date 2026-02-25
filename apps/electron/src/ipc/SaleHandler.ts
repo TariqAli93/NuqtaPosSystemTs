@@ -1,5 +1,12 @@
 import { ipcMain } from 'electron';
-import { CreateSaleUseCase, mapErrorToResult, ok, AddPaymentUseCase } from '@nuqtaplus/core';
+import {
+  CreateSaleUseCase,
+  mapErrorToResult,
+  ok,
+  AddPaymentUseCase,
+  AuditService,
+  ReverseEntryUseCase,
+} from '@nuqtaplus/core';
 import {
   SqliteSaleRepository,
   SqliteProductRepository,
@@ -11,9 +18,12 @@ import {
   SqliteAccountingRepository,
   SqliteCustomerLedgerRepository,
   SqliteFifoService,
+  SqlitePostingRepository,
   withTransaction,
   DatabaseType,
+  schema,
 } from '@nuqtaplus/data';
+import { and, eq } from 'drizzle-orm';
 
 import { userContextService } from '../services/UserContextService.js';
 import { requirePermission } from '../services/PermissionGuardService.js';
@@ -30,6 +40,8 @@ export function registerSaleHandlers(db: DatabaseType) {
   const accountingRepo = new SqliteAccountingRepository(db.db);
   const customerLedgerRepo = new SqliteCustomerLedgerRepository(db.db);
   const fifoService = new SqliteFifoService(db.db);
+  const auditService = new AuditService(auditRepo);
+  const postingRepo = new SqlitePostingRepository(db.db);
 
   const createSaleUseCase = new CreateSaleUseCase(
     saleRepo,
@@ -50,8 +62,184 @@ export function registerSaleHandlers(db: DatabaseType) {
     customerRepo,
     customerLedgerRepo,
     accountingRepo,
-    settingsRepo
+    settingsRepo,
+    auditRepo
   );
+
+  const reverseEntryUseCase = new ReverseEntryUseCase(postingRepo, accountingRepo);
+
+  function restoreInventoryForSale(sale: any, userId: number, reason: 'cancel' | 'refund'): number {
+    const depletions = saleRepo.getItemDepletionsBySaleId(sale.id);
+    const saleItemsById = new Map<number, any>();
+    for (const item of sale.items || []) {
+      if (item.id) {
+        saleItemsById.set(item.id, item);
+      }
+    }
+
+    let restoredRows = 0;
+    if (depletions.length > 0) {
+      for (const depletion of depletions) {
+        const currentProduct = productRepo.findById(depletion.productId);
+        if (!currentProduct) continue;
+
+        const stockBefore = currentProduct.stock || 0;
+        const stockAfter = stockBefore + depletion.quantityBase;
+        const item = saleItemsById.get(depletion.saleItemId);
+
+        inventoryRepo.createMovementSync({
+          productId: depletion.productId,
+          batchId: depletion.batchId,
+          movementType: 'in',
+          reason: 'return',
+          quantityBase: depletion.quantityBase,
+          unitName: item?.unitName || 'piece',
+          unitFactor: item?.unitFactor || 1,
+          stockBefore,
+          stockAfter,
+          costPerUnit: depletion.costPerUnit,
+          totalCost: depletion.totalCost,
+          sourceType: 'sale',
+          sourceId: sale.id,
+          notes: `${reason} sale #${sale.invoiceNumber}`,
+          createdBy: userId,
+        });
+
+        productRepo.updateStock(depletion.productId, depletion.quantityBase);
+        productRepo.updateBatchStock(depletion.batchId, depletion.quantityBase);
+        restoredRows += 1;
+      }
+
+      return restoredRows;
+    }
+
+    // Fallback for historical sales created before sale_item_depletions existed.
+    for (const item of sale.items || []) {
+      const quantityBase = item.quantityBase ?? item.quantity * (item.unitFactor || 1);
+      const currentProduct = productRepo.findById(item.productId);
+      if (!currentProduct) continue;
+
+      const stockBefore = currentProduct.stock || 0;
+      const stockAfter = stockBefore + quantityBase;
+
+      inventoryRepo.createMovementSync({
+        productId: item.productId,
+        batchId: item.batchId,
+        movementType: 'in',
+        reason: 'return',
+        quantityBase,
+        unitName: item.unitName || 'piece',
+        unitFactor: item.unitFactor || 1,
+        stockBefore,
+        stockAfter,
+        costPerUnit: currentProduct.costPrice,
+        totalCost: quantityBase * currentProduct.costPrice,
+        sourceType: 'sale',
+        sourceId: sale.id,
+        notes: `${reason} sale #${sale.invoiceNumber} (legacy fallback)`,
+        createdBy: userId,
+      });
+
+      productRepo.updateStock(item.productId, quantityBase);
+      if (item.batchId) {
+        productRepo.updateBatchStock(item.batchId, quantityBase);
+      }
+      restoredRows += 1;
+    }
+
+    return restoredRows;
+  }
+
+  /**
+   * Reverse all journal entries linked to a sale using the domain ReverseEntryUseCase.
+   * Handles both posted entries (creates counter-entry) and unposted entries (voids in place).
+   * Respects posting batch locks — will throw if any entry is in a locked batch.
+   */
+  function reverseJournalEntries(sale: any, userId: number): number {
+    const originalEntries = db.db
+      .select()
+      .from(schema.journalEntries)
+      .where(
+        and(
+          eq(schema.journalEntries.sourceType, 'sale'),
+          eq(schema.journalEntries.sourceId, sale.id)
+        )
+      )
+      .all();
+
+    let reversedCount = 0;
+    for (const entry of originalEntries) {
+      if (!entry.id || entry.isReversed) continue;
+
+      reverseEntryUseCase.executeCommitPhase(
+        {
+          id: entry.id,
+          entryNumber: entry.entryNumber,
+          entryDate: entry.entryDate,
+          description: entry.description || '',
+          sourceType:
+            (entry.sourceType as 'sale' | 'purchase' | 'adjustment' | 'payment' | 'manual') ||
+            'sale',
+          sourceId: entry.sourceId ?? undefined,
+          isPosted: !!entry.isPosted,
+          isReversed: !!entry.isReversed,
+          postingBatchId: entry.postingBatchId ?? undefined,
+          totalAmount: entry.totalAmount ?? 0,
+          currency: entry.currency || 'IQD',
+          notes: entry.notes ?? undefined,
+          lines: [],
+        },
+        userId
+      );
+      reversedCount += 1;
+    }
+
+    return reversedCount;
+  }
+
+  function reverseSaleTransaction(saleId: number, userId: number, reason: 'cancel' | 'refund') {
+    const sale = saleRepo.findById(saleId);
+    if (!sale) {
+      throw new Error(`Sale ${saleId} not found`);
+    }
+
+    if (sale.status === 'cancelled') {
+      return {
+        sale,
+        restoredRows: 0,
+        reversalEntries: 0,
+        debtAdjustment: 0,
+      };
+    }
+
+    const restoredRows = restoreInventoryForSale(sale, userId, reason);
+    const reversalEntries = reverseJournalEntries(sale, userId);
+
+    let debtAdjustment = 0;
+    if (sale.customerId && sale.remainingAmount > 0) {
+      const balanceBefore = customerLedgerRepo.getLastBalanceSync(sale.customerId);
+      customerLedgerRepo.createSync({
+        customerId: sale.customerId,
+        transactionType: 'return',
+        amount: -sale.remainingAmount,
+        balanceAfter: balanceBefore - sale.remainingAmount,
+        saleId: sale.id,
+        notes: `Reverse sale debt #${sale.invoiceNumber}`,
+        createdBy: userId,
+      });
+      debtAdjustment = sale.remainingAmount;
+    }
+
+    saleRepo.updateStatus(sale.id!, 'cancelled');
+    const updatedSale = saleRepo.findById(sale.id!);
+
+    return {
+      sale: updatedSale || sale,
+      restoredRows,
+      reversalEntries,
+      debtAdjustment,
+    };
+  }
 
   /**
    * Validates CreateSaleInput DTO (flat, no wrapper keys).
@@ -60,7 +248,6 @@ export function registerSaleHandlers(db: DatabaseType) {
   function validateCreateSalePayload(channel: string, payload: any): void {
     const data = payload.data;
 
-    // Validate items
     if (!Array.isArray(data.items) || data.items.length === 0) {
       throw buildValidationError(channel, payload, 'Items must be a non-empty array');
     }
@@ -74,12 +261,10 @@ export function registerSaleHandlers(db: DatabaseType) {
       }
     }
 
-    // Validate currency if provided
     if (data.currency && typeof data.currency !== 'string') {
       throw buildValidationError(channel, payload, 'Currency must be a string');
     }
 
-    // Validate payment type if provided
     if (
       data.paymentType &&
       !['cash', 'credit', 'mixed', 'installment'].includes(data.paymentType)
@@ -87,7 +272,6 @@ export function registerSaleHandlers(db: DatabaseType) {
       throw buildValidationError(channel, payload, 'Payment type must be cash, credit, or mixed');
     }
 
-    // Validate payment method if provided
     if (
       data.paymentMethod &&
       !['cash', 'card', 'bank_transfer', 'credit'].includes(data.paymentMethod)
@@ -99,17 +283,14 @@ export function registerSaleHandlers(db: DatabaseType) {
       );
     }
 
-    // Card payments require a reference number
     if (data.paymentMethod === 'card' && !data.referenceNumber?.trim()) {
       throw buildValidationError(channel, payload, 'Card payments require a reference number');
     }
 
-    // Credit payments require a customer
     if (data.paymentMethod === 'credit' && !data.customerId) {
       throw buildValidationError(channel, payload, 'Credit/debt payments require a customer');
     }
 
-    // Validate customer ID if installment payment
     if (data.paymentType === 'installment' && !data.customerId) {
       throw buildValidationError(
         channel,
@@ -133,6 +314,9 @@ export function registerSaleHandlers(db: DatabaseType) {
     if (typeof data.amount !== 'number' || data.amount <= 0) {
       throw buildValidationError(channel, payload, 'Amount must be a positive number');
     }
+    if (!Number.isInteger(data.amount)) {
+      throw buildValidationError(channel, payload, 'Amount must be an integer IQD amount');
+    }
 
     if (
       data.paymentMethod &&
@@ -145,7 +329,6 @@ export function registerSaleHandlers(db: DatabaseType) {
       );
     }
 
-    // Card payments require a reference number
     if (data.paymentMethod === 'card' && !data.referenceNumber?.trim()) {
       throw buildValidationError(channel, payload, 'Card payments require a reference number');
     }
@@ -158,13 +341,11 @@ export function registerSaleHandlers(db: DatabaseType) {
       const payload = assertPayload('sales:create', params, ['data']);
       validateCreateSalePayload('sales:create', payload);
 
-      // DTO is directly at payload.data — no extra nesting
       const saleInput = payload.data as any;
       if (saleInput.paymentType === 'installment') {
         saleInput.paymentType = 'credit';
       }
 
-      // userId comes from UserContextService, NOT from UI payload
       const userId = userContextService.getUserId() || 1;
 
       const commitResult = withTransaction(db.sqlite, () => {
@@ -185,13 +366,13 @@ export function registerSaleHandlers(db: DatabaseType) {
       const payload = assertPayload('sales:addPayment', params, ['data']);
       validateAddPaymentPayload('sales:addPayment', payload);
 
-      // DTO is directly at payload.data (flat AddPaymentInput)
       const paymentInput = payload.data as any;
       const userId = userContextService.getUserId() || 1;
 
       const commitResult = withTransaction(db.sqlite, () => {
         return addPaymentUseCase.executeCommitPhase(paymentInput, userId);
       });
+      await addPaymentUseCase.executeSideEffectsPhase(commitResult, paymentInput, userId);
 
       return ok(commitResult.updatedSale);
     } catch (e: unknown) {
@@ -245,71 +426,26 @@ export function registerSaleHandlers(db: DatabaseType) {
       if (typeof payload.id !== 'number') {
         throw buildValidationError('sales:cancel', payload, 'ID must be a number');
       }
-      const saleId = payload.id;
 
       const userId = userContextService.getUserId() || 1;
-      const cancelledSale = withTransaction(db.sqlite, () => {
-        const sale = saleRepo.findById(saleId);
-        if (!sale) {
-          throw buildValidationError('sales:cancel', payload, `Sale ${saleId} not found`);
+      const result = withTransaction(db.sqlite, () =>
+        reverseSaleTransaction(payload.id as number, userId, 'cancel')
+      );
+
+      await auditService.logAction(
+        userId,
+        'sale:cancel',
+        'Sale',
+        payload.id,
+        `Cancelled sale #${result.sale.invoiceNumber}`,
+        {
+          restoredRows: result.restoredRows,
+          reversalEntries: result.reversalEntries,
+          debtAdjustment: result.debtAdjustment,
         }
+      );
 
-        if (sale.status === 'cancelled') {
-          return sale;
-        }
-
-        const items = sale.items || [];
-        for (const item of items) {
-          const quantityBase = item.quantityBase ?? item.quantity * (item.unitFactor || 1);
-          const currentProduct = productRepo.findById(item.productId);
-          if (!currentProduct) continue;
-
-          const stockBefore = currentProduct.stock || 0;
-          const stockAfter = stockBefore + quantityBase;
-
-          inventoryRepo.createMovementSync({
-            productId: item.productId,
-            batchId: item.batchId,
-            movementType: 'in',
-            reason: 'return',
-            quantityBase,
-            unitName: item.unitName || 'piece',
-            unitFactor: item.unitFactor || 1,
-            stockBefore,
-            stockAfter,
-            costPerUnit: currentProduct.costPrice,
-            totalCost: quantityBase * currentProduct.costPrice,
-            sourceType: 'sale',
-            sourceId: sale.id,
-            notes: `Cancel sale #${sale.invoiceNumber}`,
-            createdBy: userId,
-          });
-
-          productRepo.updateStock(item.productId, quantityBase);
-          if (item.batchId) {
-            productRepo.updateBatchStock(item.batchId, quantityBase);
-          }
-        }
-
-        if (sale.customerId && sale.remainingAmount > 0) {
-          const balanceBefore = customerLedgerRepo.getLastBalanceSync(sale.customerId);
-          customerLedgerRepo.createSync({
-            customerId: sale.customerId,
-            transactionType: 'return',
-            amount: -sale.remainingAmount,
-            balanceAfter: balanceBefore - sale.remainingAmount,
-            saleId: sale.id,
-            notes: `Reverse sale debt #${sale.invoiceNumber}`,
-            createdBy: userId,
-          });
-        }
-
-        saleRepo.updateStatus(sale.id!, 'cancelled');
-        const updated = saleRepo.findById(sale.id!);
-        return updated || sale;
-      });
-
-      return ok(cancelledSale);
+      return ok(result.sale);
     } catch (e: unknown) {
       return mapErrorToResult(e);
     }
@@ -322,8 +458,26 @@ export function registerSaleHandlers(db: DatabaseType) {
       if (typeof payload.id !== 'number') {
         throw buildValidationError('sales:refund', payload, 'ID must be a number');
       }
-      saleRepo.updateStatus(payload.id, 'completed');
-      return ok(null);
+
+      const userId = userContextService.getUserId() || 1;
+      const result = withTransaction(db.sqlite, () =>
+        reverseSaleTransaction(payload.id as number, userId, 'refund')
+      );
+
+      await auditService.logAction(
+        userId,
+        'sale:refund',
+        'Sale',
+        payload.id as number,
+        `Refunded sale #${result.sale.invoiceNumber}`,
+        {
+          restoredRows: result.restoredRows,
+          reversalEntries: result.reversalEntries,
+          debtAdjustment: result.debtAdjustment,
+        }
+      );
+
+      return ok(result.sale);
     } catch (e: unknown) {
       return mapErrorToResult(e);
     }

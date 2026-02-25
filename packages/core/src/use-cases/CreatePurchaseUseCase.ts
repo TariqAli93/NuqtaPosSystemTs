@@ -13,6 +13,7 @@ import { ValidationError } from '../errors/DomainErrors.js';
 
 const ACCT_CASH = '1001';
 const ACCT_INVENTORY = '1200';
+const ACCT_VAT_INPUT = '1300';
 const AP_ACCOUNT_CODES = ['2001', '2100'];
 
 export interface CreatePurchaseInput {
@@ -47,7 +48,7 @@ export interface CreatePurchaseCommitResult {
 }
 
 export class CreatePurchaseUseCase {
-  private auditService: AuditService;
+  private auditService?: AuditService;
 
   constructor(
     private purchaseRepository: IPurchaseRepository,
@@ -58,12 +59,27 @@ export class CreatePurchaseUseCase {
     private settingsRepository?: ISettingsRepository,
     auditRepo?: IAuditRepository
   ) {
-    this.auditService = new AuditService(auditRepo as IAuditRepository);
+    if (auditRepo) {
+      this.auditService = new AuditService(auditRepo as IAuditRepository);
+    }
   }
 
   executeCommitPhase(input: CreatePurchaseInput, userId: number): CreatePurchaseCommitResult {
     if (!input.items || input.items.length === 0) {
       throw new ValidationError('Purchase must include at least one item');
+    }
+
+    if (input.discount !== undefined && (!Number.isInteger(input.discount) || input.discount < 0)) {
+      throw new ValidationError('Purchase discount must be a non-negative integer');
+    }
+    if (input.tax !== undefined && (!Number.isInteger(input.tax) || input.tax < 0)) {
+      throw new ValidationError('Purchase tax must be a non-negative integer');
+    }
+    if (
+      input.paidAmount !== undefined &&
+      (!Number.isInteger(input.paidAmount) || input.paidAmount < 0)
+    ) {
+      throw new ValidationError('Purchase paid amount must be a non-negative integer');
     }
 
     if (input.idempotencyKey) {
@@ -74,8 +90,32 @@ export class CreatePurchaseUseCase {
     }
 
     const subtotal = input.items.reduce((sum, item) => {
+      if (!Number.isInteger(item.quantity) || item.quantity <= 0) {
+        throw new ValidationError('Item quantity must be a positive integer', {
+          productId: item.productId,
+          quantity: item.quantity,
+        });
+      }
+      if (!Number.isInteger(item.unitCost) || item.unitCost < 0) {
+        throw new ValidationError('Item unit cost must be a non-negative integer', {
+          productId: item.productId,
+          unitCost: item.unitCost,
+        });
+      }
+      if (item.discount !== undefined && (!Number.isInteger(item.discount) || item.discount < 0)) {
+        throw new ValidationError('Item discount must be a non-negative integer', {
+          productId: item.productId,
+          discount: item.discount,
+        });
+      }
       const qty = item.quantity;
       const lineSubtotal = item.lineSubtotal ?? qty * item.unitCost - (item.discount || 0);
+      if (!Number.isInteger(lineSubtotal) || lineSubtotal < 0) {
+        throw new ValidationError('Item line subtotal must be a non-negative integer', {
+          productId: item.productId,
+          lineSubtotal,
+        });
+      }
       return sum + lineSubtotal;
     }, 0);
 
@@ -105,6 +145,12 @@ export class CreatePurchaseUseCase {
       createdBy: userId,
       items: input.items.map((item) => {
         const quantityBase = item.quantityBase || item.quantity * (item.unitFactor || 1);
+        if (!Number.isInteger(quantityBase) || quantityBase <= 0) {
+          throw new ValidationError('Item quantityBase must be a positive integer', {
+            productId: item.productId,
+            quantityBase,
+          });
+        }
         return {
           productId: item.productId,
           productName: item.productName || `Product #${item.productId}`,
@@ -178,19 +224,38 @@ export class CreatePurchaseUseCase {
       AP_ACCOUNT_CODES.map((code) => this.accountingRepository.findAccountByCode(code)).find(
         Boolean
       ) || null;
+    const vatInputAcct =
+      purchase.tax > 0 ? this.accountingRepository.findAccountByCode(ACCT_VAT_INPUT) : null;
 
     if (!inventoryAcct?.id) {
       console.warn('[CreatePurchaseUseCase] Missing inventory account, skipping journal entry');
       return;
     }
+    if (purchase.tax > 0 && !vatInputAcct?.id) {
+      console.warn('[CreatePurchaseUseCase] Missing VAT Input account, skipping journal entry');
+      return;
+    }
 
     const lines: JournalLine[] = [];
+
+    // Inventory debit: total minus tax (net cost)
+    const netInventoryCost = purchase.tax > 0 ? purchase.total - purchase.tax : purchase.total;
     lines.push({
       accountId: inventoryAcct.id,
-      debit: purchase.total,
+      debit: netInventoryCost,
       credit: 0,
       description: 'Inventory received',
     });
+
+    // VAT Input debit (tax paid on purchase, if any)
+    if (purchase.tax > 0 && vatInputAcct?.id) {
+      lines.push({
+        accountId: vatInputAcct.id,
+        debit: purchase.tax,
+        credit: 0,
+        description: 'ضريبة المدخلات',
+      });
+    }
 
     if (paidAmount > 0) {
       if (!cashAcct?.id) {
@@ -244,11 +309,16 @@ export class CreatePurchaseUseCase {
 
   async execute(input: CreatePurchaseInput, userId = 1): Promise<Purchase> {
     const result = this.executeCommitPhase(input, userId);
-    // Fire-and-forget audit
-    this.auditService
-      .logCreate(
+    await this.executeSideEffectsPhase(result, userId);
+    return result.createdPurchase;
+  }
+
+  async executeSideEffectsPhase(result: CreatePurchaseCommitResult, userId: number): Promise<void> {
+    if (!this.auditService) return;
+    try {
+      await this.auditService.logCreate(
         userId,
-        'purchase',
+        'Purchase',
         result.createdPurchase.id!,
         {
           invoiceNumber: result.createdPurchase.invoiceNumber,
@@ -257,9 +327,11 @@ export class CreatePurchaseUseCase {
           itemCount: result.createdPurchase.items?.length,
         },
         `Purchase #${result.createdPurchase.invoiceNumber} created`
-      )
-      .catch(() => {});
-    return result.createdPurchase;
+      );
+    } catch (error) {
+      // Audit must not break committed business writes.
+      console.warn('Audit logging failed for purchase creation:', error);
+    }
   }
 
   private isAccountingEnabled(): boolean {

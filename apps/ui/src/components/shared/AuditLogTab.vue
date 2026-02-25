@@ -27,7 +27,7 @@
               {{ actionLabel(event.action) }}
             </v-chip>
             <span class="text-caption text-medium-emphasis">
-              {{ formatDateTime(event.createdAt) }}
+              {{ formatDateTime(event.timestamp) }}
             </span>
             <span v-if="event.userId" class="text-caption text-medium-emphasis">
               — مستخدم #{{ event.userId }}
@@ -36,7 +36,7 @@
 
           <!-- Changes diff -->
           <v-card
-            v-if="event.changes && Object.keys(event.changes).length > 0"
+            v-if="event.changedFields && Object.keys(event.changedFields).length > 0"
             variant="outlined"
             density="compact"
             class="mt-1"
@@ -50,7 +50,7 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="(change, field) in event.changes" :key="field as string">
+                <tr v-for="(change, field) in event.changedFields" :key="field as string">
                   <td class="font-weight-medium">{{ fieldLabel(field as string) }}</td>
                   <td class="text-error" style="direction: ltr; unicode-bidi: embed">
                     {{ formatChangeValue(change.old) }}
@@ -132,11 +132,13 @@ const ACTION_COLORS: Record<string, string> = {
 };
 
 function actionLabel(action: string): string {
-  return ACTION_LABELS[action] ?? action;
+  const normalized = action.includes(':') ? action.split(':').pop() || action : action;
+  return ACTION_LABELS[normalized] ?? action;
 }
 
 function actionColor(action: string): string {
-  return ACTION_COLORS[action] ?? 'grey';
+  const normalized = action.includes(':') ? action.split(':').pop() || action : action;
+  return ACTION_COLORS[normalized] ?? 'grey';
 }
 
 function fieldLabel(field: string): string {

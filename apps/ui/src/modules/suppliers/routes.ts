@@ -2,6 +2,7 @@ import type { RouteRecordRaw } from 'vue-router';
 import SuppliersListView from '../../views/suppliers/SuppliersListView.vue';
 import SupplierFormView from '../../views/suppliers/SupplierFormView.vue';
 import SupplierDetailsView from '../../views/suppliers/SupplierDetailsView.vue';
+import SupplierLedgerView from '../../views/suppliers/SupplierLedgerView.vue';
 
 export const suppliersRoutes: RouteRecordRaw[] = [
   {
@@ -9,6 +10,12 @@ export const suppliersRoutes: RouteRecordRaw[] = [
     name: 'Suppliers',
     component: SuppliersListView,
     meta: { requiresPurchasing: true },
+  },
+  {
+    path: 'suppliers/ledger',
+    name: 'SupplierLedger',
+    component: SupplierLedgerView,
+    meta: { requiresPurchasing: true, requiresLedgers: true, requiresManageSuppliers: true },
   },
   {
     path: 'suppliers/new',

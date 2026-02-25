@@ -19,30 +19,6 @@
           </v-chip>
         </div>
 
-        <!-- Error alert -->
-        <v-alert
-          v-if="formError"
-          type="error"
-          variant="tonal"
-          class="mb-4"
-          density="compact"
-          closable
-          @click:close="formError = null"
-        >
-          {{ formError }}
-        </v-alert>
-        <v-alert
-          v-if="accountingMessage"
-          type="success"
-          variant="tonal"
-          class="mb-4"
-          density="compact"
-          closable
-          @click:close="accountingMessage = null"
-        >
-          {{ accountingMessage }}
-        </v-alert>
-
         <!-- Stepper -->
         <v-stepper v-model="currentStep" :items="stepItems" flat class="setup-stepper" alt-labels>
           <!-- Step 1: Company Info -->
@@ -208,26 +184,7 @@
                 </div>
                 <p class="text-body-2 text-medium-emphasis mb-4">{{ t('setup.accountingHint') }}</p>
 
-                <v-alert
-                  v-if="accountingEnabled === null"
-                  type="warning"
-                  variant="tonal"
-                  class="mb-3"
-                >
-                  {{ t('setup.accountingDecisionRequired') }}
-                </v-alert>
-
-                <v-alert
-                  v-else-if="accountingEnabled === false"
-                  type="info"
-                  variant="tonal"
-                  density="compact"
-                  class="mb-3"
-                >
-                  {{ t('setup.accountingDisabledInfo') }}
-                </v-alert>
-
-                <template v-else>
+                <template>
                   <v-row dense>
                     <v-col cols="12" md="4">
                       <v-select
@@ -320,17 +277,6 @@
                       }}
                     </v-chip>
                   </div>
-
-                  <v-alert
-                    v-for="(warning, idx) in accountingWarnings"
-                    :key="`setup-warning-${idx}`"
-                    type="warning"
-                    density="compact"
-                    variant="tonal"
-                    class="mb-2"
-                  >
-                    {{ warning }}
-                  </v-alert>
 
                   <v-btn
                     color="primary"
@@ -549,14 +495,13 @@ import { useAuthStore } from '../../stores/authStore';
 import { setupClient } from '../../ipc';
 import { settingsClient, type AllModuleSettings } from '../../ipc/settingsClient';
 import type { AccountingSetupStatus } from '../../ipc/setupClient';
+import { notifyError, notifyInfo, notifySuccess, notifyWarn } from '@/utils/notify';
 
 const authStore = useAuthStore();
 const router = useRouter();
 
 const currentStep = ref(1);
 const showPassword = ref(false);
-const formError = ref<string | null>(null);
-const accountingMessage = ref<string | null>(null);
 const step1FormRef = ref<{ validate(): boolean } | null>(null);
 const step2FormRef = ref<{ validate(): boolean } | null>(null);
 const accountingLoading = ref(false);
@@ -641,9 +586,9 @@ const setupIncompleteCount = computed(() => {
 const isStep2Valid = computed(
   () =>
     !requiresAdminBootstrap.value ||
-    admin.fullName.trim().length >= 3 &&
-    admin.username.trim().length >= 3 &&
-    admin.password.length >= 6
+    (admin.fullName.trim().length >= 3 &&
+      admin.username.trim().length >= 3 &&
+      admin.password.length >= 6)
 );
 
 const canSubmitSetup = computed(
@@ -682,7 +627,7 @@ function goToStep3() {
   if (requiresAdminBootstrap.value && step2FormRef.value && !step2FormRef.value.validate()) return;
   if (!isStep2Valid.value) return;
   if (setupIncompleteCount.value > 0) {
-    formError.value = t('setup.completeAccountingStep');
+    notifyWarn(t('setup.completeAccountingStep'));
     return;
   }
   currentStep.value = 3;
@@ -729,7 +674,6 @@ async function loadWizardDefaults() {
     company.currency = companyResult.data.currency || company.currency;
     company.lowStockThreshold = companyResult.data.lowStockThreshold ?? company.lowStockThreshold;
   }
-
 }
 
 function applyAccountingStatus(status: AccountingSetupStatus): void {
@@ -752,13 +696,33 @@ function applyAccountingStatus(status: AccountingSetupStatus): void {
     status.selectedCodes.cogsAccountCode || accountingCodes.cogsAccountCode;
 }
 
+watch(accountingEnabled, (value) => {
+  if (value === null) {
+    notifyWarn(t('setup.accountingDecisionRequired'), {
+      dedupeKey: 'setup-accounting-decision-required',
+    });
+    return;
+  }
+  if (value === false) {
+    notifyInfo(t('setup.accountingDisabledInfo'), {
+      dedupeKey: 'setup-accounting-disabled',
+    });
+  }
+});
+
+watch(accountingWarnings, (warnings) => {
+  warnings.forEach((warning) => {
+    notifyWarn(warning, { dedupeKey: `setup-warning-${warning}` });
+  });
+});
+
 async function loadAccountingStatus() {
   accountingLoading.value = true;
   const result = await setupClient.getAccountingSetupStatus();
   if (result.ok) {
     applyAccountingStatus(result.data);
   } else {
-    formError.value = mapErrorToArabic(result.error.message, 'errors.loadFailed');
+    notifyError(mapErrorToArabic(result.error.message, 'errors.loadFailed'));
   }
   accountingLoading.value = false;
 }
@@ -767,12 +731,12 @@ async function onAccountingDecisionChange(value: boolean | null) {
   if (typeof value !== 'boolean') return;
 
   accountingLoading.value = true;
-  accountingMessage.value = null;
   const result = await setupClient.setAccountingEnabled(value);
   if (result.ok) {
     applyAccountingStatus(result.data);
+    notifySuccess(t('common.saved'));
   } else {
-    formError.value = mapErrorToArabic(result.error.message, 'errors.saveFailed');
+    notifyError(mapErrorToArabic(result.error.message, 'errors.saveFailed'));
   }
   accountingLoading.value = false;
 }
@@ -781,7 +745,6 @@ async function seedChartOfAccounts() {
   if (accountingEnabled.value !== true) return;
 
   accountingSeeding.value = true;
-  accountingMessage.value = null;
   const result = await setupClient.seedChartOfAccounts({
     baseCurrency: baseCurrency.value,
     cashAccountCode: accountingCodes.cashAccountCode,
@@ -794,18 +757,17 @@ async function seedChartOfAccounts() {
 
   if (result.ok) {
     applyAccountingStatus(result.data);
-    accountingMessage.value = result.data.message;
+    notifySuccess(result.data.message);
   } else {
-    formError.value = mapErrorToArabic(result.error.message, 'errors.saveFailed');
+    notifyError(mapErrorToArabic(result.error.message, 'errors.saveFailed'));
   }
   accountingSeeding.value = false;
 }
 
 async function submitSetup() {
-  formError.value = null;
   if (requiresAdminBootstrap.value && step2FormRef.value && !step2FormRef.value.validate()) return;
   if (setupIncompleteCount.value > 0) {
-    formError.value = t('setup.completeAccountingStep');
+    notifyWarn(t('setup.completeAccountingStep'));
     return;
   }
 
@@ -861,7 +823,7 @@ async function submitSetup() {
     savingWizard.value = false;
 
     if (!wizardResult.ok) {
-      formError.value = mapErrorToArabic(wizardResult.error.message, 'errors.saveFailed');
+      notifyError(mapErrorToArabic(wizardResult.error.message, 'errors.saveFailed'));
       return;
     }
 
@@ -875,7 +837,7 @@ async function submitSetup() {
     await router.replace({ name: 'Login' });
   } catch (err: any) {
     savingWizard.value = false;
-    formError.value = mapErrorToArabic(err, 'errors.initializeFailed');
+    notifyError(mapErrorToArabic(err, 'errors.initializeFailed'));
     console.error('[Setup] Initialization failed:', err);
   }
 }

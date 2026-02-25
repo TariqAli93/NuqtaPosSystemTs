@@ -23,11 +23,20 @@ export interface IPostingRepository {
   /** Get posted journal entry ids belonging to a posting batch */
   getPostedEntryIdsByBatch(batchId: number): number[];
 
+  /** Post a single journal entry manually */
+  postIndividualEntry(entryId: number): void;
+
+  /** Unpost a single journal entry manually */
+  unpostIndividualEntry(entryId: number): void;
+
   /** Mark journal entries as posted in a batch (update isPosted + postingBatchId) */
   markEntriesAsPosted(entryIds: number[], batchId: number): number;
 
   /** Create a reversing journal entry for a posted entry */
   createReversalEntry(originalEntryId: number, userId: number): JournalEntry;
+
+  /** Void an unposted journal entry by marking it as reversed (no counter-entry needed) */
+  voidUnpostedEntry(entryId: number): void;
 
   /** Lock a posting batch — prevents further edits to its entries */
   lockBatch(batchId: number): void;

@@ -8,9 +8,10 @@ export interface AuditEvent {
   entityId: number;
   action: string;
   userId?: number;
-  changes?: Record<string, { old: unknown; new: unknown }>;
+  changedFields?: Record<string, { old: unknown; new: unknown }>;
+  changeDescription?: string;
   metadata?: Record<string, unknown>;
-  createdAt: string;
+  timestamp: string;
 }
 
 export interface AuditStatistics {

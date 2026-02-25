@@ -1,7 +1,7 @@
 import type { ApiResult } from './contracts';
 import type { SettingsCurrencyResponse, CompanySettings } from '../types/domain';
 import { invoke } from './invoke';
-import { buildDataPayload, buildKeyPayload } from './payloads';
+import { buildDataPayload, buildKeyPayload, buildParamsPayload } from './payloads';
 
 /**
  * Module settings types for the setup wizard and gating
@@ -45,12 +45,26 @@ export interface SetupWizardPayload {
   invoice: InvoiceSettings;
 }
 
+export type TypedSettingValue = string | number | boolean | null;
+
 export const settingsClient = {
   get: (key: string): Promise<ApiResult<string | null>> =>
     invoke<string | null>('settings:get', buildKeyPayload('settings:get', key)),
 
   set: (key: string, value: string): Promise<ApiResult<{ ok: true }>> =>
     invoke<{ ok: true }>('settings:set', buildDataPayload('settings:set', { key, value })),
+
+  getTyped: (keys: string[]): Promise<ApiResult<Record<string, TypedSettingValue>>> =>
+    invoke<Record<string, TypedSettingValue>>(
+      'settings:getTyped',
+      buildParamsPayload('settings:getTyped', { keys })
+    ),
+
+  setTyped: (values: Record<string, TypedSettingValue>): Promise<ApiResult<{ ok: true }>> =>
+    invoke<{ ok: true }>(
+      'settings:setTyped',
+      buildDataPayload('settings:setTyped', { values })
+    ),
 
   getCurrency: (): Promise<ApiResult<SettingsCurrencyResponse>> =>
     invoke<SettingsCurrencyResponse>('settings:getCurrency'),

@@ -9,12 +9,11 @@ export interface PostingBatch {
   periodEnd: string;
   entriesCount: number;
   totalAmount: number;
+  status: 'draft' | 'posted' | 'locked';
   postedAt: string;
   postedBy?: number;
   notes?: string;
   createdAt?: string;
-  /** Batch lifecycle status — derived from lock state */
-  status?: 'draft' | 'posted' | 'locked';
 }
 
 export interface PostPeriodInput {
@@ -31,6 +30,20 @@ export interface ReverseBatchResult {
 }
 
 export const postingClient = {
+  /** Post a single journal entry manually */
+  postIndividualEntry: (entryId: number): Promise<ApiResult<any>> =>
+    invoke<any>(
+      'posting:postIndividualEntry',
+      buildDataPayload('posting:postIndividualEntry', { entryId })
+    ),
+
+  /** Unpost a single journal entry manually */
+  unpostIndividualEntry: (entryId: number): Promise<ApiResult<any>> =>
+    invoke<any>(
+      'posting:unpostIndividualEntry',
+      buildDataPayload('posting:unpostIndividualEntry', { entryId })
+    ),
+
   /** Post entries for a period (creates a posting batch) */
   postPeriod: (data: PostPeriodInput): Promise<ApiResult<PostingBatch>> =>
     invoke<PostingBatch>('posting:postPeriod', buildDataPayload('posting:postPeriod', data as any)),
@@ -56,18 +69,18 @@ export const postingClient = {
       buildDataPayload('posting:reverseBatch', { batchId })
     ),
 
-  /** Lock a posting batch — prevents further edits/reversals */
+  /** Lock a posting batch - prevents further edits/reversals */
   lockBatch: (batchId: number): Promise<ApiResult<{ ok: true }>> =>
     invoke<{ ok: true }>('posting:lockBatch', buildDataPayload('posting:lockBatch', { batchId })),
 
-  /** Unlock a posting batch — re-opens for amendments */
+  /** Unlock a posting batch (requires feature flag) */
   unlockBatch: (batchId: number): Promise<ApiResult<{ ok: true }>> =>
     invoke<{ ok: true }>(
       'posting:unlockBatch',
       buildDataPayload('posting:unlockBatch', { batchId })
     ),
 
-  /** Check whether a specific batch is locked */
+  /** Check if a posting batch is locked */
   isBatchLocked: (batchId: number): Promise<ApiResult<{ locked: boolean }>> =>
     invoke<{ locked: boolean }>(
       'posting:isBatchLocked',

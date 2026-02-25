@@ -4,6 +4,8 @@ import router from '../app/router';
 import { authClient, registerUnauthorizedHandler } from '../ipc';
 import type { AuthSetupStatus, InitializeAppRequest } from '../ipc/authClient';
 import type { FirstUserInput, UserPublic } from '../types/domain';
+import { notifySuccess } from '@/utils/notify';
+import { t } from '@/i18n/t';
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref<UserPublic | null>(
@@ -105,6 +107,8 @@ export const useAuthStore = defineStore('auth', () => {
 
       lastLoginUsers.value.push({ username: result.data.user.username, timestamp: Date.now() });
       localStorage.setItem('lastLogin', JSON.stringify(lastLoginUsers.value));
+
+      notifySuccess(t('auth.loginSuccess'));
 
       // Start session check after successful login
       startSessionCheck();

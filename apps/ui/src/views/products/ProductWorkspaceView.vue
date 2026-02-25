@@ -1,20 +1,19 @@
 <template>
   <v-container fluid>
-    <v-row class="mb-3" align="center">
-      <v-col>
-        <h1 class="text-h5 font-weight-bold">مساحة عمل المنتجات</h1>
-        <div class="text-caption text-medium-emphasis">
+    <v-app-bar class="mb-6" border="bottom">
+      <v-app-bar-title>
+        <div class="win-title mb-0">مساحة عمل المنتجات</div>
+        <div class="text-sm">
           إدارة المنتج في شاشة واحدة: معلومات، حركات، مبيعات، مشتريات، وحدات، دفعات، وتعديل مخزون.
         </div>
-      </v-col>
-      <v-col cols="auto">
-        <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">منتج جديد</v-btn>
-      </v-col>
-    </v-row>
+      </v-app-bar-title>
 
-    <v-alert v-if="workspaceStore.error" type="error" variant="tonal" class="mb-3">
-      {{ workspaceStore.error }}
-    </v-alert>
+      <template #append>
+        <v-btn color="primary" prepend-icon="mdi-plus" @click="openCreateDialog">
+          إضافة منتج
+        </v-btn>
+      </template>
+    </v-app-bar>
 
     <v-row dense>
       <v-col cols="12" md="4">
@@ -65,7 +64,6 @@
                   :loading="workspaceStore.loading.movements"
                   @reload="workspaceStore.fetchMovements"
                 />
-                <v-alert v-else type="info" variant="tonal">اختر منتجاً أولاً</v-alert>
               </v-card-text>
             </v-window-item>
 
@@ -118,9 +116,6 @@
 
             <v-window-item value="adjust">
               <v-card-text>
-                <v-alert type="info" variant="tonal" class="mb-3">
-                  تعديل المخزون يسجل حركة في دفتر `inventory_movements` ويحدّث المخزون المخزن.
-                </v-alert>
                 <v-btn color="primary" :disabled="!selectedProductId" @click="openAdjustDrawer">
                   فتح نموذج التعديل
                 </v-btn>
@@ -182,14 +177,14 @@
               <v-col cols="12" md="4">
                 <v-text-field v-model="productForm.unit" label="الوحدة" />
               </v-col>
-              <v-col cols="12" md="4">
+              <!-- <v-col cols="12" md="4">
                 <v-text-field
                   v-model.number="productForm.stock"
                   label="الرصيد الابتدائي"
                   type="number"
                   min="0"
                 />
-              </v-col>
+              </v-col> -->
               <v-col cols="12" md="4">
                 <v-text-field
                   v-model.number="productForm.minStock"
@@ -263,11 +258,13 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { categoriesClient, suppliersClient } from '@/ipc';
 import { useProductWorkspaceStore } from '@/stores/productWorkspaceStore';
 import { generateIdempotencyKey } from '@/utils/idempotency';
+import { notifyError, notifyInfo } from '@/utils/notify';
+import { toUserMessage } from '@/utils/errorMessage';
 import type { ProductInput } from '@/types/domain';
 import type {
   ProductBatchInput,
@@ -297,6 +294,21 @@ const editMode = ref(false);
 const deleteDialog = ref(false);
 
 const selectedProductId = computed(() => workspaceStore.selectedProductId);
+let barcodePollingTimer: ReturnType<typeof setInterval> | null = null;
+
+function stopBarcodePolling(): void {
+  if (barcodePollingTimer) {
+    clearInterval(barcodePollingTimer);
+    barcodePollingTimer = null;
+  }
+}
+
+function startBarcodePolling(productId: number): void {
+  stopBarcodePolling();
+  barcodePollingTimer = setInterval(() => {
+    void workspaceStore.fetchBarcodeContext(productId);
+  }, 2500);
+}
 
 const statusOptions = [
   { title: 'متوفر', value: 'available' },
@@ -351,9 +363,41 @@ watch(
   }
 );
 
+watch(
+  [activeTab, selectedProductId],
+  ([tab, productId]) => {
+    if (!productId && ['movements', 'units', 'batches', 'adjust'].includes(tab)) {
+      notifyInfo('اختر منتجاً أولاً', { dedupeKey: `workspace-need-product-${tab}` });
+    }
+    if (tab === 'adjust') {
+      notifyInfo('تعديل المخزون يسجل حركة في دفتر inventory_movements ويحدّث المخزون المخزن.', {
+        dedupeKey: 'workspace-adjust-info',
+      });
+    }
+    if (tab === 'units' && typeof productId === 'number') {
+      startBarcodePolling(productId);
+      return;
+    }
+    stopBarcodePolling();
+  },
+  { immediate: true }
+);
+
+watch(
+  () => workspaceStore.error,
+  (value) => {
+    if (!value) return;
+    notifyError(toUserMessage(value), { dedupeKey: 'workspace-error' });
+  }
+);
+
 onMounted(async () => {
   await Promise.all([loadLookups(), workspaceStore.fetchProducts({ limit: 25, offset: 0 })]);
   await applyRouteSelection();
+});
+
+onUnmounted(() => {
+  stopBarcodePolling();
 });
 
 async function loadLookups(): Promise<void> {
@@ -464,7 +508,7 @@ function openEditDialog(): void {
   productForm.description = source.description ?? null;
   productForm.costPrice = source.costPrice;
   productForm.sellingPrice = source.sellingPrice;
-  productForm.stock = source.stock || 0;
+  productForm.stock = 0;
   productForm.minStock = source.minStock || 0;
   productForm.unit = source.unit || 'piece';
   productForm.supplier = source.supplier ?? null;

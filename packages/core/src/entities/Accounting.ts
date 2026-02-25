@@ -30,7 +30,7 @@ export const JournalEntrySchema = z.object({
   description: z.string().min(1),
   sourceType: z.enum(['sale', 'purchase', 'payment', 'adjustment', 'manual']).optional(),
   sourceId: z.number().optional(),
-  isPosted: z.boolean().default(true),
+  isPosted: z.boolean().default(false),
   isReversed: z.boolean().default(false),
   reversalOfId: z.number().optional(),
   postingBatchId: z.number().nullable().optional(),

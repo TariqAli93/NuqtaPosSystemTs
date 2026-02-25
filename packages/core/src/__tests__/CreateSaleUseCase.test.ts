@@ -62,6 +62,15 @@ function createTestAccounts(): Account[] {
       isSystem: false,
       isActive: true,
     },
+    {
+      id: 6,
+      code: '2200',
+      name: 'VAT Output',
+      accountType: 'liability',
+      balance: 0,
+      isSystem: false,
+      isActive: true,
+    },
   ];
 }
 
@@ -417,7 +426,7 @@ describe('CreateSaleUseCase', () => {
     it('applies batch stock update when batchId is provided', async () => {
       const product = seedProduct(50);
 
-      await useCase.execute(
+      const sale = await useCase.execute(
         {
           items: [
             {
@@ -438,6 +447,11 @@ describe('CreateSaleUseCase', () => {
         batchId: 42,
         quantityChange: -3,
       });
+
+      const depletions = saleRepo.getItemDepletionsBySaleId(sale.id!);
+      expect(depletions).toHaveLength(1);
+      expect(depletions[0].batchId).toBe(42);
+      expect(depletions[0].quantityBase).toBe(3);
     });
   });
 
@@ -479,6 +493,76 @@ describe('CreateSaleUseCase', () => {
       expect(sale.total).toBe(11000);
       expect(sale.interestAmount).toBe(1000);
       expect(sale.remainingAmount).toBe(11000);
+    });
+  });
+
+  // ── 11. VAT line separation ─────────────────────────────────
+
+  describe('VAT line separation', () => {
+    it('splits revenue into net revenue and VAT output when tax > 0', async () => {
+      const product = seedProduct(50);
+
+      const input: CreateSaleInput = {
+        items: [{ productId: product.id!, quantity: 2, unitPrice: 5000 }],
+        paymentType: 'cash',
+        paidAmount: 11500,
+        tax: 1500, // VAT amount
+      };
+
+      const sale = await useCase.execute(input, USER_ID);
+
+      expect(sale.id).toBeDefined();
+      expect(accountingRepo.entries).toHaveLength(1);
+
+      const journal = accountingRepo.entries[0];
+      const lines = journal.lines!;
+
+      // Revenue credit = total - tax = 11500 - 1500 = 10000
+      const revenueLine = lines.find((l) => l.accountId === 3); // code 4001
+      expect(revenueLine?.credit).toBe(10000);
+
+      // VAT Output credit = tax = 1500
+      const vatLine = lines.find((l) => l.accountId === 6); // code 2200
+      expect(vatLine?.credit).toBe(1500);
+
+      // Cash debit = total (includes tax) = 11500
+      const cashLine = lines.find((l) => l.accountId === 1); // code 1001
+      expect(cashLine?.debit).toBe(11500);
+
+      // Journal is balanced
+      const totalDebit = lines.reduce((sum, line) => sum + (line.debit || 0), 0);
+      const totalCredit = lines.reduce((sum, line) => sum + (line.credit || 0), 0);
+      expect(totalDebit).toBe(totalCredit);
+    });
+
+    it('does not create VAT line when tax is 0', async () => {
+      const product = seedProduct(50);
+
+      const sale = await useCase.execute(cashSaleInput(product.id!, 2), USER_ID);
+
+      expect(accountingRepo.entries).toHaveLength(1);
+      const lines = accountingRepo.entries[0].lines!;
+
+      // No VAT line (account 6 / code 2200) should exist
+      const vatLine = lines.find((l) => l.accountId === 6);
+      expect(vatLine).toBeUndefined();
+
+      // Revenue credit = full total
+      const revenueLine = lines.find((l) => l.accountId === 3);
+      expect(revenueLine?.credit).toBe(10000);
+    });
+  });
+
+  // ── 12. Journal entries are created as unposted ──────────────
+
+  describe('Posting policy', () => {
+    it('all journal entries are created with isPosted=false', async () => {
+      const product = seedProduct(50);
+
+      await useCase.execute(cashSaleInput(product.id!, 2), USER_ID);
+
+      expect(accountingRepo.entries).toHaveLength(1);
+      expect(accountingRepo.entries[0].isPosted).toBe(false);
     });
   });
 });

@@ -10,6 +10,7 @@ export interface IAccountingRepository {
     sourceType?: string;
     dateFrom?: string;
     dateTo?: string;
+    isPosted?: boolean;
     limit?: number;
     offset?: number;
   }): Promise<{ items: JournalEntry[]; total: number }>;
@@ -17,10 +18,6 @@ export interface IAccountingRepository {
   getTrialBalance(params?: { dateFrom?: string; dateTo?: string }): Promise<
     {
       accountId: number;
-      code: string;
-      name: string;
-      accountType: string;
-      debitTotal: number;
       creditTotal: number;
       balance: number;
     }[]
@@ -32,12 +29,17 @@ export interface IAccountingRepository {
     totalExpenses: number;
     netIncome: number;
   }>;
-  getBalanceSheet(params?: { asOfDate?: string }): Promise<{
+  getBalanceSheet(params?: { fromDate?: string; toDate?: string }): Promise<{
     assets: { accountId: number; name: string; balance: number }[];
     liabilities: { accountId: number; name: string; balance: number }[];
     equity: { accountId: number; name: string; balance: number }[];
     totalAssets: number;
     totalLiabilities: number;
+    equityAccounts: number;
+    revenueNet: number;
+    expenseNet: number;
+    currentEarnings: number;
     totalEquity: number;
+    difference: number;
   }>;
 }

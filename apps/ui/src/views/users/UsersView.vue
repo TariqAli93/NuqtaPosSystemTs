@@ -1,7 +1,10 @@
 ﻿<template>
   <v-container :fluid="props.embedded">
     <div class="win-page">
-      <v-app-bar v-if="!props.embedded" class="ds-page-header d-flex align-center justify-space-between mb-6">
+      <v-app-bar
+        v-if="!props.embedded"
+        class="ds-page-header d-flex align-center justify-space-between mb-6"
+      >
         <v-app-bar-title>
           <div class="win-title mb-0">{{ t('users.title') }}</div>
           <div class="text-sm">{{ t('users.subtitle') }}</div>
@@ -29,10 +32,6 @@
           {{ t('users.add') }}
         </v-btn>
       </div>
-
-      <v-alert v-if="error" type="error" variant="tonal" class="mb-4">
-        {{ error }}
-      </v-alert>
 
       <v-card class="win-card" flat>
         <v-card-text>
@@ -125,6 +124,7 @@ import { mapErrorToArabic, mapRoleToArabic, t } from '../../i18n/t';
 import { usersClient } from '../../ipc';
 import { useAuthStore } from '../../stores/authStore';
 import type { UserInput, UserPublic, UserRole } from '../../types/domain';
+import { notifyError, notifySuccess, notifyWarn } from '@/utils/notify';
 
 const props = withDefaults(
   defineProps<{
@@ -160,7 +160,6 @@ type UserRow = UserPublic & {
 const users = ref<UserRow[]>([]);
 const loading = ref(false);
 const saving = ref(false);
-const error = ref<string | null>(null);
 const dialogOpen = ref(false);
 const editingId = ref<number | null>(null);
 const togglingId = ref<number | null>(null);
@@ -194,7 +193,6 @@ function resetForm() {
 
 async function loadUsers() {
   loading.value = true;
-  error.value = null;
 
   const result = await usersClient.getAll({});
   if (result.ok) {
@@ -205,7 +203,7 @@ async function loadUsers() {
         ? ((data as { items: UserRow[] }).items ?? [])
         : [];
   } else {
-    error.value = mapErrorToArabic(result.error, 'errors.loadFailed');
+    notifyError(mapErrorToArabic(result.error, 'errors.loadFailed'));
   }
 
   loading.value = false;
@@ -236,17 +234,16 @@ function closeDialog() {
 
 async function saveUser() {
   if (!form.username.trim() || !form.fullName.trim()) {
-    error.value = t('errors.invalidData');
+    notifyWarn(t('errors.invalidData'));
     return;
   }
 
   if (!isEditMode.value && !form.password.trim()) {
-    error.value = t('errors.invalidData');
+    notifyWarn(t('errors.invalidData'));
     return;
   }
 
   saving.value = true;
-  error.value = null;
 
   if (isEditMode.value && editingId.value !== null) {
     const payload: Partial<UserInput> = {
@@ -263,7 +260,7 @@ async function saveUser() {
 
     const result = await usersClient.update(editingId.value, payload);
     if (!result.ok) {
-      error.value = mapErrorToArabic(result.error, 'errors.saveFailed');
+      notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
       saving.value = false;
       return;
     }
@@ -278,7 +275,7 @@ async function saveUser() {
     });
 
     if (!result.ok) {
-      error.value = mapErrorToArabic(result.error, 'errors.saveFailed');
+      notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
       saving.value = false;
       return;
     }
@@ -287,20 +284,21 @@ async function saveUser() {
   saving.value = false;
   closeDialog();
   await loadUsers();
+  notifySuccess(t('common.saved'));
 }
 
 async function toggleUserState(user: UserRow) {
   togglingId.value = user.id;
-  error.value = null;
 
   const result = await usersClient.update(user.id, {
     isActive: !user.isActive,
   });
 
   if (!result.ok) {
-    error.value = mapErrorToArabic(result.error, 'errors.saveFailed');
+    notifyError(mapErrorToArabic(result.error, 'errors.saveFailed'));
   } else {
     await loadUsers();
+    notifySuccess(t('common.saved'));
   }
 
   togglingId.value = null;

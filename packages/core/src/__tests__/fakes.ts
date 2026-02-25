@@ -8,7 +8,8 @@ import { IAccountingRepository } from '../interfaces/IAccountingRepository';
 import { ICustomerLedgerRepository } from '../interfaces/ICustomerLedgerRepository';
 import { IAuditRepository } from '../interfaces/IAuditRepository';
 import { Product } from '../entities/Product';
-import { Sale } from '../entities/Sale';
+import { ProductBatch } from '../entities/ProductBatch';
+import { Sale, SaleItemDepletion } from '../entities/Sale';
 import { Customer } from '../entities/Customer';
 import { Payment } from '../entities/Payment';
 import { Settings, CompanySettings } from '../entities/Settings';
@@ -25,6 +26,8 @@ export class FakeProductRepository implements IProductRepository {
   batchStockUpdates: Array<{ batchId: number; quantityChange: number }> = [];
   private units: ProductUnit[] = [];
   private unitIdCounter = 1;
+  private batches: ProductBatch[] = [];
+  private batchIdCounter = 1;
 
   create(product: Product): Product {
     const newProduct = { ...product, id: this.idCounter++ };
@@ -58,12 +61,42 @@ export class FakeProductRepository implements IProductRepository {
     }
   }
 
+  setStock(id: number, absoluteStock: number): void {
+    const product = this.findById(id);
+    if (product) {
+      product.stock = absoluteStock;
+    }
+  }
+
   updateBatchStock(_batchId: number, _quantityChange: number): void {
     this.batchStockUpdates.push({ batchId: _batchId, quantityChange: _quantityChange });
+    const batch = this.batches.find((b) => b.id === _batchId);
+    if (batch) {
+      batch.quantityOnHand = Math.max(0, batch.quantityOnHand + _quantityChange);
+      batch.status = batch.quantityOnHand > 0 ? 'active' : 'depleted';
+    }
   }
 
   countLowStock(threshold: number): number {
     return this.products.filter((p) => p.stock <= threshold).length;
+  }
+
+  findBatchesByProductId(productId: number): ProductBatch[] {
+    return this.batches.filter((b) => b.productId === productId);
+  }
+
+  createBatch(batch: Omit<ProductBatch, 'id' | 'createdAt'>): ProductBatch {
+    const newBatch: ProductBatch = {
+      ...batch,
+      id: this.batchIdCounter++,
+      createdAt: new Date().toISOString(),
+    };
+    this.batches.push(newBatch);
+    return newBatch;
+  }
+
+  findBatchById(batchId: number): ProductBatch | null {
+    return this.batches.find((b) => b.id === batchId) || null;
   }
 
   findUnitsByProductId(productId: number): ProductUnit[] {
@@ -102,10 +135,20 @@ export class FakeProductRepository implements IProductRepository {
 
 export class FakeSaleRepository implements ISaleRepository {
   private sales: Sale[] = [];
+  private saleItemDepletions: SaleItemDepletion[] = [];
   private idCounter = 1;
+  private saleItemIdCounter = 1;
+  private depletionIdCounter = 1;
 
   create(sale: Sale): Sale {
-    const newSale = { ...sale, id: this.idCounter++ };
+    const saleId = this.idCounter++;
+    const items =
+      sale.items?.map((item) => ({
+        ...item,
+        id: item.id ?? this.saleItemIdCounter++,
+        saleId,
+      })) || [];
+    const newSale = { ...sale, id: saleId, items };
     this.sales.push(newSale);
     return newSale;
   }
@@ -132,6 +175,22 @@ export class FakeSaleRepository implements ISaleRepository {
     if (index !== -1) {
       this.sales[index] = { ...this.sales[index], ...data };
     }
+  }
+
+  createItemDepletions(
+    depletions: Omit<SaleItemDepletion, 'id' | 'createdAt' | 'batchNumber' | 'expiryDate'>[]
+  ): void {
+    for (const depletion of depletions) {
+      this.saleItemDepletions.push({
+        ...depletion,
+        id: this.depletionIdCounter++,
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
+
+  getItemDepletionsBySaleId(saleId: number): SaleItemDepletion[] {
+    return this.saleItemDepletions.filter((depletion) => depletion.saleId === saleId);
   }
 
   getDailySummary(_date: Date): {
@@ -339,7 +398,13 @@ export class FakeAccountingRepository implements IAccountingRepository {
   }
 
   createJournalEntry(entry: JournalEntry): JournalEntry {
-    const created = { ...entry, id: this.idCounter++ };
+    // Enforce posting policy: operational entries must be unposted
+    if (entry.isPosted === true) {
+      throw new Error(
+        'Cannot create a posted journal entry directly. Entries must be created as unposted and posted via PostPeriodUseCase.'
+      );
+    }
+    const created = { ...entry, id: this.idCounter++, isPosted: false };
     this.entries.push(created);
     return created;
   }
@@ -392,7 +457,12 @@ export class FakeAccountingRepository implements IAccountingRepository {
       equity: [],
       totalAssets: 0,
       totalLiabilities: 0,
+      equityAccounts: 0,
+      revenueNet: 0,
+      expenseNet: 0,
+      currentEarnings: 0,
       totalEquity: 0,
+      difference: 0,
     };
   }
 }

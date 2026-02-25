@@ -1,53 +1,71 @@
 ﻿<template>
-  <div class="z-10 w-full h-full flex flex-col items-center justify-center pa-4 grow">
-    <div class="login-header w-full">
-      <h2 class="text-2xl font-bold">{{ t('auth.loginTitle') }}</h2>
-      <p class="text-sm font-medium">{{ t('auth.loginSubtitle') }}</p>
+  <div class="login-wrapper w-100" style="max-width: 380px; margin: 0 auto">
+    <div class="mb-8 text-right flex gap-4 items-center justify-items-start">
+      <div class="auth-brand__logo w-1/5">
+        <v-icon icon="mdi-shield-lock-outline" size="32" color="white" />
+      </div>
+
+      <div class="auth-brand__content w-4/5">
+        <h1 class="text-h4 font-weight-bold mb-2 text-high-emphasis">{{ t('auth.loginTitle') }}</h1>
+        <p class="text-body-1 text-medium-emphasis">{{ t('auth.loginSubtitle') }}</p>
+      </div>
     </div>
 
-    <v-alert v-if="formError" type="error" variant="tonal" class="mb-5 w-full" density="compact">
-      {{ formError }}
-    </v-alert>
+    <v-form ref="loginFormRef" @submit.prevent="submit">
+      <div class="mb-4">
+        <label class="text-subtitle-2 font-weight-bold d-block mb-1 text-high-emphasis">{{
+          t('auth.username')
+        }}</label>
+        <v-text-field
+          v-model="username"
+          variant="outlined"
+          color="primary"
+          prepend-inner-icon="mdi-account-outline"
+          :rules="rules.username"
+          hide-details="auto"
+          required
+        />
+      </div>
 
-    <v-form ref="loginFormRef" class="w-full" @submit.prevent="submit">
-      <label class="login-label">{{ t('auth.username') }}</label>
-      <v-text-field
-        v-model="username"
-        variant="outlined"
-        density="comfortable"
-        prepend-inner-icon="mdi-account-outline"
-        :rules="rules.username"
-        :hide-details="false"
-        class="mb-1"
-        required
-      />
-
-      <label class="login-label">{{ t('auth.password') }}</label>
-      <v-text-field
-        v-model="password"
-        :type="showPassword ? 'text' : 'password'"
-        variant="outlined"
-        density="comfortable"
-        prepend-inner-icon="mdi-lock-outline"
-        :rules="rules.password"
-        :hide-details="false"
-        class="mb-1"
-        required
-      >
-        <template #append-inner>
-          <v-icon size="20" class="cursor-pointer" @click="showPassword = !showPassword">
-            {{ showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline' }}
-          </v-icon>
-        </template>
-      </v-text-field>
+      <div class="mb-6">
+        <label class="text-subtitle-2 font-weight-bold d-block mb-1 text-high-emphasis">{{
+          t('auth.password')
+        }}</label>
+        <v-text-field
+          v-model="password"
+          :type="showPassword ? 'text' : 'password'"
+          variant="outlined"
+          color="primary"
+          prepend-inner-icon="mdi-lock-outline"
+          :rules="rules.password"
+          hide-details="auto"
+          required
+        >
+          <template #append-inner>
+            <v-btn
+              icon
+              variant="text"
+              density="compact"
+              @click="showPassword = !showPassword"
+              class="mt-n1 text-medium-emphasis"
+              tabindex="-1"
+            >
+              <v-icon size="20">{{
+                showPassword ? 'mdi-eye-off-outline' : 'mdi-eye-outline'
+              }}</v-icon>
+            </v-btn>
+          </template>
+        </v-text-field>
+      </div>
 
       <v-btn
         type="submit"
         color="primary"
+        size="large"
         variant="flat"
         block
-        size="large"
-        class="login-btn mt-4"
+        class="text-button font-weight-bold mt-2"
+        style="letter-spacing: 0.5px"
         :loading="authStore.loading"
         :disabled="authStore.loading || !username || !password"
       >
@@ -58,10 +76,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue';
+import { ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useAuthStore } from '../../stores/authStore';
+import { notifyError } from '@/utils/notify';
 
 interface ValidationRule {
   (v: string): boolean | string;
@@ -79,10 +98,7 @@ const route = useRoute();
 const username = ref<string>('admin');
 const password = ref<string>('admin123');
 const showPassword = ref<boolean>(false);
-const localError = ref<string | null>(null);
 const loginFormRef = ref<LoginForm>();
-
-const formError = computed<string | null>(() => localError.value || authStore.error);
 
 const rules: Record<string, ValidationRule[]> = {
   username: [(v: string) => !!v || t('validation.required')],
@@ -90,7 +106,6 @@ const rules: Record<string, ValidationRule[]> = {
 };
 
 async function submit(): Promise<void> {
-  localError.value = null;
   if (!loginFormRef.value?.validate()) return;
 
   try {
@@ -98,10 +113,26 @@ async function submit(): Promise<void> {
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/';
     await router.replace(redirect);
   } catch (err: any) {
-    localError.value = mapErrorToArabic(err, 'errors.loginFailed');
-    console.error(err);
+    console.error(mapErrorToArabic(err, 'errors.loginFailed'));
   }
 }
-</script>
 
-<style scoped></style>
+watch(
+  () => authStore.error,
+  (value) => {
+    if (!value) return;
+    notifyError(value, { dedupeKey: 'auth-login-error' });
+  }
+);
+</script>
+<style scoped lang="scss">
+.auth-brand__logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(12px);
+  display: grid;
+  place-items: center;
+}
+</style>

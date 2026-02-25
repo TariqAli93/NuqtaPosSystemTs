@@ -20,6 +20,7 @@
     "test:ipc": "pnpm -C apps/electron test:ipc",
     "test:e2e": "pnpm -C apps/electron test:e2e",
     "check:transactions": "node tools/check-transaction-sync.mjs",
+    "check:ipc-parity": "node tools/check-ipc-parity.mjs",
     "test": "pnpm run check:transactions && pnpm run test:unit && pnpm run test:integration && pnpm run test:ipc"
   },
   "keywords": [

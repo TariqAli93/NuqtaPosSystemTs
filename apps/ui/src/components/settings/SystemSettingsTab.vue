@@ -1,11 +1,12 @@
 <template>
   <div>
-    <v-alert v-if="localizedError" type="error" variant="tonal" class="mb-4">
-      {{ localizedError }}
-    </v-alert>
-
     <div class="d-flex justify-end mb-4">
-      <v-btn color="primary" variant="tonal" prepend-icon="mdi-refresh" @click="loadCompanySettings">
+      <v-btn
+        color="primary"
+        variant="tonal"
+        prepend-icon="mdi-refresh"
+        @click="loadCompanySettings"
+      >
         {{ t('common.refresh') }}
       </v-btn>
     </div>
@@ -133,18 +134,25 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useSettingsStore } from '../../stores/settingsStore';
 import { settingsClient } from '@/ipc/settingsClient';
 import type { CompanySettings } from '../../types/domain';
 import type { Ref } from 'vue';
+import { notifyError, notifySuccess, notifyWarn } from '@/utils/notify';
+import { toUserMessage } from '@/utils/errorMessage';
 
 const store = useSettingsStore();
 
 const localizedError = computed(() =>
   store.error ? mapErrorToArabic(store.error, 'errors.unexpected') : null
 );
+
+watch(localizedError, (value) => {
+  if (!value) return;
+  notifyError(value, { dedupeKey: 'settings-error' });
+});
 const savingCompany = ref(false);
 
 const companyForm = reactive<CompanySettings>({
@@ -184,12 +192,13 @@ async function loadCompanySettings() {
     }
   } catch (err) {
     console.error('Failed to load company settings:', err);
+    notifyError(toUserMessage(err));
   }
 }
 
 async function saveCompanySettings() {
   if (!companyForm.name) {
-    alert(t('settings.companyNameRequired'));
+    notifyWarn(t('settings.companyNameRequired'));
     return;
   }
 
@@ -197,13 +206,13 @@ async function saveCompanySettings() {
   try {
     const result = await settingsClient.setCompany(companyForm);
     if (result.ok) {
-      alert(t('settings.companySaved'));
+      notifySuccess(t('settings.companySaved'));
     } else {
-      alert(result.error?.message || t('errors.unexpected'));
+      notifyError(result.error?.message || t('errors.unexpected'));
     }
   } catch (err) {
     console.error('Failed to save company settings:', err);
-    alert(t('errors.unexpected'));
+    notifyError(t('errors.unexpected'));
   } finally {
     savingCompany.value = false;
   }
@@ -218,6 +227,7 @@ async function loadPrinters() {
     printers.value = result?.data?.printers || [];
   } catch (err) {
     console.error('Failed to load printers:', err);
+    notifyError(toUserMessage(err));
   }
 }
 

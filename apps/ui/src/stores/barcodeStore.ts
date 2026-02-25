@@ -9,6 +9,7 @@ export const useBarcodeStore = defineStore('barcode', () => {
   const printJobsTotal = ref(0);
   const loading = ref(false);
   const error = ref<string | null>(null);
+  let pollingTimer: ReturnType<typeof setInterval> | null = null;
 
   async function fetchTemplates() {
     loading.value = true;
@@ -55,6 +56,29 @@ export const useBarcodeStore = defineStore('barcode', () => {
     return result;
   }
 
+  function startPrintJobPolling(
+    params?: {
+      productId?: number;
+      status?: string;
+      limit?: number;
+      offset?: number;
+    },
+    intervalMs: number = 3000
+  ) {
+    stopPrintJobPolling();
+    void fetchPrintJobs(params);
+    pollingTimer = setInterval(() => {
+      void fetchPrintJobs(params);
+    }, intervalMs);
+  }
+
+  function stopPrintJobPolling() {
+    if (pollingTimer) {
+      clearInterval(pollingTimer);
+      pollingTimer = null;
+    }
+  }
+
   async function deleteTemplate(id: number) {
     loading.value = true;
     error.value = null;
@@ -75,5 +99,7 @@ export const useBarcodeStore = defineStore('barcode', () => {
     deleteTemplate,
     fetchPrintJobs,
     createPrintJob,
+    startPrintJobPolling,
+    stopPrintJobPolling,
   };
 });

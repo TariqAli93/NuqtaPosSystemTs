@@ -33,6 +33,7 @@ export const useAccountingStore = defineStore('accounting', () => {
     sourceType?: string;
     dateFrom?: string;
     dateTo?: string;
+    isPosted?: boolean;
     limit?: number;
     offset?: number;
   }) {
@@ -77,7 +78,7 @@ export const useAccountingStore = defineStore('accounting', () => {
     return result;
   }
 
-  async function fetchBalanceSheet(params?: { asOfDate?: string }) {
+  async function fetchBalanceSheet(params?: { fromDate?: string; toDate?: string }) {
     loading.value = true;
     const result = await accountingClient.getBalanceSheet(params);
     if (result.ok) balanceSheet.value = result.data;

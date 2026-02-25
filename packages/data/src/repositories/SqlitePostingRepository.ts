@@ -15,6 +15,7 @@ function mapBatchRow(row: PostingBatchRow): PostingBatch {
     periodEnd: row.periodEnd,
     entriesCount: row.entriesCount,
     totalAmount: row.totalAmount,
+    status: row.status as 'draft' | 'posted' | 'locked',
     postedAt: row.postedAt,
     postedBy: row.postedBy ?? undefined,
     notes: row.notes ?? undefined,
@@ -54,6 +55,7 @@ export class SqlitePostingRepository implements IPostingRepository {
         periodEnd: batch.periodEnd,
         entriesCount: batch.entriesCount,
         totalAmount: batch.totalAmount,
+        status: batch.status,
         postedAt: batch.postedAt || new Date().toISOString(),
         postedBy: batch.postedBy,
         notes: batch.notes,
@@ -164,6 +166,28 @@ export class SqlitePostingRepository implements IPostingRepository {
     return updated;
   }
 
+  postIndividualEntry(entryId: number): void {
+    const result = this.db
+      .update(journalEntries)
+      .set({ isPosted: true })
+      .where(eq(journalEntries.id, entryId))
+      .run();
+    if (result.changes === 0) {
+      throw new Error(`Failed to post individual journal entry ${entryId}. Entry not found.`);
+    }
+  }
+
+  unpostIndividualEntry(entryId: number): void {
+    const result = this.db
+      .update(journalEntries)
+      .set({ isPosted: false, postingBatchId: null })
+      .where(eq(journalEntries.id, entryId))
+      .run();
+    if (result.changes === 0) {
+      throw new Error(`Failed to unpost individual journal entry ${entryId}. Entry not found.`);
+    }
+  }
+
   createReversalEntry(originalEntryId: number, userId: number): JournalEntry {
     // Get original entry with lines
     const original = this.db
@@ -200,10 +224,10 @@ export class SqlitePostingRepository implements IPostingRepository {
         description: `Reversal of ${original.entryNumber}: ${original.description}`,
         sourceType: original.sourceType,
         sourceId: original.sourceId,
-        isPosted: true,
+        isPosted: false,
         isReversed: false,
         reversalOfId: originalEntryId,
-        postingBatchId: original.postingBatchId,
+        postingBatchId: null,
         totalAmount: original.totalAmount,
         currency: original.currency,
         notes: `Auto-generated reversal of entry #${original.entryNumber}`,
@@ -234,6 +258,30 @@ export class SqlitePostingRepository implements IPostingRepository {
       .run();
 
     return mapEntryRow(reversalEntry);
+  }
+
+  voidUnpostedEntry(entryId: number): void {
+    const entry = this.db.select().from(journalEntries).where(eq(journalEntries.id, entryId)).get();
+
+    if (!entry) {
+      throw new Error(`Journal entry ${entryId} not found`);
+    }
+
+    if (entry.isPosted) {
+      throw new Error(
+        `Journal entry ${entryId} is posted and cannot be voided — use reversal instead`
+      );
+    }
+
+    if (entry.isReversed) {
+      throw new Error(`Journal entry ${entryId} is already voided/reversed`);
+    }
+
+    this.db
+      .update(journalEntries)
+      .set({ isReversed: true })
+      .where(eq(journalEntries.id, entryId))
+      .run();
   }
 
   lockBatch(batchId: number): void {

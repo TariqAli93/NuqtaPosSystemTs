@@ -11,6 +11,7 @@ export const PostingBatchSchema = z.object({
   periodEnd: z.string().min(1),
   entriesCount: z.number().int().min(0).default(0),
   totalAmount: z.number().int().min(0).default(0),
+  status: z.enum(['draft', 'posted', 'locked']).default('posted'),
   postedAt: z.string().optional(),
   postedBy: z.number().optional(),
   notes: z.string().nullable().optional(),

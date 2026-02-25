@@ -5,6 +5,7 @@ import {
   SqliteSupplierRepository,
   SqlitePaymentRepository,
   SqliteAccountingRepository,
+  SqliteAuditRepository,
   withTransaction,
 } from '@nuqtaplus/data';
 import {
@@ -21,13 +22,15 @@ export function registerSupplierLedgerHandlers(db: DatabaseType) {
   const supplierRepo = new SqliteSupplierRepository(db.db);
   const paymentRepo = new SqlitePaymentRepository(db.db);
   const accountingRepo = new SqliteAccountingRepository(db.db);
+  const auditRepo = new SqliteAuditRepository(db.db);
 
   const getLedgerUseCase = new GetSupplierLedgerUseCase(ledgerRepo);
   const recordPaymentUseCase = new RecordSupplierPaymentUseCase(
     ledgerRepo,
     supplierRepo,
     paymentRepo,
-    accountingRepo
+    accountingRepo,
+    auditRepo
   );
   const reconcileBalanceUseCase = new ReconcileSupplierBalanceUseCase(
     supplierRepo,
@@ -82,6 +85,13 @@ export function registerSupplierLedgerHandlers(db: DatabaseType) {
           'supplierId and amount must be numbers'
         );
       }
+      if (!Number.isInteger(amount) || amount <= 0) {
+        throw buildValidationError(
+          'supplierLedger:recordPayment',
+          payload,
+          'amount must be a positive integer IQD value'
+        );
+      }
       const userId = userContextService.getUserId() || 1;
       const result = withTransaction(db.sqlite, () =>
         recordPaymentUseCase.executeCommitPhase({
@@ -91,6 +101,17 @@ export function registerSupplierLedgerHandlers(db: DatabaseType) {
           notes: typeof data.notes === 'string' ? data.notes : undefined,
           idempotencyKey: typeof data.idempotencyKey === 'string' ? data.idempotencyKey : undefined,
         }, userId)
+      );
+      await recordPaymentUseCase.executeSideEffectsPhase(
+        result,
+        {
+          supplierId,
+          amount,
+          paymentMethod: String(data.paymentMethod),
+          notes: typeof data.notes === 'string' ? data.notes : undefined,
+          idempotencyKey: typeof data.idempotencyKey === 'string' ? data.idempotencyKey : undefined,
+        },
+        userId
       );
       return ok(result);
     } catch (error: unknown) {

@@ -1,68 +1,12 @@
 {
-  "version": "5",
+  "version": "7",
   "dialect": "sqlite",
   "entries": [
     {
       "idx": 0,
-      "version": "5",
-      "when": 1770326507056,
-      "tag": "0000_sad_jack_flag",
-      "breakpoints": true
-    },
-    {
-      "idx": 1,
-      "version": "5",
-      "when": 1770846464483,
-      "tag": "0001_omniscient_black_crow",
-      "breakpoints": true
-    },
-    {
-      "idx": 2,
-      "version": "5",
-      "when": 1770852116976,
-      "tag": "0002_normal_gorgon",
-      "breakpoints": true
-    },
-    {
-      "idx": 3,
       "version": "6",
-      "when": 1771156951966,
-      "tag": "0003_add_payment_reference_and_status",
-      "breakpoints": true
-    },
-    {
-      "idx": 4,
-      "version": "6",
-      "when": 1771244317207,
-      "tag": "0004_large_daredevil",
-      "breakpoints": true
-    },
-    {
-      "idx": 5,
-      "version": "6",
-      "when": 1771250146708,
-      "tag": "0005_nappy_power_pack",
-      "breakpoints": true
-    },
-    {
-      "idx": 6,
-      "version": "6",
-      "when": 1771305600000,
-      "tag": "0006_plan_a_idempotency",
-      "breakpoints": true
-    },
-    {
-      "idx": 7,
-      "version": "6",
-      "when": 1771900800000,
-      "tag": "0007_setup_wizard_and_posting",
-      "breakpoints": true
-    },
-    {
-      "idx": 8,
-      "version": "6",
-      "when": 1772100000000,
-      "tag": "0008_canonical_setup_keys",
+      "when": 1771610494121,
+      "tag": "0000_freezing_caretaker",
       "breakpoints": true
     }
   ]

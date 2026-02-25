@@ -1,7 +1,7 @@
 ﻿<template>
   <v-container>
     <div class="win-page">
-      <v-app-bar class="ds-page-header d-flex align-center justify-space-between mb-6">
+      <v-app-bar class="mb-6" border="bottom">
         <template #prepend>
           <v-btn icon="mdi-arrow-right" variant="text" to="/sales" />
         </template>
@@ -9,11 +9,30 @@
           <div class="win-title mb-0">{{ t('sales.details') }}</div>
           <div class="text-sm">{{ sale?.invoiceNumber ?? '' }}</div>
         </v-app-bar-title>
-      </v-app-bar>
 
-      <v-alert v-if="localizedError" type="error" variant="tonal" class="mb-6">
-        {{ localizedError }}
-      </v-alert>
+        <template #append>
+          <div class="d-flex ga-2">
+            <v-btn
+              v-if="sale?.status === 'completed'"
+              color="warning"
+              prepend-icon="mdi-cash-refund"
+              :loading="refunding"
+              @click="refundDialog = true"
+            >
+              استرجاع
+            </v-btn>
+            <v-btn
+              v-if="sale?.status === 'completed' || sale?.status === 'pending'"
+              color="error"
+              prepend-icon="mdi-close-circle-outline"
+              :loading="cancelling"
+              @click="cancelDialog = true"
+            >
+              إلغاء الفاتورة
+            </v-btn>
+          </div>
+        </template>
+      </v-app-bar>
 
       <v-skeleton-loader v-if="loading" type="card, table" class="mb-4" />
 
@@ -64,6 +83,9 @@
             </v-card>
           </v-col>
         </v-row>
+
+        <!-- Action buttons -->
+        <div class="d-flex ga-2 mb-4"></div>
 
         <!-- Sale info -->
         <v-card class="win-card mb-4" flat>
@@ -131,6 +153,7 @@
               density="comfortable"
               class="ds-table-enhanced ds-table-striped"
               :hide-default-footer="true"
+              show-expand
             >
               <template #item.productName="{ item }">
                 <span class="font-weight-medium">{{ item.productName }}</span>
@@ -166,18 +189,16 @@
                             v-if="dep.expiryDate"
                             size="x-small"
                             variant="tonal"
-                            :color="isExpiringSoon(dep.expiryDate) ? 'error' : 'grey'"
+                            :color="expiryChipColor(dep.expiryDate)"
                           >
-                            {{ dep.expiryDate }}
+                            {{ dep.expiryDate }} · {{ expiryLabel(dep.expiryDate) }}
                           </v-chip>
                           <span v-else>—</span>
                         </td>
-                        <td class="text-center">{{ dep.quantity }}</td>
+                        <td class="text-center">{{ dep.quantityBase }}</td>
                         <td class="text-end">{{ formatAmount(dep.costPerUnit ?? 0) }}</td>
                         <td class="text-end font-weight-medium">
-                          {{
-                            formatAmount(Math.round((dep.quantity ?? 0) * (dep.costPerUnit ?? 0)))
-                          }}
+                          {{ formatAmount(dep.totalCost ?? 0) }}
                         </td>
                       </tr>
                     </tbody>
@@ -219,6 +240,10 @@
                   {{ formatAmount(sale.total - (sale.cogs ?? 0)) }}
                 </div>
               </v-col>
+              <v-col cols="6" sm="3">
+                <div class="text-caption text-medium-emphasis">نسبة الربح</div>
+                <div class="text-body-1 font-weight-bold text-success">{{ profitMarginPct }}%</div>
+              </v-col>
             </v-row>
           </v-card-text>
         </v-card>
@@ -234,27 +259,73 @@
         </v-card>
       </template>
     </div>
+
+    <!-- Refund confirmation dialog -->
+    <v-dialog v-model="refundDialog" max-width="420">
+      <v-card>
+        <v-card-title>تأكيد الاسترجاع</v-card-title>
+        <v-card-text>
+          هل أنت متأكد من استرجاع هذه الفاتورة؟ سيتم إعادة البضاعة للمخزون وعكس القيود المحاسبية.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="refundDialog = false">إلغاء</v-btn>
+          <v-btn color="warning" :loading="refunding" @click="executeRefund">استرجاع</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- Cancel confirmation dialog -->
+    <v-dialog v-model="cancelDialog" max-width="420">
+      <v-card>
+        <v-card-title>تأكيد الإلغاء</v-card-title>
+        <v-card-text>
+          هل أنت متأكد من إلغاء هذه الفاتورة؟ لا يمكن التراجع عن هذا الإجراء.
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn variant="text" @click="cancelDialog = false">إلغاء</v-btn>
+          <v-btn color="error" :loading="cancelling" @click="executeCancel">تأكيد الإلغاء</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue';
+import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { mapErrorToArabic, t } from '../../i18n/t';
 import { useSalesStore } from '../../stores/salesStore';
 import EmptyState from '../../components/emptyState.vue';
 import AuditLogTab from '../../components/shared/AuditLogTab.vue';
 import type { Sale } from '../../types/domain';
+import { notifyError, notifySuccess } from '@/utils/notify';
 
 const store = useSalesStore();
 const route = useRoute();
 
 const sale = ref<Sale | null>(null);
 const loading = ref(false);
+const refunding = ref(false);
+const cancelling = ref(false);
+const refundDialog = ref(false);
+const cancelDialog = ref(false);
 
 const localizedError = computed(() =>
   store.error ? mapErrorToArabic(store.error, 'errors.loadFailed') : null
 );
+
+watch(localizedError, (value) => {
+  if (!value) return;
+  notifyError(value, { dedupeKey: 'sale-details-error' });
+});
+
+const profitMarginPct = computed(() => {
+  if (!sale.value || !sale.value.cogs || sale.value.total === 0) return '0';
+  const margin = ((sale.value.total - sale.value.cogs) / sale.value.total) * 100;
+  return margin.toFixed(1);
+});
 
 const itemHeaders = computed(() => [
   { title: t('sales.product'), key: 'productName' },
@@ -262,6 +333,7 @@ const itemHeaders = computed(() => [
   { title: t('sales.unitPrice'), key: 'unitPrice' },
   { title: t('sales.discount'), key: 'discount' },
   { title: t('sales.subtotal'), key: 'subtotal' },
+  { title: '', key: 'data-table-expand' },
 ]);
 
 function statusLabel(status: string): string {
@@ -292,15 +364,62 @@ function statusIcon(status: string): string {
 }
 
 function formatAmount(value: number): string {
+  const normalized = Number.isInteger(value) ? value : 0;
   return new Intl.NumberFormat('ar-IQ', {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  }).format(Math.round(value));
+  }).format(normalized);
 }
 
 function isExpiringSoon(dateStr: string): boolean {
   const diff = new Date(dateStr).getTime() - Date.now();
-  return diff < 30 * 24 * 60 * 60 * 1000;
+  return diff >= 0 && diff < 30 * 24 * 60 * 60 * 1000;
+}
+
+function isExpired(dateStr: string): boolean {
+  return new Date(dateStr).getTime() < Date.now();
+}
+
+function expiryChipColor(dateStr: string): string {
+  if (isExpired(dateStr)) return 'error';
+  if (isExpiringSoon(dateStr)) return 'warning';
+  return 'grey';
+}
+
+function expiryLabel(dateStr: string): string {
+  if (isExpired(dateStr)) return 'منتهي';
+  if (isExpiringSoon(dateStr)) return 'قريب';
+  return 'صالح';
+}
+
+async function executeRefund() {
+  if (!sale.value?.id) return;
+  refunding.value = true;
+  refundDialog.value = false;
+  store.error = null;
+
+  const result = await store.refundSale(sale.value.id);
+  refunding.value = false;
+
+  if (result.ok) {
+    sale.value = result.data;
+    notifySuccess('تم الاسترجاع بنجاح');
+  }
+}
+
+async function executeCancel() {
+  if (!sale.value?.id) return;
+  cancelling.value = true;
+  cancelDialog.value = false;
+  store.error = null;
+
+  const result = await store.cancelSale(sale.value.id);
+  cancelling.value = false;
+
+  if (result.ok) {
+    sale.value = result.data;
+    notifySuccess('تم إلغاء الفاتورة');
+  }
 }
 
 async function loadSale() {
@@ -310,6 +429,8 @@ async function loadSale() {
   const result = await store.getSale(id);
   if (result.ok) {
     sale.value = result.data;
+  } else {
+    notifyError(mapErrorToArabic(result.error, 'errors.loadFailed'));
   }
   loading.value = false;
 }
