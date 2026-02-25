@@ -1,11 +1,11 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
-import { productRoutes } from './routes/products';
-import { saleRoutes } from './routes/sales';
-import { authRoutes } from './routes/auth';
+import { productRoutes } from './routes/products.js';
+import { saleRoutes } from './routes/sales.js';
+import { authRoutes } from './routes/auth.js';
 import { registerSyncRoutes } from './routes/sync.js';
 import { SyncService } from './services/SyncService.js';
-import { getDatabase } from './db.js';
+import { getDatabase } from './db/index.js';
 
 const server = Fastify({
   logger: true,

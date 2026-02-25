@@ -1,0 +1,81 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreBinaries": [
+    "major",
+    "minor"
+  ],
+  "workspaces": {
+    ".": {
+      "entry": [
+        "package.json",
+        "eslint.config.js",
+        "vitest.config.ts",
+        "playwright.config.ts",
+        "tools/**/*.mjs",
+        "e2e/main.spec.ts"
+      ],
+      "project": [
+        "*.{js,mjs,ts}",
+        "e2e/**/*.{ts,mts}"
+      ]
+    },
+    "apps/electron": {
+      "entry": [
+        "electron.vite.config.ts",
+        "src/main/index.ts",
+        "src/preload/index.ts",
+        "src/index.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,vue}",
+        "electron-builder.yml",
+        "index.html"
+      ]
+    },
+    "apps/ui": {
+      "entry": [
+        "src/main.ts",
+        "src/app/router/index.ts",
+        "src/app/router/routes.ts",
+        "src/layouts/*.vue",
+        "src/modules/**/routes.ts",
+        "src/ipc/index.ts",
+        "src/app/bootstraps/index.ts"
+      ],
+      "project": [
+        "src/**/*.{ts,tsx,vue,css}",
+        "index.html"
+      ]
+    },
+    "packages/core": {
+      "entry": [
+        "src/index.ts"
+      ],
+      "project": [
+        "src/**/*.ts"
+      ]
+    },
+    "packages/data": {
+      "entry": [
+        "src/index.ts",
+        "src/db.ts",
+        "src/migrate.ts",
+        "src/seed.ts",
+        "drizzle.config.ts"
+      ],
+      "project": [
+        "src/**/*.ts",
+        "drizzle/**/*.sql"
+      ]
+    },
+    "servers/cloud-api": {
+      "entry": [
+        "src/server.ts",
+        "src/db/index.ts"
+      ],
+      "project": [
+        "src/**/*.ts"
+      ]
+    }
+  }
+}

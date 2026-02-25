@@ -15,7 +15,8 @@
     "db:generate": "drizzle-kit generate --config ./drizzle.config.ts",
     "db:migrate": "tsx ./src/migrate.ts",
     "db:seed": "tsx ./src/seed.ts",
-    "test": "vitest run"
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "@nuqtaplus/core": "workspace:*",
@@ -26,6 +27,7 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "drizzle-kit": "^0.31.9",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "vitest": "^1.2.2"
   }
 }
