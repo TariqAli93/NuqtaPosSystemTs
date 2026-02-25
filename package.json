@@ -21,7 +21,10 @@
     "test:e2e": "pnpm -C apps/electron test:e2e",
     "check:transactions": "node tools/check-transaction-sync.mjs",
     "check:ipc-parity": "node tools/check-ipc-parity.mjs",
-    "test": "pnpm run check:transactions && pnpm run test:unit && pnpm run test:integration && pnpm run test:ipc"
+    "test": "pnpm run check:transactions && pnpm run test:unit && pnpm run test:integration && pnpm run test:ipc",
+    "lint": "eslint .",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "knip": "knip --config knip.json"
   },
   "keywords": [
     "accounting",
@@ -37,7 +40,15 @@
     "@types/better-sqlite3": "^7.6.13",
     "concurrently": "^9.2.1",
     "tsx": "^4.21.0",
-    "turbo": "^2.8.1"
+    "turbo": "^2.8.1",
+    "eslint": "^9.36.0",
+    "@eslint/js": "^9.36.0",
+    "eslint-plugin-vue": "^10.4.0",
+    "eslint-config-prettier": "^10.1.8",
+    "globals": "^16.4.0",
+    "knip": "^5.62.0",
+    "@playwright/test": "^1.55.1",
+    "vitest": "^1.2.2"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
