@@ -13,7 +13,7 @@
           <v-tab value="system">إعدادات النظام</v-tab>
           <v-tab value="pos">نقطة البيع</v-tab>
           <v-tab value="accounting">المحاسبة</v-tab>
-          <v-tab value="barcode">الباركود</v-tab>
+          <v-tab v-if="canPrintBarcodes" value="barcode">الباركود</v-tab>
           <v-tab v-if="canManageUsers" value="users">المستخدمين</v-tab>
         </v-tabs>
 
@@ -38,7 +38,7 @@
             </v-card-text>
           </v-window-item>
 
-          <v-window-item value="barcode">
+          <v-window-item v-if="canPrintBarcodes" value="barcode">
             <v-card-text>
               <BarcodeSettingsTab />
             </v-card-text>
@@ -60,7 +60,7 @@ import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { t } from '../../i18n/t';
 import { useAuthStore } from '../../stores/authStore';
-import * as uiAccess from '../../auth/uiAccess';
+import { useAccess } from '../../composables/useAccess';
 import SystemSettingsTab from '@/components/settings/SystemSettingsTab.vue';
 import PosSettingsTab from '@/components/settings/PosSettingsTab.vue';
 import AccountingSettingsTab from '@/components/settings/AccountingSettingsTab.vue';
@@ -72,17 +72,20 @@ type SettingsTab = 'system' | 'pos' | 'accounting' | 'barcode' | 'users';
 const route = useRoute();
 const router = useRouter();
 const authStore = useAuthStore();
+const access = useAccess();
 const activeTab = ref<SettingsTab>('system');
 
 const canManageUsers = computed(() => {
   const role = authStore.user?.role;
   if (!role) return false;
-  if (uiAccess.canManageUsers(role)) return true;
+  if (access.canManageUsers.value) return true;
 
   return authStore.permissions.some((permission) =>
     ['users:read', 'users:create', 'users:update', 'users:delete'].includes(permission)
   );
 });
+
+const canPrintBarcodes = computed(() => access.canPrintBarcodes.value);
 
 const validTabs: SettingsTab[] = ['system', 'pos', 'accounting', 'barcode', 'users'];
 
@@ -94,6 +97,7 @@ function normalizeQueryTab(value: unknown): SettingsTab {
 }
 
 function resolveAllowedTab(tab: SettingsTab): SettingsTab {
+  if (tab === 'barcode' && !canPrintBarcodes.value) return 'system';
   if (tab === 'users' && !canManageUsers.value) return 'system';
   return tab;
 }

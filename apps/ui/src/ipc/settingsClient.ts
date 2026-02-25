@@ -39,13 +39,13 @@ export interface AllModuleSettings {
   wizardCompleted: boolean;
 }
 
-export interface SetupWizardPayload {
+interface SetupWizardPayload {
   modules: ModuleSettings;
   notifications: NotificationSettings;
   invoice: InvoiceSettings;
 }
 
-export type TypedSettingValue = string | number | boolean | null;
+type TypedSettingValue = string | number | boolean | null;
 
 export const settingsClient = {
   get: (key: string): Promise<ApiResult<string | null>> =>
@@ -61,10 +61,7 @@ export const settingsClient = {
     ),
 
   setTyped: (values: Record<string, TypedSettingValue>): Promise<ApiResult<{ ok: true }>> =>
-    invoke<{ ok: true }>(
-      'settings:setTyped',
-      buildDataPayload('settings:setTyped', { values })
-    ),
+    invoke<{ ok: true }>('settings:setTyped', buildDataPayload('settings:setTyped', { values })),
 
   getCurrency: (): Promise<ApiResult<SettingsCurrencyResponse>> =>
     invoke<SettingsCurrencyResponse>('settings:getCurrency'),

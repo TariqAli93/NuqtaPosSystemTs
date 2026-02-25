@@ -12,14 +12,13 @@
   "dependencies": {
     "@nuqtaplus/core": "workspace:*",
     "pinia": "^3.0.4",
+    "tailwindcss": "^4.1.18",
     "vue": "^3.5.28",
     "vue-router": "^4.5.1",
     "vue-toastflow": "^1.1.7",
-    "vuetify": "^3.11.8",
-    "tailwindcss": "^4.1.18"
+    "vuetify": "^3.11.8"
   },
   "devDependencies": {
-    "sass-embedded": "^1.97.3",
     "vue-tsc": "^3.2.4"
   },
   "packageManager": "pnpm@10.28.0"

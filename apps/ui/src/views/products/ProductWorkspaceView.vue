@@ -49,7 +49,7 @@
             <v-tab value="sales">سجل المبيعات</v-tab>
             <v-tab value="units">الوحدات والباركود</v-tab>
             <v-tab value="batches">الدفعات والصلاحية</v-tab>
-            <v-tab value="adjust">تعديل المخزون</v-tab>
+            <v-tab v-if="showAdjustTab" value="adjust">تعديل المخزون</v-tab>
           </v-tabs>
           <v-divider />
 
@@ -114,7 +114,7 @@
               </v-card-text>
             </v-window-item>
 
-            <v-window-item value="adjust">
+            <v-window-item v-if="showAdjustTab" value="adjust">
               <v-card-text>
                 <v-btn color="primary" :disabled="!selectedProductId" @click="openAdjustDrawer">
                   فتح نموذج التعديل
@@ -262,6 +262,7 @@ import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { categoriesClient, suppliersClient } from '@/ipc';
 import { useProductWorkspaceStore } from '@/stores/productWorkspaceStore';
+import { useAccess } from '@/composables/useAccess';
 import { generateIdempotencyKey } from '@/utils/idempotency';
 import { notifyError, notifyInfo } from '@/utils/notify';
 import { toUserMessage } from '@/utils/errorMessage';
@@ -283,6 +284,7 @@ import StockAdjustDrawer from '@/components/workspace/StockAdjustDrawer.vue';
 const route = useRoute();
 const router = useRouter();
 const workspaceStore = useProductWorkspaceStore();
+const access = useAccess();
 
 const categories = ref<Array<{ id: number; name: string }>>([]);
 const suppliers = ref<Array<{ id: number; name: string }>>([]);
@@ -294,6 +296,7 @@ const editMode = ref(false);
 const deleteDialog = ref(false);
 
 const selectedProductId = computed(() => workspaceStore.selectedProductId);
+const showAdjustTab = computed(() => access.canAdjustStock.value);
 let barcodePollingTimer: ReturnType<typeof setInterval> | null = null;
 
 function stopBarcodePolling(): void {

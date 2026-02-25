@@ -17,42 +17,6 @@ const getStoredTheme = (): 'light' | 'dark' => {
 };
 
 /**
- * Optional app-wide design tokens (NOT consumed by Vuetify automatically).
- * Keep these if your app references them (CSS vars, custom composables, etc.)
- */
-export const codelDesignTokens = Object.freeze({
-  typography: {
-    fontFamily: '"Roboto", "Noto Sans Arabic", "Segoe UI", "Helvetica Neue", sans-serif',
-    // If you want Vuetify to truly use these scales, do it via Sass variables OR via
-    // component-level classes/`style` bindings. Vuetify 3 does not take a `typography` option.
-    scales: {
-      h1: { fontSize: '3.75rem', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 },
-      h2: { fontSize: '2.5rem', fontWeight: 700, letterSpacing: '-0.01em', lineHeight: 1.3 },
-      h3: { fontSize: '2rem', fontWeight: 600, letterSpacing: '0', lineHeight: 1.4 },
-      h4: { fontSize: '1.5rem', fontWeight: 600, lineHeight: 1.4 },
-      h5: { fontSize: '1.25rem', fontWeight: 600, lineHeight: 1.5 },
-      h6: { fontSize: '1.125rem', fontWeight: 600, lineHeight: 1.5 },
-      body1: { fontSize: '1rem', fontWeight: 400, lineHeight: 1.6 },
-      body2: { fontSize: '0.875rem', fontWeight: 400, lineHeight: 1.5 },
-    },
-  },
-  spacing: { base: 8, xs: 4, sm: 8, md: 16, lg: 24, xl: 32 },
-  radii: { sm: '4px', md: '8px', lg: '12px', xl: '16px' },
-  shadows: {
-    none: 'none',
-    sm: '0 1px 2px rgba(0, 0, 0, 0.05)',
-    md: '0 2px 8px rgba(0, 0, 0, 0.08)',
-    lg: '0 4px 16px rgba(0, 0, 0, 0.1)',
-    xl: '0 8px 24px rgba(0, 0, 0, 0.12)',
-  },
-  transitions: {
-    fast: '0.15s cubic-bezier(0.4, 0, 0.2, 1)',
-    base: '0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-    slow: '0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-  },
-});
-
-/**
  * The actual Vuetify blueprint to pass into `createVuetify(...)`.
  * Import once (single module instance) to avoid recreating defaults/themes and triggering extra work.
  */

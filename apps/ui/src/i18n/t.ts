@@ -29,7 +29,11 @@ export function mapErrorToArabic(error: unknown, fallbackKey = 'errors.unexpecte
     typeof error === 'string'
       ? error
       : typeof error === 'object'
-        ? String((error as { message?: unknown; error?: unknown }).message ?? (error as { error?: unknown }).error ?? '')
+        ? String(
+            (error as { message?: unknown; error?: unknown }).message ??
+              (error as { error?: unknown }).error ??
+              ''
+          )
         : '';
 
   const message = rawMessage.trim();
@@ -50,15 +54,6 @@ export function mapErrorToArabic(error: unknown, fallbackKey = 'errors.unexpecte
   }
 
   return fallback;
-}
-
-export function mapStatusToArabic(status: string | null | undefined): string {
-  if (!status) return t('common.none');
-  return t(`enum.saleStatus.${status}`) !== t('errors.undefinedText')
-    ? t(`enum.saleStatus.${status}`)
-    : t(`enum.productStatus.${status}`) !== t('errors.undefinedText')
-      ? t(`enum.productStatus.${status}`)
-      : t('common.none');
 }
 
 export function mapRoleToArabic(role: string | null | undefined): string {

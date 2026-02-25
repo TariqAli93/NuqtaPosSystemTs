@@ -54,14 +54,14 @@ export interface PresetSupplier {
   notes: string;
 }
 
-export interface PresetPurchaseItem {
+interface PresetPurchaseItem {
   productRef: string; // SKU
   quantity: number;
   unitCost: number;
   unit?: string; // Optional: specify a unit like 'carton'
 }
 
-export interface PresetPurchase {
+interface PresetPurchase {
   supplierRef: string; // matches supplier name
   invoiceNumber: string;
   items: PresetPurchaseItem[];
@@ -69,13 +69,13 @@ export interface PresetPurchase {
   notes: string;
 }
 
-export interface PresetSaleItem {
+interface PresetSaleItem {
   productRef: string; // SKU
   quantity: number;
   unit?: string; // Optional: specify a unit
 }
 
-export interface PresetSale {
+interface PresetSale {
   customerRef: number; // index into customers array
   discount: number;
   paymentType: 'cash' | 'credit' | 'mixed';
@@ -99,7 +99,7 @@ export interface Preset {
 // SUPERMARKET / GROCERY
 // ============================================================
 
-export const supermarket: Preset = {
+const supermarket: Preset = {
   label: 'سوبرماركت / بقالة',
   categories: [
     { name: 'مواد غذائية', description: 'مواد غذائية أساسية ومستلزمات يومية' },

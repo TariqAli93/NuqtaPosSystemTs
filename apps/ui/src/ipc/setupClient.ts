@@ -20,7 +20,7 @@ export interface AccountingSetupStatus {
   warnings: string[];
 }
 
-export interface SeedChartOfAccountsRequest {
+interface SeedChartOfAccountsRequest {
   baseCurrency?: string;
   cashAccountCode?: string;
   inventoryAccountCode?: string;
@@ -32,7 +32,7 @@ export interface SeedChartOfAccountsRequest {
 
 type IpcPayload = Record<string, unknown>;
 
-export interface SeedChartOfAccountsResponse extends AccountingSetupStatus {
+interface SeedChartOfAccountsResponse extends AccountingSetupStatus {
   message: string;
   createdCodes: string[];
   existingCodes: string[];

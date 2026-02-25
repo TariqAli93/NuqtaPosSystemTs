@@ -1,9 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreBinaries": [
-    "major",
-    "minor"
-  ],
+  "ignoreBinaries": ["major", "minor"],
   "workspaces": {
     ".": {
       "entry": [
@@ -11,13 +8,9 @@
         "eslint.config.js",
         "vitest.config.ts",
         "playwright.config.ts",
-        "tools/**/*.mjs",
         "e2e/main.spec.ts"
       ],
-      "project": [
-        "*.{js,mjs,ts}",
-        "e2e/**/*.{ts,mts}"
-      ]
+      "project": ["*.{js,mjs,ts}", "e2e/**/*.{ts,mts}"]
     },
     "apps/electron": {
       "entry": [
@@ -26,11 +19,7 @@
         "src/preload/index.ts",
         "src/index.ts"
       ],
-      "project": [
-        "src/**/*.{ts,tsx,vue}",
-        "electron-builder.yml",
-        "index.html"
-      ]
+      "project": ["src/**/*.{ts,tsx,vue}", "electron-builder.yml", "index.html"]
     },
     "apps/ui": {
       "entry": [
@@ -42,40 +31,19 @@
         "src/ipc/index.ts",
         "src/app/bootstraps/index.ts"
       ],
-      "project": [
-        "src/**/*.{ts,tsx,vue,css}",
-        "index.html"
-      ]
+      "project": ["src/**/*.{ts,tsx,vue,css}", "index.html"]
     },
     "packages/core": {
-      "entry": [
-        "src/index.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ]
+      "entry": ["src/index.ts"],
+      "project": ["src/**/*.ts"]
     },
     "packages/data": {
-      "entry": [
-        "src/index.ts",
-        "src/db.ts",
-        "src/migrate.ts",
-        "src/seed.ts",
-        "drizzle.config.ts"
-      ],
-      "project": [
-        "src/**/*.ts",
-        "drizzle/**/*.sql"
-      ]
+      "entry": ["src/index.ts", "src/db.ts", "src/migrate.ts", "src/seed.ts", "drizzle.config.ts"],
+      "project": ["src/**/*.ts", "drizzle/**/*.sql"]
     },
     "servers/cloud-api": {
-      "entry": [
-        "src/server.ts",
-        "src/db/index.ts"
-      ],
-      "project": [
-        "src/**/*.ts"
-      ]
+      "entry": ["src/server.ts", "src/db/index.ts"],
+      "project": ["src/**/*.ts"]
     }
   }
 }

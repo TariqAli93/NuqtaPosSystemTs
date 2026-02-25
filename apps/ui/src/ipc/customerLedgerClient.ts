@@ -3,7 +3,7 @@ import type { CustomerLedgerEntry } from '@nuqtaplus/core';
 import { invoke, invokePaged } from './invoke';
 import { buildDataPayload, buildParamsPayload } from './payloads';
 
-export interface RecordPaymentInput {
+interface RecordPaymentInput {
   customerId: number;
   amount: number;
   paymentMethod: string;
@@ -11,7 +11,7 @@ export interface RecordPaymentInput {
   idempotencyKey?: string;
 }
 
-export interface LedgerAdjustmentInput {
+interface LedgerAdjustmentInput {
   customerId: number;
   amount: number;
   notes?: string;

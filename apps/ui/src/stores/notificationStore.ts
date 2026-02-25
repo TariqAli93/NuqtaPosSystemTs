@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia';
 import { toast } from 'vue-toastflow';
 
-export type ToastType = 'success' | 'error' | 'info' | 'warn';
+type ToastType = 'success' | 'error' | 'info' | 'warn';
 
 export type ToastPosition =
   | 'top-left'

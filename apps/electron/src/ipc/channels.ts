@@ -163,5 +163,3 @@ export const RENDERER_IPC_CHANNELS = [
   'users:create',
   'users:update',
 ] as const;
-
-export type RendererIpcChannel = (typeof RENDERER_IPC_CHANNELS)[number];

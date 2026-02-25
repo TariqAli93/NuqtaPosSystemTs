@@ -81,18 +81,3 @@ export type ProductBatchInput = Pick<
   | 'status'
   | 'notes'
 >;
-
-export interface ProductWorkspaceSnapshot {
-  product: Product | null;
-  movements: InventoryMovement[];
-  movementsTotal: number;
-  purchases: ProductPurchaseHistoryItem[];
-  purchasesTotal: number;
-  sales: ProductSalesHistoryItem[];
-  salesTotal: number;
-  units: ProductUnit[];
-  batches: ProductBatch[];
-  templates: BarcodeTemplate[];
-  printJobs: BarcodePrintJob[];
-  printJobsTotal: number;
-}

@@ -14,7 +14,7 @@ export interface AuditEvent {
   timestamp: string;
 }
 
-export interface AuditStatistics {
+interface AuditStatistics {
   totalEvents: number;
   byAction: Record<string, number>;
   byEntityType: Record<string, number>;

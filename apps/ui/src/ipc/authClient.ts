@@ -3,13 +3,13 @@ import type { FirstUserInput, UserPublic, CompanySettings } from '../types/domai
 import { invoke } from './invoke';
 import { buildDataPayload } from './payloads';
 
-export interface AuthLoginRequest {
+interface AuthLoginRequest {
   username: string;
   password: string;
   [key: string]: any;
 }
 
-export interface AuthLoginResponse {
+interface AuthLoginResponse {
   accessToken: string;
   refreshToken?: string;
   user: UserPublic;
@@ -33,29 +33,29 @@ export interface InitializeAppRequest {
   companySettings: CompanySettings;
 }
 
-export interface AuthVerifyCredentialsRequest {
+interface AuthVerifyCredentialsRequest {
   username: string;
   password: string;
   [key: string]: any;
 }
 
-export interface AuthVerifyCredentialsResponse {
+interface AuthVerifyCredentialsResponse {
   user: UserPublic;
   permissions?: string[];
 }
 
-export interface AuthChangePasswordRequest {
+interface AuthChangePasswordRequest {
   username: string;
   currentPassword: string;
   newPassword: string;
   [key: string]: any;
 }
 
-export interface AuthChangePasswordResponse {
+interface AuthChangePasswordResponse {
   success: true;
 }
 
-export interface AuthValidateTokenResponse {
+interface AuthValidateTokenResponse {
   valid: boolean;
   error?: string;
 }

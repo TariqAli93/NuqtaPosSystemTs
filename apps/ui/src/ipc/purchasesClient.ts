@@ -24,7 +24,7 @@ export interface PurchaseCreateInput {
   idempotencyKey?: string;
 }
 
-export interface PurchasePaymentInput {
+interface PurchasePaymentInput {
   purchaseId: number;
   supplierId?: number;
   amount: number;

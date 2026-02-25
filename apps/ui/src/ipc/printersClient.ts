@@ -1,12 +1,12 @@
 import type { ApiResult } from './contracts';
 import { invoke } from './invoke';
 
-export interface Printer {
+interface Printer {
   name: string;
   isDefault: boolean;
 }
 
-export interface PrintOptions {
+interface PrintOptions {
   receiptHtml: string | unknown; // HTML content to print; treated as string in handler
   printerName: string | unknown; // null or empty means use default printer
   cut: 'none' | 'full' | 'partial' | unknown; // if silent, don't cut the paper

@@ -12,7 +12,7 @@ import { getNuqtaPrinterExePath } from '../services/PrinterPaths.js';
 
 const NUQTA_PRINTER_PATH = getNuqtaPrinterExePath();
 
-export type PrintRequest = {
+type PrintRequest = {
   receiptHtml: string;
   printerName: string;
   cut?: 'full' | 'partial' | 'none';
@@ -20,7 +20,7 @@ export type PrintRequest = {
   feedLines?: number; // default 5
 };
 
-export type PrintResponse = {
+type PrintResponse = {
   ok: boolean;
   printed: boolean;
   cutDone: boolean;

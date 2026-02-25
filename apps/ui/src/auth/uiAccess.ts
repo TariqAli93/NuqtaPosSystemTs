@@ -43,17 +43,3 @@ export function canViewAccounting(role: UserRole): boolean {
 export function canPrintBarcodes(role: UserRole): boolean {
   return role === 'admin' || role === 'manager';
 }
-
-export default {
-  canManageProducts,
-  canManageCustomers,
-  canCreateSales,
-  canManageSettings,
-  canManageUsers,
-  canManagePurchases,
-  canManageSuppliers,
-  canViewInventory,
-  canAdjustStock,
-  canViewAccounting,
-  canPrintBarcodes,
-};

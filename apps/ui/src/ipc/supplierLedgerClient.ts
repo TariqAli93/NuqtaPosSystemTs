@@ -3,7 +3,7 @@ import type { SupplierLedgerEntry } from '@nuqtaplus/core';
 import { invoke, invokePaged } from './invoke';
 import { buildDataPayload, buildParamsPayload } from './payloads';
 
-export interface SupplierPaymentInput {
+interface SupplierPaymentInput {
   supplierId: number;
   amount: number;
   paymentMethod: string;

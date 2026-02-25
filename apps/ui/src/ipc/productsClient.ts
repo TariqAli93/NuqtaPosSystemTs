@@ -10,7 +10,7 @@ import {
 } from './payloads';
 import type { ProductPurchaseHistoryItem, ProductSalesHistoryItem } from '../types/workspace';
 
-export interface ProductUnitInput {
+interface ProductUnitInput {
   productId: number;
   unitName: string;
   factorToBase: number;
@@ -20,7 +20,7 @@ export interface ProductUnitInput {
   isActive?: boolean;
 }
 
-export interface ProductBatchInput {
+interface ProductBatchInput {
   productId: number;
   batchNumber: string;
   expiryDate?: string | null;

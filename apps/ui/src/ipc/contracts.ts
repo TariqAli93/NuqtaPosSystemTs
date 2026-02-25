@@ -5,7 +5,7 @@
  * All IPC handlers now return ApiResult<T> = { ok: true, data: T } | { ok: false, error: ApiError }.
  */
 
-export type ApiErrorCode = string;
+type ApiErrorCode = string;
 
 export interface ApiError {
   code: ApiErrorCode;
@@ -21,7 +21,7 @@ export interface PagedResult<T> {
   total: number;
 }
 
-export const createSuccess = <T>(data: T): ApiResult<T> => ({ ok: true, data });
+const createSuccess = <T>(data: T): ApiResult<T> => ({ ok: true, data });
 
 export const createFailure = (error: ApiError): ApiResult<never> => ({ ok: false, error });
 

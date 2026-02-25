@@ -1,9 +1,9 @@
 import { ref, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 
-export type ScannerMode = 'pos' | 'product';
+type ScannerMode = 'pos' | 'product';
 
-export interface ScannerOptions {
+interface ScannerOptions {
   mode: ScannerMode;
   onScan: (barcode: string) => void;
   minLength?: number;

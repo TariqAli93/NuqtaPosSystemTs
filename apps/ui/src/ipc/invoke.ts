@@ -23,23 +23,6 @@ async function invokeRaw(channel: string, args: any[]): Promise<any> {
 }
 
 /**
- * Invoke an IPC channel and unwrap the ApiResult envelope.
- * Throws an ApiError if the result is { ok: false }.
- */
-export async function invokeOrThrow<T>(channel: string, ...args: any[]): Promise<T> {
-  const response = await invokeRaw(channel, args);
-
-  // Standard ApiResult envelope
-  if (response?.ok === true && 'data' in response) return response.data as T;
-  if (response?.ok === false && response?.error) {
-    throw normalizeApiError(response.error);
-  }
-
-  // Fallback for non-envelope responses
-  return response as T;
-}
-
-/**
  * Invoke an IPC channel and return a normalised ApiResult<T>.
  */
 export async function invoke<T>(channel: string, ...args: any[]): Promise<ApiResult<T>> {

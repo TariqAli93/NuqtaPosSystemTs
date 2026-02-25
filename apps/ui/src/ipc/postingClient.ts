@@ -16,14 +16,14 @@ export interface PostingBatch {
   createdAt?: string;
 }
 
-export interface PostPeriodInput {
+interface PostPeriodInput {
   periodType: 'day' | 'month' | 'year';
   periodStart: string;
   periodEnd: string;
   notes?: string;
 }
 
-export interface ReverseBatchResult {
+interface ReverseBatchResult {
   batchId: number;
   reversedCount: number;
   entries: any[];
